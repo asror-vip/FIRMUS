@@ -27,12 +27,25 @@ import {
   Bot,
 } from "lucide-react";
 
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+  badgeDot?: boolean;
+}
+
+interface NavigationGroup {
+  label: string;
+  items: NavigationItem[];
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { currentRole, toggleAiDrawer } = useAppState();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const navigationGroups = [
+  const navigationGroups: NavigationGroup[] = [
     {
       label: "Umumiy",
       items: [
