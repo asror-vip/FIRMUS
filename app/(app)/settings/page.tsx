@@ -34,6 +34,7 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 export default function SettingsPage() {
   const { t } = useTranslation();
   const {
+    user,
     currentWorkspace,
     currentRole,
     setCurrentRole,
@@ -59,6 +60,41 @@ export default function SettingsPage() {
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
+
+  // Phone verification state for progressive profiling
+  const [phoneNumber, setPhoneNumber] = useState("+998 90 123-45-67");
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const handleSendOtp = (method: "sms" | "telegram") => {
+    if (!phoneNumber || phoneNumber.length < 9) {
+      toast.error("Iltimos, toʻgʻri telefon raqamini kiriting");
+      return;
+    }
+    setIsOtpSent(true);
+    if (method === "telegram") {
+      toast.success("Telegram botingizga 6 xonali tasdiqlash kodi yuborildi: 582419");
+    } else {
+      toast.success("SMS orqali 6 xonali tasdiqlash kodi yuborildi: 582419");
+    }
+  };
+
+  const handleVerifyOtp = () => {
+    if (!otpCode || otpCode.trim().length !== 6) {
+      toast.error("Iltimos, 6 xonali tasdiqlash kodini toʻliq kiriting");
+      return;
+    }
+    setIsVerifying(true);
+    setTimeout(() => {
+      setIsVerifying(false);
+      setIsPhoneVerified(true);
+      setIsOtpSent(false);
+      setOtpCode("");
+      toast.success("Telefon raqamingiz muvaffaqiyatli tasdiqlandi! Hisob xavfsizligi darajasi oshirildi.");
+    }, 600);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -239,6 +275,105 @@ export default function SettingsPage() {
 
         {/* 2. Security & E-IMZO Tab */}
         <TabsContent value="security" className="space-y-4 mt-4">
+          {/* Progressive Profiling: Phone Verification & 2FA */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-indigo-600" />
+                    Telefon raqami va Xavfsizlik darajasi (2FA)
+                  </CardTitle>
+                  <CardDescription>
+                    Google yoki Email orqali kirgandan soʻng, hisobingizni toʻliq himoyalash uchun telefon raqamingizni tasdiqlang
+                  </CardDescription>
+                </div>
+                {isPhoneVerified ? (
+                  <Badge variant="success" className="text-[10px] gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Tasdiqlangan
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-700">
+                    Tasdiqlanmagan
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3.5 text-xs">
+              <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <label className="font-semibold text-foreground block text-xs">
+                      Ulangan telefon raqami:
+                    </label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Ushbu raqamga muhim moliyaviy oʻzgarishlar va hisobga kirish kodlari yuboriladi.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={phoneNumber}
+                      disabled={isPhoneVerified}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="+998 90 123-45-67"
+                      className="w-44 text-xs h-8 font-mono"
+                    />
+                    {!isPhoneVerified && !isOtpSent && (
+                      <div className="flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSendOtp("telegram")}
+                          className="h-8 text-xs font-medium gap-1 text-sky-600 hover:text-sky-700"
+                        >
+                          Telegram OTP
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSendOtp("sms")}
+                          className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                        >
+                          SMS kod
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {isOtpSent && !isPhoneVerified && (
+                  <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-md">
+                    <div>
+                      <span className="font-semibold text-foreground text-xs block">
+                        6 xonali tasdiqlash kodini kiriting:
+                      </span>
+                      <p className="text-[11px] text-muted-foreground">
+                        Raqamingizga yuborilgan bir martalik kodni yozing (Test kodi: 582419).
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        placeholder="______"
+                        maxLength={6}
+                        className="w-28 text-center text-xs tracking-widest font-mono h-8 font-bold"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={isVerifying}
+                        onClick={handleVerifyOtp}
+                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                      >
+                        {isVerifying ? "Tekshirilmoqda..." : "Tasdiqlash"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">{t.pages.settings.securityTitle}</CardTitle>

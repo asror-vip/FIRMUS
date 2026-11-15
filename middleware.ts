@@ -40,7 +40,8 @@ export async function middleware(request: NextRequest) {
   const isAuthPage =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
-    pathname.startsWith("/forgot-password");
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/auth/callback");
 
   // If user is unauthenticated and attempting to access protected routes
   if (!user && !isAuthPage) {
