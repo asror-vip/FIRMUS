@@ -277,6 +277,12 @@ export interface Translations {
       netProfit: string;
       totalExpenses: string;
       assets: string;
+      pnlReportTitle: string;
+      pnlReportSubtitle: string;
+      balanceReportTitle: string;
+      balanceReportSubtitle: string;
+      cashflowTitle: string;
+      cashflowSubtitle: string;
     };
     aiAuditor: {
       title: string;
@@ -365,6 +371,35 @@ export interface Translations {
       changePlan: string;
       billingHistory: string;
       activeFirmPlan: string;
+      usageQuotaTitle: string;
+      usageQuotaSubtitle: string;
+      paymentMethod: string;
+      meters: {
+        entities: string;
+        entitiesUnit: string;
+        teamMembers: string;
+        teamMembersUnit: string;
+        aiTokens: string;
+        aiTokensSpent: string;
+        storage: string;
+      };
+      plans: {
+        starter: {
+          name: string;
+          description: string;
+          features: string[];
+        };
+        professional: {
+          name: string;
+          description: string;
+          features: string[];
+        };
+        enterprise: {
+          name: string;
+          description: string;
+          features: string[];
+        };
+      };
     };
     settings: {
       title: string;

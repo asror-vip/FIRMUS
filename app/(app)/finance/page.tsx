@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { mockPnLStatement, mockBalanceSheet, mockCashFlowData } from "@/lib/mock/finance";
+import {
+  getLocalizedPnLStatement,
+  getLocalizedBalanceSheet,
+  getLocalizedCashFlowData,
+} from "@/lib/mock/finance";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -22,8 +26,12 @@ import {
 } from "recharts";
 
 export default function FinancePage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [activeTab, setActiveTab] = useState("pnl");
+
+  const pnlStatement = getLocalizedPnLStatement(locale);
+  const balanceSheet = getLocalizedBalanceSheet(locale);
+  const cashFlowData = getLocalizedCashFlowData(locale);
 
   return (
     <div className="space-y-6">
@@ -84,10 +92,10 @@ export default function FinancePage() {
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-sm font-semibold">
-                  Moliyaviy Natijalar Toʻgʻrisida Hisobot (Form №2)
+                  {t.pages.finance.pnlReportTitle}
                 </CardTitle>
                 <CardDescription>
-                  2026-yil 3-chorak (Q3) yakunlari boʻyicha
+                  {t.pages.finance.pnlReportSubtitle}
                 </CardDescription>
               </div>
             </CardHeader>
@@ -102,7 +110,7 @@ export default function FinancePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockPnLStatement.map((row, idx) => (
+                  {pnlStatement.map((row, idx) => (
                     <TableRow
                       key={idx}
                       className={row.isHeader ? "bg-muted/40 font-bold" : "hover:bg-muted/30"}
@@ -133,10 +141,10 @@ export default function FinancePage() {
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-sm font-semibold">
-                  Buxgalteriya Balansi (Form №1)
+                  {t.pages.finance.balanceReportTitle}
                 </CardTitle>
                 <CardDescription>
-                  2026-yil 1-noyabr holatiga
+                  {t.pages.finance.balanceReportSubtitle}
                 </CardDescription>
               </div>
             </CardHeader>
@@ -150,7 +158,7 @@ export default function FinancePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockBalanceSheet.map((row, idx) => (
+                  {balanceSheet.map((row, idx) => (
                     <TableRow
                       key={idx}
                       className={
@@ -183,16 +191,16 @@ export default function FinancePage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">
-                Kirim va Chiqim Nisbati (Oylik Tahlil)
+                {t.pages.finance.cashflowTitle}
               </CardTitle>
               <CardDescription>
-                Daromadlar va xarajatlarning davriy nisbati
+                {t.pages.finance.cashflowSubtitle}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={mockCashFlowData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <BarChart data={cashFlowData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                     <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                     <YAxis

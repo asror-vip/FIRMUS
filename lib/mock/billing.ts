@@ -1,70 +1,75 @@
-export const mockBillingData = {
-  currentPlan: {
-    name: "Professional Plan",
-    price: 299000,
-    period: "oyiga",
-    renewalDate: "2026-12-15",
-    status: "active",
-  },
-  usageMeters: {
-    entities: { current: 3, max: 10, label: "Boshqarilayotgan korxonalar" },
-    teamMembers: { current: 8, max: 15, label: "Jamoa aʼzolari" },
-    aiTokens: { current: 640000, max: 1000000, percentage: 64, label: "AI GPT-6 Luna tokenlari" },
-    storage: { current: 4.2, max: 20, unit: "GB", percentage: 21, label: "Hujjatlar xotirasi (S3)" },
-    monthlyInvoices: { current: 1284, max: 3000, percentage: 43, label: "Oylik E-SF va bank operatsiyalari" },
-  },
-  plans: [
-    {
-      id: "starter",
-      name: "Starter (Kichik biznes)",
-      price: 99000,
-      description: "Yakka tartibdagi tadbirkorlar va 1 ta kompaniyani boshqaruvchi korxonalar uchun.",
-      features: [
-        "1 ta korxona (Business Entity)",
-        "3 tagacha jamoa aʼzosi",
-        "Didox E-SF avtomatlashtirish",
-        "Oylik 500 tagacha operatsiya",
-        "Asosiy hisobotlar va eksport",
-      ],
-      isPopular: false,
-      isCurrent: false,
-    },
-    {
-      id: "professional",
-      name: "Professional (Buxgalteriya firmasi)",
+export function getLocalizedBilling(t: any) {
+  return {
+    currentPlan: {
+      name: t.pages.billing.plans.professional.name,
       price: 299000,
-      description: "Bir nechta mijozlarni yurituvchi professional buxgalterlar va oʻrta korxonalar uchun.",
-      features: [
-        "10 tagacha mijoz korxonalari",
-        "15 tagacha jamoa aʼzosi",
-        "1C:Enterprise 8.3 & Didox integratsiyasi",
-        "GPT-6 Luna AI Auditor va Exception Center",
-        "Avtomatik soliq hisob-kitobi va bank ko'chirmalari",
-        "20 GB shifrlangan S3 xotirasi",
-      ],
-      isPopular: true,
-      isCurrent: true,
+      period: t.common.monthly,
+      renewalDate: "2026-12-15",
+      status: "active",
     },
-    {
-      id: "enterprise",
-      name: "Enterprise (Katta xoldinglar)",
-      price: 899000,
-      description: "Yirik korporatsiyalar, BPO markazlari va cheksiz operatsiyalar uchun.",
-      features: [
-        "Cheksiz mijoz korxonalari",
-        "Cheksiz jamoa aʼzolari",
-        "Shaxsiy 1C Windows Connector va maxsus API",
-        "E-IMZO korporativ avto-imzolash moduli",
-        "24/7 Shaxsiy qo'llab-quvvatlash va audit yordami",
-        "1 TB xavfsiz fayl xotirasi",
-      ],
-      isPopular: false,
-      isCurrent: false,
+    usageQuotaTitle: t.pages.billing.usageQuotaTitle,
+    usageQuotaSubtitle: t.pages.billing.usageQuotaSubtitle,
+    usageMeters: {
+      entities: {
+        current: 3,
+        max: 10,
+        label: t.pages.billing.meters.entities,
+        unit: t.pages.billing.meters.entitiesUnit,
+      },
+      teamMembers: {
+        current: 8,
+        max: 15,
+        label: t.pages.billing.meters.teamMembers,
+        unit: t.pages.billing.meters.teamMembersUnit,
+      },
+      aiTokens: {
+        current: 640000,
+        max: 1000000,
+        percentage: 64,
+        label: t.pages.billing.meters.aiTokens,
+        spent: t.pages.billing.meters.aiTokensSpent,
+      },
+      storage: {
+        current: 4.2,
+        max: 20,
+        unit: "GB",
+        percentage: 21,
+        label: t.pages.billing.meters.storage,
+      },
     },
-  ],
-  invoices: [
-    { id: "inv-881", date: "2026-11-15", amount: 299000, status: "Toʻlangan", paymentMethod: "Kapitalbank Visa Business (•••• 4910)", pdfUrl: "#" },
-    { id: "inv-880", date: "2026-10-15", amount: 299000, status: "Toʻlangan", paymentMethod: "Kapitalbank Visa Business (•••• 4910)", pdfUrl: "#" },
-    { id: "inv-879", date: "2026-09-15", amount: 299000, status: "Toʻlangan", paymentMethod: "Payme Business", pdfUrl: "#" },
-  ],
-};
+    plans: [
+      {
+        id: "starter",
+        name: t.pages.billing.plans.starter.name,
+        price: 99000,
+        description: t.pages.billing.plans.starter.description,
+        features: t.pages.billing.plans.starter.features,
+        isPopular: false,
+        isCurrent: false,
+      },
+      {
+        id: "professional",
+        name: t.pages.billing.plans.professional.name,
+        price: 299000,
+        description: t.pages.billing.plans.professional.description,
+        features: t.pages.billing.plans.professional.features,
+        isPopular: true,
+        isCurrent: true,
+      },
+      {
+        id: "enterprise",
+        name: t.pages.billing.plans.enterprise.name,
+        price: 899000,
+        description: t.pages.billing.plans.enterprise.description,
+        features: t.pages.billing.plans.enterprise.features,
+        isPopular: false,
+        isCurrent: false,
+      },
+    ],
+    invoices: [
+      { id: "inv-881", date: "2026-11-15", amount: 299000, status: "paid", paymentMethod: "Kapitalbank Visa Business (•••• 4910)", pdfUrl: "#" },
+      { id: "inv-880", date: "2026-10-15", amount: 299000, status: "paid", paymentMethod: "Kapitalbank Visa Business (•••• 4910)", pdfUrl: "#" },
+      { id: "inv-879", date: "2026-09-15", amount: 299000, status: "paid", paymentMethod: "Payme Business", pdfUrl: "#" },
+    ],
+  };
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { mockBillingData } from "@/lib/mock/billing";
+import { getLocalizedBilling } from "@/lib/mock/billing";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { StatusPill } from "@/components/shared/status-pill";
 
 export default function BillingPage() {
   const { t } = useTranslation();
-  const { currentPlan, usageMeters, plans, invoices } = mockBillingData;
+  const { currentPlan, usageMeters, plans, invoices } = getLocalizedBilling(t);
 
   return (
     <div className="space-y-6">
@@ -41,7 +41,7 @@ export default function BillingPage() {
               </span>
               <StatusPill status="active" />
             </div>
-            <CardTitle className="text-xl font-bold mt-1">{t.pages.billing.activeFirmPlan}</CardTitle>
+            <CardTitle className="text-xl font-bold mt-1">{currentPlan.name}</CardTitle>
             <CardDescription className="text-xs">
               {currentPlan.renewalDate}
             </CardDescription>
@@ -74,8 +74,8 @@ export default function BillingPage() {
         {/* Right 2 cols: Usage Meters */}
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Resurslar Sarfi (Usage Quota)</CardTitle>
-            <CardDescription>Tarif boʻyicha ajratilgan limitlar holati</CardDescription>
+            <CardTitle className="text-sm font-semibold">{t.pages.billing.usageQuotaTitle}</CardTitle>
+            <CardDescription>{t.pages.billing.usageQuotaSubtitle}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-1 text-xs">
             {/* Managed Entities Meter */}
@@ -83,7 +83,7 @@ export default function BillingPage() {
               <div className="flex justify-between text-xs mb-1">
                 <span className="font-medium text-foreground">{usageMeters.entities.label}</span>
                 <span className="font-mono text-muted-foreground">
-                  {usageMeters.entities.current} / {usageMeters.entities.max} ta korxona
+                  {usageMeters.entities.current} / {usageMeters.entities.max} {usageMeters.entities.unit}
                 </span>
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
@@ -99,7 +99,7 @@ export default function BillingPage() {
               <div className="flex justify-between text-xs mb-1">
                 <span className="font-medium text-foreground">{usageMeters.teamMembers.label}</span>
                 <span className="font-mono text-muted-foreground">
-                  {usageMeters.teamMembers.current} / {usageMeters.teamMembers.max} nafar xodim
+                  {usageMeters.teamMembers.current} / {usageMeters.teamMembers.max} {usageMeters.teamMembers.unit}
                 </span>
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
@@ -115,7 +115,7 @@ export default function BillingPage() {
               <div className="flex justify-between text-xs mb-1">
                 <span className="font-medium text-foreground">{usageMeters.aiTokens.label}</span>
                 <span className="font-mono text-muted-foreground">
-                  {usageMeters.aiTokens.percentage}% sarflandi
+                  {usageMeters.aiTokens.percentage}% {usageMeters.aiTokens.spent}
                 </span>
               </div>
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
@@ -180,7 +180,7 @@ export default function BillingPage() {
                 </p>
 
                 <div className="space-y-2 pt-3 border-t border-border text-xs">
-                  {p.features.map((f, i) => (
+                  {p.features.map((f: string, i: number) => (
                     <div key={i} className="flex items-center gap-2">
                       <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span className="text-foreground text-[11px]">{f}</span>
@@ -222,7 +222,7 @@ export default function BillingPage() {
                 <TableHead>№</TableHead>
                 <TableHead>{t.common.date}</TableHead>
                 <TableHead className="text-right">{t.common.amount}</TableHead>
-                <TableHead>Method</TableHead>
+                <TableHead>{t.pages.billing.paymentMethod}</TableHead>
                 <TableHead>{t.common.status}</TableHead>
                 <TableHead className="text-right">PDF</TableHead>
               </TableRow>
