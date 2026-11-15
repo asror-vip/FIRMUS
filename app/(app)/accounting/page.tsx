@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { mockChartOfAccounts, mockJournalEntries } from "@/lib/mock/accounting";
 import { createJournalEntryRecord } from "@/lib/services/supabase-service";
+import { generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
-import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet } from "lucide-react";
+import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet, FileCode } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { JournalEntry } from "@/lib/mock/types";
@@ -67,6 +68,20 @@ export default function AccountingPage() {
     link.click();
     document.body.removeChild(link);
     toast.success("Buxgalteriya provodkalari CSV formatida yuklab olindi");
+  };
+
+  const handleExport1CXml = () => {
+    const xml = generate1CEnterpriseDataXml(journalEntries);
+    const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `1c_enterprise_data_${new Date().toISOString().split("T")[0]}.xml`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("1C:Buxgalteriya EnterpriseData XML fayli muvaffaqiyatli yuklab olindi!");
   };
 
   const handleCreateEntry = async (e: React.FormEvent) => {
@@ -158,7 +173,18 @@ export default function AccountingPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-8 gap-1.5"
+            onClick={handleExport1CXml}
+            title="1C:Korxona EnterpriseData XML formatida yuklab olish"
+          >
+            <FileCode className="h-3.5 w-3.5 text-amber-600" />
+            1C ga eksport (XML)
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -166,7 +192,7 @@ export default function AccountingPage() {
             onClick={handleExport}
           >
             <Download className="h-3.5 w-3.5" />
-            {t.common.export} (Excel)
+            {t.common.export} (CSV)
           </Button>
           <Button
             size="sm"

@@ -8,6 +8,7 @@ import { mockEmployees } from "@/lib/mock/employees";
 import { mockExceptions } from "@/lib/mock/exceptions";
 import { mockTeamMembers } from "@/lib/mock/team";
 import { mockJournalEntries } from "@/lib/mock/accounting";
+import { mockIntegrations } from "@/lib/mock/integrations";
 
 // ==========================================
 // 1. BUSINESS ENTITIES
@@ -676,6 +677,84 @@ export async function createJournalEntryRecord(entry: {
     return journalEntry;
   } catch (err) {
     console.error("createJournalEntryRecord error:", err);
+    throw err;
+  }
+}
+
+// ==========================================
+// 10. INTEGRATIONS (Didox, 1C, Bank APIs)
+// ==========================================
+export async function fetchIntegrations() {
+  try {
+    const { data, error } = await supabase
+      .from("integrations")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return mockIntegrations;
+    }
+
+    return data.map((item: any) => ({
+      id: item.id,
+      provider: item.provider,
+      name: item.name,
+      category: item.category,
+      description: item.description,
+      status: item.status,
+      lastSyncTime: item.last_sync_time || "Yaqinda",
+      recordsSyncedToday: item.records_synced_today || 0,
+      errorDetail: item.error_detail,
+      settings: item.settings,
+    }));
+  } catch (err) {
+    console.error("fetchIntegrations error:", err);
+    return mockIntegrations;
+  }
+}
+
+export async function updateIntegrationSettings(
+  id: string,
+  settings: { apiUrl?: string; clientToken?: string },
+  status?: string
+) {
+  try {
+    const updatePayload: any = {
+      settings,
+      last_sync_time: new Date().toISOString(),
+    };
+    if (status) {
+      updatePayload.status = status;
+    }
+
+    const { data, error } = await supabase
+      .from("integrations")
+      .update(updatePayload)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("updateIntegrationSettings error:", err);
+    throw err;
+  }
+}
+
+export async function toggleIntegrationStatusInDb(id: string, status: "connected" | "disconnected") {
+  try {
+    const { data, error } = await supabase
+      .from("integrations")
+      .update({ status })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("toggleIntegrationStatusInDb error:", err);
     throw err;
   }
 }

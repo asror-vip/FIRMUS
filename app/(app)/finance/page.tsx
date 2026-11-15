@@ -33,6 +33,45 @@ export default function FinancePage() {
   const balanceSheet = getLocalizedBalanceSheet(locale);
   const cashFlowData = getLocalizedCashFlowData(locale);
 
+  const handleExportExcel = () => {
+    let filename = "";
+    let csvContent = "";
+    if (activeTab === "pnl") {
+      filename = `shakl_2_moliyaviy_natijalar_${new Date().getFullYear()}.csv`;
+      const headers = ["Satr kodi", "Ko'rsatkich nomi", "O'tgan davr (UZS)", "Hisobot davri (UZS)"];
+      const rows = pnlStatement.map((item) => [
+        item.code,
+        `"${item.category.replace(/"/g, '""')}"`,
+        item.prevPeriod,
+        item.currentPeriod,
+      ]);
+      csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    } else {
+      filename = `shakl_1_buxgalteriya_balansi_${new Date().getFullYear()}.csv`;
+      const headers = ["Satr kodi", "Ko'rsatkich nomi", "Summa (UZS)"];
+      const rows = balanceSheet.map((item) => [
+        item.code || "-",
+        `"${item.section.replace(/"/g, '""')}"`,
+        item.amount,
+      ]);
+      csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    }
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.href = encodedUri;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`${filename} muvaffaqiyatli yuklab olindi!`);
+  };
+
+  const handleExportPdf = () => {
+    window.print();
+    toast.success("Hisobot chop etish / PDF saqlash uchun tayyorlandi");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -51,17 +90,17 @@ export default function FinancePage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success(t.common.export)}
+            onClick={handleExportPdf}
           >
             <Download className="h-3.5 w-3.5" />
-            PDF {t.common.export}
+            PDF {t.common.export} (Shakl 1/2)
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success(t.common.export)}
+            onClick={handleExportExcel}
           >
             <Download className="h-3.5 w-3.5" />
             Excel {t.common.export}

@@ -14,6 +14,8 @@ import { Money } from "@/components/shared/money";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { parse1CClientBankText, parseBankCsv, importBatchTransactions, ParsedBankTransaction } from "@/lib/services/bank-import";
+import { generate1CClientBankText } from "@/lib/services/one-c-export";
 import {
   Search,
   Filter,
@@ -26,6 +28,8 @@ import {
   Building,
   ArrowUpRight,
   ShieldCheck,
+  Upload,
+  FileCode,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppState } from "@/lib/mock/store";
@@ -53,6 +57,70 @@ export default function TransactionsPage() {
     description: "",
     accountCode: "6010",
   });
+
+  // Bank Vypiska Import State
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importedList, setImportedList] = useState<ParsedBankTransaction[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFileName, setImportFileName] = useState("");
+
+  const handleExport1C = () => {
+    const textContent = generate1CClientBankText(transactions);
+    const blob = new Blob([textContent], { type: "text/plain;charset=windows-1251" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `kl_to_1c_${new Date().toISOString().split("T")[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("1C:Buxgalteriya uchun bank koʻchirmasi (kl_to_1c.txt) muvaffaqiyatli yuklandi!");
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      let parsed: ParsedBankTransaction[] = [];
+      if (file.name.endsWith(".txt") || text.includes("1CClientBankExchange")) {
+        parsed = parse1CClientBankText(text);
+      } else {
+        parsed = parseBankCsv(text);
+      }
+
+      if (parsed.length === 0) {
+        toast.error("Fayldan toʻlov operatsiyalari topilmadi. Fayl formati 1C Client-Bank (.txt) yoki CSV boʻlishi kerak.");
+      } else {
+        setImportedList(parsed);
+        toast.success(`Fayldan ${parsed.length} ta bank toʻlovi muvaffaqiyatli aniqlandi!`);
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  };
+
+  const handleConfirmImport = async () => {
+    if (importedList.length === 0) return;
+    setIsImporting(true);
+    try {
+      const saved = await importBatchTransactions(importedList);
+      setTransactions((prev) => [...(saved as any), ...prev]);
+      toast.success(`${saved.length} ta bank toʻlovi Supabase bazasiga kiritildi va hisob-fakturalarga bogʻlandi!`);
+      setIsImportOpen(false);
+      setImportedList([]);
+      setImportFileName("");
+    } catch (err: any) {
+      toast.error("Import qilishda xatolik: " + err.message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -184,7 +252,28 @@ export default function TransactionsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-8 gap-1.5 border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300"
+            onClick={() => setIsImportOpen(true)}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Vypiska import (.txt / CSV)
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-8 gap-1.5"
+            onClick={handleExport1C}
+            title="1C:Buxgalteriya Client-Bank formatida yuklab olish"
+          >
+            <FileCode className="h-3.5 w-3.5 text-amber-600" />
+            1C ga eksport
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -192,7 +281,7 @@ export default function TransactionsPage() {
             onClick={handleExport}
           >
             <Download className="h-3.5 w-3.5" />
-            {t.common.export}
+            {t.common.export} (CSV)
           </Button>
 
           {currentRole !== "viewer" && currentRole !== "auditor" && (
@@ -588,6 +677,127 @@ export default function TransactionsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bank Vypiska Import Modal Dialog */}
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
+              <Upload className="h-4 w-4 text-indigo-600" />
+              Bank koʻchirmasini yuklash (Vypiska Import)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Kapitalbank, Hamkorbank, Ipotekabank, SQB yoki NBU Bank-Klientidan yuklangan 1C (.txt) yoki .csv faylini tanlang.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs flex-1 overflow-y-auto">
+            {/* File Upload Area */}
+            <div className="rounded-xl border border-dashed border-border p-5 text-center bg-muted/20 hover:bg-muted/40 transition-colors">
+              <Upload className="mx-auto h-7 w-7 text-indigo-600 mb-2" />
+              <label htmlFor="bank-file-upload" className="cursor-pointer font-semibold text-xs text-indigo-600 hover:underline">
+                Faylni tanlang yoki shu yerga tashlang
+              </label>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Format: 1C Client-Bank (*.txt) yoki Bank hisob-kitob koʻchirmasi (*.csv)
+              </p>
+              <input
+                id="bank-file-upload"
+                type="file"
+                accept=".txt,.csv"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              {importFileName && (
+                <Badge variant="indigo" className="mt-2 text-xs font-mono">
+                  Tanlangan: {importFileName}
+                </Badge>
+              )}
+            </div>
+
+            {/* Parsed Preview Table */}
+            {importedList.length > 0 && (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground text-xs">
+                      Aniqlangan toʻlovlar: {importedList.length} ta
+                    </span>
+                    <Badge variant="success" className="text-[10px]">
+                      {importedList.filter((i) => i.type === "income").length} kirim
+                    </Badge>
+                    <Badge variant="destructive" className="text-[10px]">
+                      {importedList.filter((i) => i.type === "expense").length} chiqim
+                    </Badge>
+                  </div>
+                  <span className="text-[11px] font-mono font-bold text-foreground">
+                    Jami: {importedList.reduce((acc, c) => acc + c.amount, 0).toLocaleString()} UZS
+                  </span>
+                </div>
+
+                <div className="rounded-lg border border-border max-h-56 overflow-y-auto text-[11px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Sana</TableHead>
+                        <TableHead>Turi</TableHead>
+                        <TableHead>Kontragent</TableHead>
+                        <TableHead>STIR</TableHead>
+                        <TableHead className="text-right">Summa</TableHead>
+                        <TableHead>Toʻlov maqsadi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importedList.map((item, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-mono whitespace-nowrap">{item.date}</TableCell>
+                          <TableCell>
+                            <Badge variant={item.type === "income" ? "success" : "outline"} className="text-[9px]">
+                              {item.type === "income" ? "Kirim" : "Chiqim"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-medium max-w-[140px] truncate">{item.counterparty}</TableCell>
+                          <TableCell className="font-mono text-muted-foreground">{item.counterpartyStir || "—"}</TableCell>
+                          <TableCell className={`text-right font-mono font-bold ${item.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
+                            {item.amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground max-w-[180px] truncate">{item.description}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-3 gap-2 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                setIsImportOpen(false);
+                setImportedList([]);
+                setImportFileName("");
+              }}
+              disabled={isImporting}
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleConfirmImport}
+              disabled={importedList.length === 0 || isImporting}
+            >
+              {isImporting ? "Bazaga yozilmoqda..." : `Supabase bazasiga import qilish (${importedList.length})`}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
