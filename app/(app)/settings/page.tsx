@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { StatusPill } from "@/components/shared/status-pill";
 import { UserRole } from "@/lib/mock/types";
 import {
   Settings,
@@ -88,31 +89,31 @@ export default function SettingsPage() {
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-sm font-semibold">
-                  Mijoz Korxonalari (Business Entities)
+                  {t.pages.settings.entitiesTitle}
                 </CardTitle>
                 <CardDescription>
-                  Buxgalteriya firmasi tomonidan xizmat koʻrsatilayotgan yuridik shaxslar
+                  {t.pages.settings.entitiesDesc}
                 </CardDescription>
               </div>
               <Button
                 size="sm"
                 className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() => toast.info("Yangi korxona qo'shish (STIR orqali)...")}
+                onClick={() => toast.info(`${t.pages.settings.addEntity}...`)}
               >
-                Yangi korxona qoʻshish
+                {t.pages.settings.addEntity}
               </Button>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Korxona Nomi</TableHead>
-                    <TableHead>STIR (TIN)</TableHead>
-                    <TableHead>Tashkiliy shakli</TableHead>
-                    <TableHead>Soliq Rejimi</TableHead>
-                    <TableHead>Boshqaruvchi Buxgalter</TableHead>
-                    <TableHead>Holat</TableHead>
-                    <TableHead className="text-right">Amal</TableHead>
+                    <TableHead>{t.pages.settings.companyName}</TableHead>
+                    <TableHead>{t.pages.settings.tinStir}</TableHead>
+                    <TableHead>{t.pages.settings.legalForm}</TableHead>
+                    <TableHead>{t.pages.settings.taxRegime}</TableHead>
+                    <TableHead>{t.pages.settings.managingAccountant}</TableHead>
+                    <TableHead>{t.pages.settings.status}</TableHead>
+                    <TableHead className="text-right">{t.pages.settings.action}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -122,7 +123,7 @@ export default function SettingsPage() {
                         {ent.name}
                         {ent.tradeName && (
                           <span className="text-[10px] text-muted-foreground block">
-                            Brend: {ent.tradeName}
+                            {ent.tradeName}
                           </span>
                         )}
                       </TableCell>
@@ -143,18 +144,16 @@ export default function SettingsPage() {
                         {ent.accountantName}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="success" className="text-[10px]">
-                          Faol
-                        </Badge>
+                        <StatusPill status="active" />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs px-2"
-                          onClick={() => toast.info(`${ent.name} sozlamalari ochilmoqda`)}
+                          onClick={() => toast.info(`${ent.name}`)}
                         >
-                          Tahrirlash
+                          {t.pages.settings.edit}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -169,24 +168,24 @@ export default function SettingsPage() {
         <TabsContent value="security" className="space-y-4 mt-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Xavfsizlik & Autentifikatsiya</CardTitle>
-              <CardDescription>Zero-Trust E-IMZO va ikki bosqichli himoya</CardDescription>
+              <CardTitle className="text-sm font-semibold">{t.pages.settings.securityTitle}</CardTitle>
+              <CardDescription>{t.pages.settings.securityDesc}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               <div className="flex items-center justify-between p-3 rounded-lg border border-border">
                 <div className="space-y-0.5">
                   <span className="font-semibold text-foreground text-xs block">
-                    Ikki bosqichli autentifikatsiya (2FA / SMS)
+                    {t.pages.settings.twoFactorTitle}
                   </span>
                   <p className="text-muted-foreground text-[11px]">
-                    Hisobga kirishda SMS-kod yoki Google Authenticator orqali tasdiqlash.
+                    {t.pages.settings.twoFactorDesc}
                   </p>
                 </div>
                 <Switch
                   checked={twoFactorEnabled}
                   onCheckedChange={(val) => {
                     setTwoFactorEnabled(val);
-                    toast.success(`2FA ${val ? "yoqildi" : "o'chirildi"}`);
+                    toast.success(`2FA ${val ? t.statuses.active : t.common.reject}`);
                   }}
                 />
               </div>
@@ -194,26 +193,26 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between p-3 rounded-lg border border-border">
                 <div className="space-y-0.5">
                   <span className="font-semibold text-foreground text-xs block">
-                    E-IMZO Mahalliy Xavfsizlik Kafolati (Zero-Trust)
+                    {t.pages.settings.zeroTrustTitle}
                   </span>
                   <p className="text-muted-foreground text-[11px]">
-                    ERI kalitlar paroli va xususiy kalit (.pfx) serverga yuborilmaydi. Faqat brauzer orqali imzolanadi.
+                    {t.pages.settings.zeroTrustDesc}
                   </p>
                 </div>
                 <Badge variant="success" className="text-[10px]">
-                  Kafolatlangan
+                  {t.pages.settings.guaranteed}
                 </Badge>
               </div>
 
               <div className="pt-2">
-                <h4 className="font-semibold text-foreground text-xs mb-2">Faol Sessiyalar:</h4>
+                <h4 className="font-semibold text-foreground text-xs mb-2">{t.pages.settings.activeSessions}:</h4>
                 <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
                   <div className="flex justify-between font-mono text-[11px]">
-                    <span className="font-semibold text-foreground">Google Chrome (Windows 11) • Joriy sessiya</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">Onlayn</span>
+                    <span className="font-semibold text-foreground">Google Chrome (Windows 11) • {t.pages.settings.currentSession}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">{t.pages.settings.online}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    IP: 213.230.77.12 (Toshkent, Oʻzbekiston) • Oxirgi faollik: Hozir
+                    IP: 213.230.77.12 (Tashkent) • {t.common.date}: {t.common.now}
                   </p>
                 </div>
               </div>
@@ -221,20 +220,19 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-
         {/* 4. Notifications Tab */}
         <TabsContent value="notifications" className="space-y-4 mt-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Xabarnoma Sozlamalari</CardTitle>
-              <CardDescription>Qaysi hodisalar boʻyicha xabarlar olishni xohlaysiz?</CardDescription>
+              <CardTitle className="text-sm font-semibold">{t.pages.settings.notificationsTitle}</CardTitle>
+              <CardDescription>{t.pages.settings.notificationsDesc}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               <div className="flex items-center justify-between p-3 rounded-lg border border-border">
                 <div>
-                  <span className="font-semibold text-foreground block">Email xabarnomalari</span>
+                  <span className="font-semibold text-foreground block">{t.pages.settings.emailAlerts}</span>
                   <p className="text-muted-foreground text-[11px]">
-                    Soliq muddatlari va yangi hisob-fakturalar boʻyicha hisobotlar.
+                    {t.pages.settings.emailAlertsDesc}
                   </p>
                 </div>
                 <Switch checked={emailAlerts} onCheckedChange={setEmailAlerts} />
@@ -242,9 +240,9 @@ export default function SettingsPage() {
 
               <div className="flex items-center justify-between p-3 rounded-lg border border-border">
                 <div>
-                  <span className="font-semibold text-foreground block">Telegram bot xabarlari</span>
+                  <span className="font-semibold text-foreground block">{t.pages.settings.telegramAlerts}</span>
                   <p className="text-muted-foreground text-[11px]">
-                    Kritik istisnolar va Didox E-SF imzolash soʻrovlari real-vaqtda.
+                    {t.pages.settings.telegramAlertsDesc}
                   </p>
                 </div>
                 <Switch checked={telegramAlerts} onCheckedChange={setTelegramAlerts} />
@@ -257,8 +255,8 @@ export default function SettingsPage() {
         <TabsContent value="language" className="space-y-4 mt-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Interfeys Tili</CardTitle>
-              <CardDescription>Platforma asosiy tili (Oʻzbek va Rus tili birinchi oʻrinda)</CardDescription>
+              <CardTitle className="text-sm font-semibold">{t.pages.settings.interfaceLangTitle}</CardTitle>
+              <CardDescription>{t.pages.settings.interfaceLangDesc}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-xs">
               {[

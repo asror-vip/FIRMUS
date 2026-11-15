@@ -95,10 +95,10 @@ export default function FinancePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Koʻrsatkichlar Nomi</TableHead>
-                    <TableHead className="w-20 text-center">Satr Kodi</TableHead>
-                    <TableHead className="text-right">Hisobot Davri (soʻm)</TableHead>
-                    <TableHead className="text-right">Oʻtgan Yil Shu Davrida</TableHead>
+                    <TableHead>{t.common.name}</TableHead>
+                    <TableHead className="w-20 text-center">{t.pages.accounting.code}</TableHead>
+                    <TableHead className="text-right">{t.common.period}</TableHead>
+                    <TableHead className="text-right">{t.common.previous}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -144,9 +144,9 @@ export default function FinancePage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Boʻlim va Moddalar Nomi</TableHead>
-                    <TableHead className="w-20 text-center">Satr Kodi</TableHead>
-                    <TableHead className="text-right">Davr Oxiriga Summa (soʻm)</TableHead>
+                    <TableHead>{t.common.name}</TableHead>
+                    <TableHead className="w-20 text-center">{t.pages.accounting.code}</TableHead>
+                    <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -202,11 +202,11 @@ export default function FinancePage() {
                       tickFormatter={(val) => `${(val / 1000000).toFixed(0)}m`}
                     />
                     <Tooltip
-                      formatter={(val: any) => [`${Number(val).toLocaleString()} soʻm`]}
+                      formatter={(val: any) => [`${Number(val).toLocaleString()} ${t.common.currency}`]}
                     />
                     <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Bar dataKey="income" name="Kirim tushumlari" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="expense" name="Chiqim xarajatlari" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="income" name={t.common.income} fill="#10B981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expense" name={t.common.expense} fill="#4F46E5" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

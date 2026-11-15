@@ -106,11 +106,11 @@ export default function BankingPage() {
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
               <div>
-                <span className="text-[11px] text-muted-foreground">Joriy qoldiq:</span>
+                <span className="text-[11px] text-muted-foreground">{t.pages.accounting.balance}:</span>
                 <div className="text-xl font-bold font-mono text-foreground mt-0.5">
                   <Money
                     amount={account.balance}
-                    currency={account.currency === "USD" ? "$" : "soʻm"}
+                    currency={account.currency === "USD" ? "$" : undefined}
                   />
                 </div>
               </div>
@@ -118,7 +118,7 @@ export default function BankingPage() {
               <div className="flex items-center justify-between pt-2 border-t border-border/60 text-[10px] text-muted-foreground">
                 <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  API ulangan
+                  {t.statuses.connected}
                 </span>
                 <span>{account.lastSyncedAt}</span>
               </div>
@@ -136,14 +136,14 @@ export default function BankingPage() {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-foreground">
-                Bank va Buxgalteriya Solishtiruvi (Reconciliation): 98.4%
+                Reconciliation: 98.4%
               </h3>
               <Badge variant="success" className="text-[10px] px-1.5 py-0 h-4">
-                Normada
+                {t.statuses.active}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              1,240 ta bank oʻtkazmasidan 1,220 tasi Didox elektron hisob-fakturalari bilan 100% mos keldi.
+              1,240 / 1,220 Didox E-SF 100%
             </p>
           </div>
         </div>
@@ -153,9 +153,9 @@ export default function BankingPage() {
             size="sm"
             variant="outline"
             className="text-xs h-8"
-            onClick={() => toast.info("Solishtiruv hisoboti tayyorlanmoqda...")}
+            onClick={() => toast.info(t.common.details)}
           >
-            Solishtiruv akti (PDF)
+            PDF {t.common.details}
           </Button>
         </div>
       </div>
@@ -164,10 +164,10 @@ export default function BankingPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">
-            Soʻnggi Bank Koʻchirmalari (Bank Statement Feed)
+            {t.pages.banking.tabs.statements}
           </CardTitle>
           <CardDescription>
-            Kapitalbank va Asakabank hisoblaridan kelgan real tranzaksiyalar
+            {t.pages.banking.subtitle}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -176,7 +176,7 @@ export default function BankingPage() {
               <TableRow>
                 <TableHead>{t.common.date}</TableHead>
                 <TableHead>{t.pages.transactions.tableHeaders.counterparty} & {t.pages.transactions.tableHeaders.description}</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead>{t.common.status}</TableHead>
                 <TableHead className="text-right">{t.common.amount}</TableHead>
                 <TableHead>{t.common.status}</TableHead>
                 <TableHead className="text-right">{t.common.actions}</TableHead>
@@ -232,19 +232,19 @@ export default function BankingPage() {
       <Dialog open={isConnectModalOpen} onOpenChange={setIsConnectModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Yangi Tijorat Bankini Ulash</DialogTitle>
+            <DialogTitle>{t.pages.banking.connectBank}</DialogTitle>
             <DialogDescription>
-              Oʻzbekiston Markaziy Banki Open Banking xavfsiz standarti orqali toʻgʻridan-toʻgʻri ulanish.
+              Open Banking API
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-3 text-xs">
-            <p className="font-medium text-foreground">Qoʻllab-quvvatlanadigan banklar:</p>
+            <p className="font-medium text-foreground">Banks:</p>
             <div className="grid grid-cols-2 gap-2">
               {["Kapitalbank", "Ipoteka-bank", "Asakabank", "Hamkorbank", "Anorbank", "Oʻzsanoatqurilishbank"].map((b, i) => (
                 <div
                   key={i}
                   onClick={() => {
-                    toast.success(`${b} bilan xavfsiz ulanish shlyuziga yo'naltirilmoqda...`);
+                    toast.success(`${b} connected`);
                     setIsConnectModalOpen(false);
                   }}
                   className="flex items-center gap-2 p-2.5 rounded-lg border border-border hover:border-primary hover:bg-accent cursor-pointer transition-all"
@@ -257,7 +257,7 @@ export default function BankingPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setIsConnectModalOpen(false)}>
-              Yopish
+              {t.common.close}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -267,25 +267,25 @@ export default function BankingPage() {
       <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Bank Koʻchirmasini Fayldan Yuklash</DialogTitle>
+            <DialogTitle>{t.pages.banking.tabs.statements}</DialogTitle>
             <DialogDescription>
-              1C formatidagi kliring fayli (.txt), Excel (.xlsx) yoki CSV koʻchirmalarini yuklang.
+              CSV / 1C (.txt, .xlsx, .csv)
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl border border-dashed border-border p-6 text-center my-3">
             <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-xs font-semibold text-foreground">Faylni bu yerga sudrab olib keling</p>
-            <p className="text-[10px] text-muted-foreground mt-1">yoki kompyuterdan tanlang (.txt, .xlsx, .csv)</p>
+            <p className="text-xs font-semibold text-foreground">{t.pages.documents.uploadDoc}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">.txt, .xlsx, .csv</p>
           </div>
           <DialogFooter>
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
               onClick={() => {
-                toast.success("Koʻchirma muvaffaqiyatli yuklandi va AI orqali tasniflandi!");
+                toast.success(t.common.sync);
                 setIsImportModalOpen(false);
               }}
             >
-              Yuklash va Tasniflash
+              {t.pages.documents.uploadDoc}
             </Button>
           </DialogFooter>
         </DialogContent>

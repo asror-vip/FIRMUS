@@ -115,7 +115,7 @@ export default function IntegrationsPage() {
                   onClick={() => setSelectedInteg(integ)}
                 >
                   <Settings className="mr-1 h-3 w-3" />
-                  Sozlash
+                  {t.common.edit}
                 </Button>
 
                 {integ.status === "connected" ? (
@@ -123,19 +123,19 @@ export default function IntegrationsPage() {
                     size="sm"
                     variant="ghost"
                     className="h-7 text-xs text-muted-foreground hover:text-rose-600"
-                    onClick={() => toast.info(`${integ.name} uzildi`)}
+                    onClick={() => toast.info(`${integ.name}`)}
                   >
-                    Uzish
+                    {t.common.disconnect}
                   </Button>
                 ) : (
                   <Button
                     size="sm"
                     className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
                     onClick={() => {
-                      toast.success(`${integ.name} muvaffaqiyatli ulandi!`);
+                      toast.success(`${integ.name}`);
                     }}
                   >
-                    Ulanish
+                    {t.common.connect}
                   </Button>
                 )}
               </div>
@@ -158,12 +158,12 @@ export default function IntegrationsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Vaqt</TableHead>
-                <TableHead>Xizmat Nomi</TableHead>
-                <TableHead>Yoʻnalish</TableHead>
-                <TableHead className="text-right">Yozuvlar</TableHead>
-                <TableHead>Natija</TableHead>
-                <TableHead>Xabar / Tafsilot</TableHead>
+                <TableHead>{t.common.time}</TableHead>
+                <TableHead>{t.common.name}</TableHead>
+                <TableHead>{t.common.inbound} / {t.common.outbound}</TableHead>
+                <TableHead className="text-right">{t.common.records}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
+                <TableHead>{t.common.description}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -177,7 +177,7 @@ export default function IntegrationsPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                      {log.type === "inbound" ? "Kiruvchi" : "Chiquvchi"}
+                      {log.type === "inbound" ? t.common.inbound : t.common.outbound}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-mono font-medium text-xs">

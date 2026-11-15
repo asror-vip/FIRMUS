@@ -190,7 +190,7 @@ export function NotificationsPopover() {
         {/* Footer */}
         <div className="p-2 border-t border-border bg-muted/20 text-center">
           <span className="text-[10px] text-muted-foreground">
-            Barcha xabarnomalar real-vaqtda sinxronlanadi
+            {t.notifications.footerSync}
           </span>
         </div>
       </DropdownMenuContent>

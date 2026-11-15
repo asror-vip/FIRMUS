@@ -64,15 +64,15 @@ export default function ContractsPage() {
       <Card>
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-sm font-semibold">Faol Shartnomalar Reyestri</CardTitle>
-            <CardDescription>Didox va E-Ijara orqali imzolangan rasmiy hujjatlar</CardDescription>
+            <CardTitle className="text-sm font-semibold">{t.pages.contracts.title}</CardTitle>
+            <CardDescription>{t.pages.contracts.subtitle}</CardDescription>
           </div>
           <div className="relative w-full sm:w-60">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Shartnoma № yoki kontragent..."
+              placeholder={t.common.search}
               className="h-8 pl-8 text-xs"
             />
           </div>
@@ -81,13 +81,13 @@ export default function ContractsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Shartnoma №</TableHead>
-                <TableHead>Mazmuni va Nomi</TableHead>
-                <TableHead>Kontragent</TableHead>
-                <TableHead>Turi</TableHead>
-                <TableHead className="text-right">Umumiy Summa</TableHead>
-                <TableHead>Amal Qilish Muddati</TableHead>
-                <TableHead>Holat</TableHead>
+                <TableHead>№</TableHead>
+                <TableHead>{t.common.description}</TableHead>
+                <TableHead>{t.common.counterparty}</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">{t.common.amount}</TableHead>
+                <TableHead>{t.common.date}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -116,7 +116,7 @@ export default function ContractsPage() {
                     {cnt.startDate} — {cnt.endDate}
                   </TableCell>
                   <TableCell>
-                    <StatusPill status={cnt.status} label={cnt.status === "active" ? "Amalda" : "Muddati oʻtgan"} />
+                    <StatusPill status={cnt.status} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -131,7 +131,7 @@ export default function ContractsPage() {
           <div className="flex items-center justify-between pb-4 border-b border-border">
             <div>
               <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                Shartnoma: {selectedContract.number}
+                № {selectedContract.number}
               </span>
               <h2 className="text-base font-bold text-foreground mt-0.5">
                 {selectedContract.counterparty}
@@ -149,7 +149,7 @@ export default function ContractsPage() {
 
           <div className="py-5 space-y-5 text-xs">
             <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2">
-              <span className="text-muted-foreground text-[11px]">Shartnoma hajmi:</span>
+              <span className="text-muted-foreground text-[11px]">{t.common.amount}:</span>
               <div className="text-xl font-bold font-mono text-foreground">
                 <Money amount={selectedContract.amount} />
               </div>
@@ -160,19 +160,19 @@ export default function ContractsPage() {
 
             <div className="space-y-2.5">
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">Kontragent STIR:</span>
+                <span className="text-muted-foreground">{t.entity.tin}:</span>
                 <span className="font-mono text-foreground">{selectedContract.counterpartyStir}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">Shartnoma turi:</span>
+                <span className="text-muted-foreground">Type:</span>
                 <span className="font-medium text-foreground">{selectedContract.type}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">Boshlanish sanasi:</span>
+                <span className="text-muted-foreground">Start:</span>
                 <span className="font-mono text-foreground">{selectedContract.startDate}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">Tugash sanasi:</span>
+                <span className="text-muted-foreground">End:</span>
                 <span className="font-mono text-foreground">{selectedContract.endDate}</span>
               </div>
             </div>

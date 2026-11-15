@@ -10,6 +10,7 @@ import { Money } from "@/components/shared/money";
 import { Check, Sparkles, CreditCard, Shield, Download, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { StatusPill } from "@/components/shared/status-pill";
 
 export default function BillingPage() {
   const { t } = useTranslation();
@@ -36,15 +37,13 @@ export default function BillingPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                Faol Tarif Rejasi
+                {t.pages.billing.currentPlan}
               </span>
-              <Badge variant="indigo" className="text-[10px]">
-                Faol
-              </Badge>
+              <StatusPill status="active" />
             </div>
-            <CardTitle className="text-xl font-bold mt-1">{currentPlan.name}</CardTitle>
+            <CardTitle className="text-xl font-bold mt-1">{t.pages.billing.activeFirmPlan}</CardTitle>
             <CardDescription className="text-xs">
-              Keyingi toʻlov sanasi: {currentPlan.renewalDate}
+              {currentPlan.renewalDate}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-1">
@@ -56,7 +55,7 @@ export default function BillingPage() {
             </div>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Buxgalteriya firmalari va bir nechta mijozlarni yurituvchi mutaxassislar uchun toʻliq funksional paket.
+              {t.pages.billing.subtitle}
             </p>
 
             <div className="pt-2 flex items-center gap-2">
@@ -64,9 +63,9 @@ export default function BillingPage() {
                 variant="outline"
                 size="sm"
                 className="w-full text-xs h-8"
-                onClick={() => toast.info("To'lov usuli: Kapitalbank Visa Business (•••• 4910)")}
+                onClick={() => toast.info("Kapitalbank Visa Business (•••• 4910)")}
               >
-                Karta maʼlumotlari
+                Card (•••• 4910)
               </Button>
             </div>
           </CardContent>
@@ -148,7 +147,7 @@ export default function BillingPage() {
 
       {/* Row 2: Plan Comparison Cards */}
       <div>
-        <h2 className="text-base font-bold text-foreground mb-3">Tarif Rejalarini Tanlash</h2>
+        <h2 className="text-base font-bold text-foreground mb-3">{t.pages.billing.changePlan}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {plans.map((p) => (
             <Card
@@ -164,7 +163,7 @@ export default function BillingPage() {
                   <h3 className="font-bold text-sm text-foreground">{p.name}</h3>
                   {p.isCurrent && (
                     <Badge variant="indigo" className="text-[10px]">
-                      Hozirgi tarif
+                      {t.pages.billing.currentPlan}
                     </Badge>
                   )}
                 </div>
@@ -172,7 +171,7 @@ export default function BillingPage() {
                 <div className="text-xl font-bold font-mono text-foreground">
                   <Money amount={p.price} />{" "}
                   <span className="text-xs font-normal text-muted-foreground font-sans">
-                    / oyiga
+                    / {t.common.monthly}
                   </span>
                 </div>
 
@@ -193,15 +192,15 @@ export default function BillingPage() {
               <div className="pt-5 mt-4">
                 {p.isCurrent ? (
                   <Button variant="outline" size="sm" className="w-full text-xs h-8" disabled>
-                    Amaldagi reja
+                    {t.pages.billing.currentPlan}
                   </Button>
                 ) : (
                   <Button
                     size="sm"
                     className="w-full text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
-                    onClick={() => toast.success(`${p.name} rejasiga oʻtish soʻrovi yuborildi!`)}
+                    onClick={() => toast.success(p.name)}
                   >
-                    Tarifni yangilash
+                    {t.pages.billing.changePlan}
                   </Button>
                 )}
               </div>
@@ -213,19 +212,19 @@ export default function BillingPage() {
       {/* Row 3: Invoices History Table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Toʻlovlar & Invoyslar Tarixi</CardTitle>
-          <CardDescription>AUVRIO xizmatlari uchun chiqarilgan rasmiy toʻlov kvitansiyalari</CardDescription>
+          <CardTitle className="text-sm font-semibold">{t.pages.billing.billingHistory}</CardTitle>
+          <CardDescription>FIRMUS • {t.pages.billing.subtitle}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Invoys №</TableHead>
-                <TableHead>Sana</TableHead>
-                <TableHead className="text-right">Summa</TableHead>
-                <TableHead>Toʻlov usuli</TableHead>
-                <TableHead>Holat</TableHead>
-                <TableHead className="text-right">Kvitansiya</TableHead>
+                <TableHead>№</TableHead>
+                <TableHead>{t.common.date}</TableHead>
+                <TableHead className="text-right">{t.common.amount}</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>{t.common.status}</TableHead>
+                <TableHead className="text-right">PDF</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -244,16 +243,14 @@ export default function BillingPage() {
                     {inv.paymentMethod}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="success" className="text-[10px]">
-                      {inv.status}
-                    </Badge>
+                    <StatusPill status={inv.status} />
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs px-2 gap-1"
-                      onClick={() => toast.success(`Invoys ${inv.id} PDF yuklab olindi`)}
+                      onClick={() => toast.success(`PDF ${inv.id}`)}
                     >
                       <Download className="h-3 w-3" />
                       PDF

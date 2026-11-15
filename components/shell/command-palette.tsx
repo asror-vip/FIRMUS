@@ -23,6 +23,7 @@ import {
   BarChart3,
   CreditCard,
   Settings,
+  X,
 } from "lucide-react";
 
 export function CommandPalette() {
@@ -62,7 +63,7 @@ export function CommandPalette() {
 
   return (
     <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-      <DialogContent className="p-0 overflow-hidden max-w-xl border-border bg-card shadow-2xl [&>button]:hidden">
+      <DialogContent hideCloseButton className="p-0 overflow-hidden max-w-xl border-border bg-card shadow-2xl">
         <div className="flex items-center border-b border-border px-3.5 py-2.5">
           <Search className="mr-2.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <Input
@@ -72,13 +73,18 @@ export function CommandPalette() {
             className="border-0 shadow-none focus-visible:ring-0 text-sm h-8 px-0 placeholder:text-muted-foreground/60"
             autoFocus
           />
-          <button
-            onClick={() => setIsSearchOpen(false)}
-            className="hidden sm:flex h-5 items-center gap-1 rounded border border-border bg-muted/80 hover:bg-accent px-1.5 font-mono text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
-            title="Yopish (ESC)"
-          >
-            ESC
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <kbd className="hidden sm:inline-flex h-5 items-center rounded border border-border bg-muted/80 px-1.5 font-mono text-[10px] font-medium text-muted-foreground select-none">
+              ESC
+            </kbd>
+            <button
+              onClick={() => setIsSearchOpen(false)}
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              title={t.common.close}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         <div className="max-h-[340px] overflow-y-auto p-2">
@@ -119,7 +125,7 @@ export function CommandPalette() {
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-500/10">
                 ✨
               </div>
-              <span>GPT-6 Luna AI yordamchisidan soʻrash</span>
+              <span>{t.commandPalette.askAi}</span>
             </div>
           </div>
         </div>

@@ -266,7 +266,7 @@ export default function TransactionsPage() {
             {/* Amount Box */}
             <div className="rounded-xl border border-border bg-muted/30 p-4 flex items-center justify-between">
               <div>
-                <span className="text-muted-foreground text-[11px]">Tranzaksiya summasi:</span>
+                <span className="text-muted-foreground text-[11px]">{t.common.amount}:</span>
                 <div className="text-xl font-bold font-mono text-foreground mt-0.5">
                   <Money amount={selectedTx.amount} type={selectedTx.type} />
                 </div>

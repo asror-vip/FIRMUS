@@ -63,7 +63,7 @@ export function AiDrawer() {
       id: `m-${Date.now()}`,
       sender: "user",
       text: userText,
-      time: "Hozir",
+      time: t.common.now,
     };
     setMessages((prev) => [...prev, newMsg]);
     setInput("");
@@ -74,11 +74,11 @@ export function AiDrawer() {
         id: `m-${Date.now() + 1}`,
         sender: "ai",
         text: `"${userText}": ${t.aiDrawer.approvalRequired}`,
-        time: "Hozir",
+        time: t.common.now,
         toolCalls: ["reconcile_transaction"],
         actionProposed: {
-          title: "Hisob-fakturani yopish taklifi",
-          amount: "Tekshiruv kutilmoqda",
+          title: t.pages.transactions.batchApprove,
+          amount: "1,200,000",
         },
       };
       setMessages((prev) => [...prev, aiReply]);
@@ -191,7 +191,7 @@ export function AiDrawer() {
 
                   {msg.actionProposed.accounts && (
                     <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                      Provodka: {msg.actionProposed.accounts}
+                      {t.pages.accounting.code}: {msg.actionProposed.accounts}
                     </div>
                   )}
 

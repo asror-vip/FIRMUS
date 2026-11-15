@@ -26,51 +26,51 @@ export default function ReportsPage() {
   const reportTemplates = [
     {
       id: "rep-pnl",
-      name: "Moliyaviy natijalar toʻgʻrisida hisobot (2-shakl)",
-      category: "Buxgalteriya",
-      description: "Daromadlar, tannarx, davr xarajatlari va sof foyda hisoboti (P&L).",
+      name: t.pages.finance.tabs.pnl,
+      category: t.nav.groups.accounting,
+      description: t.pages.finance.subtitle,
       icon: TrendingUp,
-      period: "Oylik / Choraklik / Yillik",
+      period: "Monthly / Quarterly",
     },
     {
       id: "rep-bal",
-      name: "Buxgalteriya balansi (1-shakl)",
-      category: "Buxgalteriya",
-      description: "Aktivlar, xususiy kapital va majburiyatlarning rasmiy balansi.",
+      name: t.pages.finance.tabs.balanceSheet,
+      category: t.nav.groups.accounting,
+      description: t.pages.finance.subtitle,
       icon: PieChart,
-      period: "Davr oxiriga",
+      period: "Period End",
     },
     {
       id: "rep-osv",
-      name: "Oborotno-sal'dovaya vedomost (OSV)",
+      name: t.pages.accounting.tabs.trialBalance,
       category: "Audit",
-      description: "Barcha sintetik va analitik schyotlar boʻyicha aylanmalar va qoldiqlar (Shaxmatka).",
+      description: t.pages.accounting.subtitle,
       icon: FileSpreadsheet,
-      period: "Ixtiyoriy sana oraligʻi",
+      period: "Custom",
     },
     {
       id: "rep-tax",
-      name: "QQS va Foyda soligʻi hisob-kitob varaqasi",
-      category: "Soliq",
-      description: "Didox hisob-fakturalari boʻyicha soliq bazasi va zachyot summasi tafsiloti.",
+      name: t.pages.tax.tabs.vat,
+      category: t.nav.tax,
+      description: t.pages.tax.subtitle,
       icon: BarChart3,
-      period: "Oylik",
+      period: "Monthly",
     },
     {
       id: "rep-cash",
-      name: "Pul oqimlari toʻgʻrisida hisobot (Cash Flow)",
-      category: "Moliya",
-      description: "Operatsion, investitsion va moliyaviy faoliyat boʻyicha naqd va naqdsiz oqimlar.",
+      name: t.pages.finance.tabs.cashflow,
+      category: t.nav.finance,
+      description: t.pages.finance.subtitle,
       icon: DollarSign,
-      period: "Haftalik / Oylik",
+      period: "Weekly / Monthly",
     },
     {
       id: "rep-reconcile",
-      name: "Kontragentlar bilan solishtiruv dalolatnomasi (Akt sverki)",
-      category: "Birlamchi",
-      description: "Xaridor va yetkazib beruvchilar boʻyicha oʻzaro hisob-kitoblar va qarzlar akti.",
+      name: t.pages.contracts.title,
+      category: t.nav.contracts,
+      description: t.pages.contracts.subtitle,
       icon: FileText,
-      period: "Shartnoma boʻyicha",
+      period: "Contract",
     },
   ];
 
@@ -137,7 +137,7 @@ export default function ReportsPage() {
                   className="h-7 text-xs px-3 bg-indigo-600 hover:bg-indigo-700 text-white"
                   onClick={() => setSelectedReport(rep.name)}
                 >
-                  Yaratish
+                  {t.pages.reports.generateReport}
                 </Button>
               </div>
             </Card>
@@ -152,17 +152,16 @@ export default function ReportsPage() {
             <DialogHeader>
               <DialogTitle>{selectedReport}</DialogTitle>
               <DialogDescription>
-                Hisobot davri va parametrlarini tanlang.
+                {t.pages.reports.subtitle}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-3 text-xs">
               <div>
-                <label className="font-medium text-foreground block mb-1">Davr:</label>
+                <label className="font-medium text-foreground block mb-1">Period:</label>
                 <select className="w-full h-8 rounded-lg border border-input bg-card px-3 text-xs text-foreground">
-                  <option>2026-yil Oktyabr oyi</option>
-                  <option>2026-yil 3-chorak (Q3)</option>
-                  <option>2026-yil toʻliq (YTD)</option>
+                  <option>2026 Q3</option>
+                  <option>2026 YTD</option>
                 </select>
               </div>
 
@@ -183,11 +182,11 @@ export default function ReportsPage() {
               <Button
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs w-full"
                 onClick={() => {
-                  toast.success(`${selectedReport} muvaffaqiyatli shakllantirildi va yuklab olindi!`);
+                  toast.success(t.pages.reports.generateReport);
                   setSelectedReport(null);
                 }}
               >
-                Hisobotni Shakllantirish va Yuklash
+                {t.pages.reports.generateReport}
               </Button>
             </DialogFooter>
           </DialogContent>

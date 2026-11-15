@@ -121,7 +121,7 @@ export default function DashboardPage() {
           badge={
             <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Sinxron
+              {t.common.sync}
             </div>
           }
           icon={<Cable className="h-4 w-4 text-indigo-500" />}
@@ -146,11 +146,11 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3 text-xs">
               <div className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span className="text-muted-foreground">Kirim</span>
+                <span className="text-muted-foreground">{t.common.income}</span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                <span className="text-muted-foreground">Chiqim</span>
+                <span className="text-muted-foreground">{t.common.expense}</span>
               </div>
             </div>
           </CardHeader>
@@ -193,10 +193,10 @@ export default function DashboardPage() {
                               {payload[0].payload.date}
                             </p>
                             <p className="text-emerald-600 dark:text-emerald-400">
-                              Kirim: {payload[0].value?.toLocaleString()} soʻm
+                              {t.common.income}: {payload[0].value?.toLocaleString()} {t.common.currency}
                             </p>
                             <p className="text-indigo-600 dark:text-indigo-400">
-                              Chiqim: {payload[1].value?.toLocaleString()} soʻm
+                              {t.common.expense}: {payload[1].value?.toLocaleString()} {t.common.currency}
                             </p>
                           </div>
                         );
@@ -230,15 +230,15 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center justify-between">
-              <span>Integratsiya holati</span>
+              <span>{t.dashboard.integrationsTitle}</span>
               <Link
                 href="/integrations"
                 className="text-xs font-normal text-primary hover:underline flex items-center gap-0.5"
               >
-                Barchasi <ArrowRight className="h-3 w-3" />
+                {t.common.all} <ArrowRight className="h-3 w-3" />
               </Link>
             </CardTitle>
-            <CardDescription>Tashqi xizmatlar bilan sinxronizatsiya</CardDescription>
+            <CardDescription>{t.pages.integrations.subtitle}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             {mockIntegrations.slice(0, 4).map((integ) => (
@@ -283,7 +283,7 @@ export default function DashboardPage() {
                 {t.dashboard.pendingApprovalsTitle}
               </CardTitle>
               <CardDescription>
-                Buxgalter ruxsatini kutayotgan hisob-fakturalar va toʻlovlar
+                {t.dashboard.kpiApprovalsSub}
               </CardDescription>
             </div>
             <Link
@@ -343,14 +343,14 @@ export default function DashboardPage() {
                 {t.dashboard.recentExceptionsTitle}
               </CardTitle>
               <CardDescription>
-                Nomutanosibliklar, tafovutlar va xatoliklar
+                {t.pages.aiAuditor.subtitle}
               </CardDescription>
             </div>
             <Link
               href="/ai-auditor"
               className="text-xs text-primary hover:underline flex items-center gap-0.5"
             >
-              Audit <ArrowRight className="h-3 w-3" />
+              {t.nav.aiAuditor} <ArrowRight className="h-3 w-3" />
             </Link>
           </CardHeader>
           <CardContent className="p-0">
@@ -402,12 +402,12 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                GPT-6 Luna AI Tavsiyasi
+                {t.dashboard.aiRecommendationTitle}
               </span>
-              <span className="text-[10px] text-muted-foreground">• Bugun 14:32</span>
+              <span className="text-[10px] text-muted-foreground">• 14:32</span>
             </div>
             <p className="text-xs text-foreground mt-0.5 leading-relaxed max-w-3xl">
-              Noyabr oyi QQS boʻyicha hisobga olinadigan (zachyot) summa <strong>34,850,000 soʻm</strong>ni tashkil etmoqda. 1 ta hisob-faktura (Universal Logistics) toʻlovi bilan nomutanosib. Uni tasdiqlashdan avval tuzatuvchi E-SF soʻrash tavsiya etiladi.
+              Noyabr oyi QQS boʻyicha hisobga olinadigan (zachyot) summa <strong>34,850,000 {t.common.currency}</strong>ni tashkil etmoqda. 1 ta hisob-faktura (Universal Logistics) toʻlovi bilan nomutanosib. Uni tasdiqlashdan avval tuzatuvchi E-SF soʻrash tavsiya etiladi.
             </p>
           </div>
         </div>
@@ -418,7 +418,7 @@ export default function DashboardPage() {
             onClick={toggleAiDrawer}
             className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
           >
-            Tavsiyani koʻrish
+            {t.common.view}
           </Button>
         </div>
       </div>

@@ -86,15 +86,15 @@ export default function InventoryPage() {
       <Card>
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-sm font-semibold">Ombordagi Mahsulotlar Roʻyxati</CardTitle>
-            <CardDescription>Barcha tovarlar, xomashyo va materiallar qoldigʻi</CardDescription>
+            <CardTitle className="text-sm font-semibold">{t.pages.inventory.title}</CardTitle>
+            <CardDescription>{t.pages.inventory.subtitle}</CardDescription>
           </div>
           <div className="relative w-full sm:w-60">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="SKU yoki tovar nomi..."
+              placeholder={t.common.search}
               className="h-8 pl-8 text-xs"
             />
           </div>
@@ -103,13 +103,13 @@ export default function InventoryPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SKU / Artikil</TableHead>
-                <TableHead>Mahsulot Nomi</TableHead>
-                <TableHead>Kategoriya</TableHead>
-                <TableHead className="text-right">Qoldiq</TableHead>
-                <TableHead className="text-right">Tannarx</TableHead>
-                <TableHead className="text-right">Umumiy Qiymati</TableHead>
-                <TableHead>Holat</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>{t.pages.accounting.name}</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
+                <TableHead className="text-right">Cost</TableHead>
+                <TableHead className="text-right">{t.common.amount}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -135,8 +135,7 @@ export default function InventoryPage() {
                   </TableCell>
                   <TableCell>
                     <StatusPill
-                      status={item.status === "in_stock" ? "active" : "pending"}
-                      label={item.status === "in_stock" ? "Yetarli" : "Kam qoldi"}
+                      status={item.status}
                     />
                   </TableCell>
                 </TableRow>
@@ -151,20 +150,20 @@ export default function InventoryPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <ArrowDownUp className="h-4 w-4 text-indigo-500" />
-            Soʻnggi Tovar Harakatlari (Kirim / Chiqim)
+            {t.pages.inventory.title} ({t.common.income} / {t.common.expense})
           </CardTitle>
-          <CardDescription>Didox E-SF va talabnomalar boʻyicha hisobdan chiqarishlar</CardDescription>
+          <CardDescription>{t.pages.inventory.subtitle}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Sana</TableHead>
-                <TableHead>Operatsiya Turi</TableHead>
-                <TableHead>Mahsulot</TableHead>
-                <TableHead>Miqdor</TableHead>
-                <TableHead>Hujjat Asosi</TableHead>
-                <TableHead>Javobgar</TableHead>
+                <TableHead>{t.common.date}</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>{t.pages.inventory.tabs.goods}</TableHead>
+                <TableHead>Qty</TableHead>
+                <TableHead>{t.nav.documents}</TableHead>
+                <TableHead>User</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -213,22 +213,22 @@ export default function AccountingPage() {
                   onClick={() => setSelectedEntry(null)}
                   className="h-7 text-xs"
                 >
-                  Yopish
+                  {t.common.close}
                 </Button>
               </div>
 
               <div className="text-xs">
                 <span className="font-semibold text-muted-foreground mb-2 block">
-                  Debet / Kredit chiziqlari (Double-entry lines):
+                  {t.pages.accounting.tabs.journal}:
                 </span>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Schyot kodi</TableHead>
-                      <TableHead>Schyot nomi</TableHead>
-                      <TableHead className="text-right">Debet</TableHead>
-                      <TableHead className="text-right">Kredit</TableHead>
-                      <TableHead>Izoh</TableHead>
+                      <TableHead>{t.pages.accounting.code}</TableHead>
+                      <TableHead>{t.pages.accounting.name}</TableHead>
+                      <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
+                      <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
+                      <TableHead>{t.common.description}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -259,11 +259,11 @@ export default function AccountingPage() {
           <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-xs">
             <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-medium">
               <CheckCircle2 className="h-4 w-4" />
-              <span>Buxgalteriya balansi teng: Debet = Kredit (BHMS Qoidasi)</span>
+              <span>{t.pages.accounting.debit} = {t.pages.accounting.credit}</span>
             </div>
             <div className="flex items-center gap-4 font-mono font-bold">
-              <span>Debet: 282,440,000 soʻm</span>
-              <span>Kredit: 282,440,000 soʻm</span>
+              <span>{t.pages.accounting.debit}: 282,440,000 {t.common.currency}</span>
+              <span>{t.pages.accounting.credit}: 282,440,000 {t.common.currency}</span>
             </div>
           </div>
 
@@ -273,7 +273,7 @@ export default function AccountingPage() {
                 <TableRow>
                   <TableHead className="w-20">{t.pages.accounting.code}</TableHead>
                   <TableHead>{t.pages.accounting.name}</TableHead>
-                  <TableHead className="text-right">Dastlabki Saldo</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.balance} (Start)</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
@@ -308,17 +308,17 @@ export default function AccountingPage() {
         {/* 4. General Ledger Tab */}
         <TabsContent value="ledger" className="space-y-4 mt-4">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium text-muted-foreground">Schyotni tanlang:</span>
+            <span className="text-xs font-medium text-muted-foreground">{t.pages.accounting.code}:</span>
             <select
               value={selectedLedgerAccount}
               onChange={(e) => setSelectedLedgerAccount(e.target.value)}
               className="h-8 rounded-lg border border-input bg-card px-3 text-xs font-medium font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
-              <option value="5110">5110 — Hisob-kitob schyoti (Bank UZS)</option>
-              <option value="4010">4010 — Xaridorlar bilan hisoblashuvlar</option>
-              <option value="6010">6010 — Mol yetkazib beruvchilarga qarzlar</option>
-              <option value="6410">6410 — Budjetga toʻlovlar (QQS)</option>
-              <option value="1010">1010 — Xomashyo va materiallar</option>
+              <option value="5110">5110 — Bank UZS</option>
+              <option value="4010">4010 — Accounts Receivable</option>
+              <option value="6010">6010 — Accounts Payable</option>
+              <option value="6410">6410 — Tax (VAT)</option>
+              <option value="1010">1010 — Inventory</option>
             </select>
           </div>
 
@@ -326,12 +326,12 @@ export default function AccountingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sana</TableHead>
-                  <TableHead>Hujjat / Operatsiya</TableHead>
-                  <TableHead>Korrespondent Schyot</TableHead>
-                  <TableHead className="text-right">Debet</TableHead>
-                  <TableHead className="text-right">Kredit</TableHead>
-                  <TableHead className="text-right">Qoldiq Saldo</TableHead>
+                  <TableHead>{t.common.date}</TableHead>
+                  <TableHead>{t.common.description}</TableHead>
+                  <TableHead>{t.pages.accounting.code}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

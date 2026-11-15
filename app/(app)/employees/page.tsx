@@ -67,47 +67,47 @@ export default function EmployeesPage() {
       {/* Row 1: Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="p-4">
-          <span className="text-xs font-semibold text-muted-foreground">Xodimlar soni</span>
+          <span className="text-xs font-semibold text-muted-foreground">{t.pages.employees.totalEmployees}</span>
           <div className="text-2xl font-bold font-mono text-foreground mt-1">
-            {mockEmployees.length} nafar
+            {mockEmployees.length}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1">Barcha xodimlar rasmiy bandlikda</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{t.statuses.active}</p>
         </Card>
 
         <Card className="p-4">
-          <span className="text-xs font-semibold text-muted-foreground">Oylik Mehnat Haqi Jamgʻarmasi</span>
+          <span className="text-xs font-semibold text-muted-foreground">{t.pages.employees.monthlyPayroll}</span>
           <div className="text-2xl font-bold font-mono text-foreground mt-1">
             <Money amount={totalPayroll} />
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1">Oklad stavkalari boʻyicha</p>
+          <p className="text-[10px] text-muted-foreground mt-1">Oklad</p>
         </Card>
 
         <Card className="p-4">
-          <span className="text-xs font-semibold text-muted-foreground">Soliqlar (JShDS 12% + Ijtimoiy 12%)</span>
+          <span className="text-xs font-semibold text-muted-foreground">{t.nav.tax}</span>
           <div className="text-2xl font-bold font-mono text-primary mt-1">
             <Money amount={totalPayroll * 0.24} />
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1">Budjetga toʻlanishi zarur summa</p>
+          <p className="text-[10px] text-muted-foreground mt-1">{t.pages.tax.vatPayable}</p>
         </Card>
       </div>
 
       {/* Employees Table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Xodimlar Roʻyxati</CardTitle>
-          <CardDescription>Lavozimlar, departamentlar va maoshlar</CardDescription>
+          <CardTitle className="text-sm font-semibold">{t.pages.employees.title}</CardTitle>
+          <CardDescription>{t.pages.employees.subtitle}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>F.I.Sh</TableHead>
-                <TableHead>Lavozim</TableHead>
-                <TableHead>Departament</TableHead>
-                <TableHead className="text-right">Oylik Maosh</TableHead>
-                <TableHead>JShSHIR (PINFL)</TableHead>
-                <TableHead>Ishga kirgan sana</TableHead>
-                <TableHead>Holat</TableHead>
+                <TableHead>{t.nav.team}</TableHead>
+                <TableHead>Position</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead className="text-right">{t.pages.employees.monthlyPayroll}</TableHead>
+                <TableHead>PINFL</TableHead>
+                <TableHead>{t.common.date}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -128,7 +128,7 @@ export default function EmployeesPage() {
                     {emp.startDate}
                   </TableCell>
                   <TableCell>
-                    <StatusPill status={emp.status === "active" ? "active" : "pending"} label="Faol" />
+                    <StatusPill status={emp.status} />
                   </TableCell>
                 </TableRow>
               ))}

@@ -53,6 +53,44 @@ export interface Translations {
     sync: string;
     view: string;
     logout: string;
+    now: string;
+    viewAll: string;
+    time: string;
+    name: string;
+    period: string;
+    connect: string;
+    disconnect: string;
+    inbound: string;
+    outbound: string;
+    monthly: string;
+    quarterly: string;
+    records: string;
+    previous: string;
+    edit: string;
+  };
+  statuses: {
+    posted: string;
+    signed: string;
+    active: string;
+    connected: string;
+    paid: string;
+    success: string;
+    pending: string;
+    pending_signature: string;
+    due_soon: string;
+    syncing: string;
+    exception: string;
+    rejected: string;
+    error: string;
+    overdue: string;
+    critical: string;
+    urgent: string;
+    reconciled: string;
+    draft: string;
+    in_stock: string;
+    low_stock: string;
+    completed: string;
+    invited: string;
   };
   dashboard: {
     title: string;
@@ -78,6 +116,7 @@ export interface Translations {
     markAllRead: string;
     clearAll: string;
     empty: string;
+    footerSync: string;
     tabs: {
       all: string;
       tax: string;
@@ -125,6 +164,7 @@ export interface Translations {
     placeholder: string;
     noResults: string;
     modules: string;
+    askAi: string;
   };
   footer: {
     standards: string;
@@ -221,6 +261,9 @@ export interface Translations {
       vatPayable: string;
       annualTurnover: string;
       nextDeadline: string;
+      calendarTitle: string;
+      calculateModalTitle: string;
+      confirmCalculation: string;
     };
     finance: {
       title: string;
@@ -332,6 +375,35 @@ export interface Translations {
         notifications: string;
         language: string;
       };
+      entitiesTitle: string;
+      entitiesDesc: string;
+      addEntity: string;
+      companyName: string;
+      tinStir: string;
+      legalForm: string;
+      taxRegime: string;
+      managingAccountant: string;
+      status: string;
+      action: string;
+      edit: string;
+      securityTitle: string;
+      securityDesc: string;
+      twoFactorTitle: string;
+      twoFactorDesc: string;
+      zeroTrustTitle: string;
+      zeroTrustDesc: string;
+      guaranteed: string;
+      activeSessions: string;
+      currentSession: string;
+      online: string;
+      notificationsTitle: string;
+      notificationsDesc: string;
+      emailAlerts: string;
+      emailAlertsDesc: string;
+      telegramAlerts: string;
+      telegramAlertsDesc: string;
+      interfaceLangTitle: string;
+      interfaceLangDesc: string;
     };
   };
 }

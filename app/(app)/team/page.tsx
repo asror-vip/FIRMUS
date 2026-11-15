@@ -96,19 +96,19 @@ export default function TeamPage() {
       {/* Members Table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Jamoa Aʼzolari</CardTitle>
-          <CardDescription>Barcha foydalanuvchilar va ularning rollari</CardDescription>
+          <CardTitle className="text-sm font-semibold">{t.pages.team.title}</CardTitle>
+          <CardDescription>{t.pages.team.subtitle}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Ism-familiya</TableHead>
-                <TableHead>Aloqa</TableHead>
-                <TableHead>Roli</TableHead>
-                <TableHead>Biriktirilgan Korxonalar</TableHead>
-                <TableHead>Holat</TableHead>
-                <TableHead>Oxirgi faollik</TableHead>
+                <TableHead>{t.nav.team}</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>{t.pages.team.assignedCompanies}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
+                <TableHead>Activity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -123,14 +123,14 @@ export default function TeamPage() {
                   </TableCell>
                   <TableCell>
                     <Badge variant="indigo" className="text-[10px] capitalize">
-                      {m.role.replace("_", " ")}
+                      {t.roles[m.role] || m.role}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs font-mono">
-                    {m.assignedEntityIds.length} ta korxona
+                    {m.assignedEntityIds.length}
                   </TableCell>
                   <TableCell>
-                    <StatusPill status={m.status === "active" ? "active" : "pending"} label={m.status === "active" ? "Faol" : "Taklif qilingan"} />
+                    <StatusPill status={m.status} />
                   </TableCell>
                   <TableCell className="text-[11px] text-muted-foreground">
                     {m.lastActive}
@@ -210,9 +210,9 @@ export default function TeamPage() {
       <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Jamoaga Yangi Aʼzo Taklif Qilish</DialogTitle>
+            <DialogTitle>{t.pages.team.inviteMember}</DialogTitle>
             <DialogDescription>
-              Elektron pochta manziliga AUVRIO ga kirish taklifnomasi yuboriladi.
+              FIRMUS • {t.pages.team.subtitle}
             </DialogDescription>
           </DialogHeader>
 

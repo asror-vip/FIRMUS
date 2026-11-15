@@ -69,14 +69,14 @@ export default function TaxPage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">QQS (12%)</span>
             <Badge variant="indigo" className="text-[10px] px-1 py-0 h-4">
-              Oylik
+              {t.common.monthly}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
-            38,450,000 soʻm
+            <Money amount={38450000} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            Noyabr oyi uchun kutilayotgan toʻlov (Muddati: 20-dekabr)
+            20-dekabr
           </p>
         </Card>
 
@@ -84,14 +84,14 @@ export default function TaxPage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">JShDS (12%)</span>
             <Badge variant="success" className="text-[10px] px-1 py-0 h-4">
-              Toʻlangan
+              {t.statuses.paid}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
-            8,208,000 soʻm
+            <Money amount={8208000} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            Oktyabr oyi ish haqi boʻyicha budjetga oʻtkazildi
+            15-noyabr
           </p>
         </Card>
 
@@ -99,14 +99,14 @@ export default function TaxPage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">Ijtimoiy soliq (12%)</span>
             <Badge variant="success" className="text-[10px] px-1 py-0 h-4">
-              Toʻlangan
+              {t.statuses.paid}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
-            8,208,000 soʻm
+            <Money amount={8208000} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            Pensiya va ijtimoiy sugʻurta jamgʻarmasiga toʻlangan
+            15-noyabr
           </p>
         </Card>
 
@@ -114,14 +114,14 @@ export default function TaxPage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">Foyda soligʻi (15%)</span>
             <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
-              Choraklik
+              {t.common.quarterly}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
-            54,200,000 soʻm
+            <Money amount={54200000} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            3-chorak (Q3) boʻyicha toʻliq hisoblangan
+            Q3
           </p>
         </Card>
       </div>
@@ -132,7 +132,7 @@ export default function TaxPage() {
           <div>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Calendar className="h-4 w-4 text-indigo-500" />
-              Kelayotgan Soliq Hisoboti Muddatlari (Soliq Kalendari)
+              {t.pages.tax.calendarTitle}
             </CardTitle>
             <CardDescription>
               FIRMUS AI
@@ -160,7 +160,7 @@ export default function TaxPage() {
                     variant={dl.status === "urgent" ? "warning" : dl.status === "completed" ? "success" : "outline"}
                     className="text-[9px] px-1 py-0 h-4"
                   >
-                    {dl.status === "urgent" ? "urgent" : dl.status === "completed" ? "completed" : t.common.pending}
+                    {dl.status === "urgent" ? t.statuses.urgent : dl.status === "completed" ? t.statuses.completed : t.common.pending}
                   </Badge>
                 </div>
                 <h4 className="font-semibold text-xs text-foreground line-clamp-1">
@@ -190,7 +190,7 @@ export default function TaxPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t.pages.accounting.name}</TableHead>
-                <TableHead>Period</TableHead>
+                <TableHead>{t.common.period}</TableHead>
                 <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
                 <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
                 <TableHead>{t.common.date}</TableHead>
@@ -226,7 +226,7 @@ export default function TaxPage() {
                       className="h-7 text-xs px-2.5"
                       onClick={() => setSelectedTax(rec)}
                     >
-                      Batafsil
+                      {t.common.details}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -240,23 +240,23 @@ export default function TaxPage() {
       <Dialog open={isCalcModalOpen} onOpenChange={setIsCalcModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>AI Soliq Hisoblash Dvigateli</DialogTitle>
+            <DialogTitle>{t.pages.tax.calculateModalTitle}</DialogTitle>
             <DialogDescription>
-              1C provodkalari va Didox kiruvchi/chiquvchi fakturalari asosida avtomatik hisoblash.
+              1C & Didox
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-3 text-xs">
             <div className="p-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5">
               <span className="font-semibold text-foreground block mb-1">
-                QQS (12%) hisoblash formulasi:
+                QQS (12%)
               </span>
               <p className="text-muted-foreground leading-relaxed">
-                Hisoblangan QQS = (Chiquvchi E-SF aylanmasi × 12%) − (Kiruvchi tasdiqlangan E-SF QQS zachyoti)
+                (E-SF × 12%)
               </p>
               <div className="mt-2 pt-2 border-t border-border flex justify-between font-mono font-bold text-foreground">
-                <span>Noyabr oyi QQS toʻlovi:</span>
-                <span className="text-primary">38,450,000 soʻm</span>
+                <span>QQS:</span>
+                <span className="text-primary"><Money amount={38450000} /></span>
               </div>
             </div>
           </div>
@@ -265,11 +265,11 @@ export default function TaxPage() {
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
               onClick={() => {
-                toast.success("Soliq hisob-kitobi yangilandi va deklaratsiyaga tayyorlandi!");
+                toast.success(t.pages.tax.confirmCalculation);
                 setIsCalcModalOpen(false);
               }}
             >
-              Hisobotni Tasdiqlash
+              {t.pages.tax.confirmCalculation}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -256,7 +256,7 @@ export default function DocumentsPage() {
               <div className="pt-2">
                 <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
                   <Download className="h-3 w-3" />
-                  PDF yuklab olish
+                  PDF {t.common.export}
                 </Button>
               </div>
             </div>
@@ -266,19 +266,19 @@ export default function DocumentsPage() {
               <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3.5 space-y-2">
                 <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold">
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>AI Ekstraktsiya Natijalari (GPT-6 Luna)</span>
+                  <span>{t.dashboard.aiRecommendationTitle}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
                   <div>
-                    <span className="text-muted-foreground">QQS summasi (12%):</span>
+                    <span className="text-muted-foreground">{t.pages.tax.vatPayable}:</span>
                     <p className="font-mono font-semibold text-foreground">
                       <Money amount={selectedDoc.aiExtractedData.vatAmount || 0} />
                     </p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Tovar pozitsiyalari:</span>
+                    <span className="text-muted-foreground">{t.pages.inventory.totalItems}:</span>
                     <p className="font-mono font-semibold text-foreground">
-                      {selectedDoc.aiExtractedData.itemsCount || 1} ta tovar
+                      {selectedDoc.aiExtractedData.itemsCount || 1}
                     </p>
                   </div>
                 </div>
@@ -288,21 +288,21 @@ export default function DocumentsPage() {
             {/* Signatures Status Box */}
             <div className="rounded-xl border border-border p-4 space-y-3">
               <span className="font-semibold text-foreground text-xs block">
-                E-IMZO Elektron Raqamli Imzolar:
+                E-IMZO:
               </span>
               <div className="space-y-2 text-[11px]">
                 <div className="flex items-center justify-between p-2 rounded bg-muted/30">
-                  <span className="text-muted-foreground">Biz tomondan (Mijoz):</span>
+                  <span className="text-muted-foreground">Entity:</span>
                   <span className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
-                    {selectedDoc.signedByLocal || "Imzolangan"}
+                    {selectedDoc.signedByLocal || t.statuses.signed}
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-muted/30">
-                  <span className="text-muted-foreground">Hamkor tomondan:</span>
+                  <span className="text-muted-foreground">{t.common.counterparty}:</span>
                   <span className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
-                    {selectedDoc.signedByPartner || "Tasdiqlangan"}
+                    {selectedDoc.signedByPartner || t.statuses.posted}
                   </span>
                 </div>
               </div>
@@ -313,21 +313,21 @@ export default function DocumentsPage() {
               <Button
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white h-9"
                 onClick={() => {
-                  toast.success("E-IMZO orqali imzolandi va Didox'ga jo'natildi!");
+                  toast.success(t.statuses.signed);
                   setSelectedDoc(null);
                 }}
               >
-                E-IMZO bilan imzolash
+                E-IMZO {t.statuses.signed}
               </Button>
               <Button
                 variant="outline"
                 className="h-9"
                 onClick={() => {
-                  toast.info("Tuzatish so'rovi yuborildi");
+                  toast.info(t.common.reject);
                   setSelectedDoc(null);
                 }}
               >
-                Rad etish
+                {t.common.reject}
               </Button>
             </div>
           </div>
@@ -338,25 +338,25 @@ export default function DocumentsPage() {
       <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Yangi Hujjat Yuklash</DialogTitle>
+            <DialogTitle>{t.pages.documents.uploadDoc}</DialogTitle>
             <DialogDescription>
-              Hisob-faktura (PDF, XML) yoki shartnomani yuklang. AI rekvizitlarni avtomatik aniqlaydi.
+              PDF, XML, DOCX, XLSX
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl border border-dashed border-border p-8 text-center my-3">
             <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-xs font-semibold text-foreground">Faylni tanlang yoki shu yerga tashlang</p>
-            <p className="text-[10px] text-muted-foreground mt-1">PDF, XML, DOCX, XLSX (20 MB gacha)</p>
+            <p className="text-xs font-semibold text-foreground">{t.pages.documents.uploadDoc}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">PDF, XML, DOCX, XLSX (20 MB)</p>
           </div>
           <DialogFooter>
             <Button
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
               onClick={() => {
-                toast.success("Hujjat yuklandi va AI orqali rekvizitlar aniqlandi!");
+                toast.success(t.pages.documents.uploadDoc);
                 setIsUploadOpen(false);
               }}
             >
-              Yuklash va Saqlash
+              {t.common.save}
             </Button>
           </DialogFooter>
         </DialogContent>
