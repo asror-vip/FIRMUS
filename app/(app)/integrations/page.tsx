@@ -208,12 +208,12 @@ export default function IntegrationsPage() {
             <div className="space-y-3 py-3 text-xs">
               <div>
                 <label className="font-medium text-foreground block mb-1">
-                  API Endpoint / OData URL:
+                  Server Ulanish Manzili (URL):
                 </label>
                 <Input
                   defaultValue={
                     selectedInteg.provider === "1c_enterprise"
-                      ? "https://1c.auvrio-client.uz/accounting/odata/standard.odata"
+                      ? "https://1c.firmus-enterprise.uz/accounting/api"
                       : "https://api.didox.uz/v1/partners"
                   }
                   className="font-mono text-xs h-8"
@@ -222,7 +222,7 @@ export default function IntegrationsPage() {
 
               <div>
                 <label className="font-medium text-foreground block mb-1">
-                  Client ID / Partner Token:
+                  Mijoz Kaliti (Client Token):
                 </label>
                 <Input
                   defaultValue="********************************"
@@ -236,7 +236,7 @@ export default function IntegrationsPage() {
                   <Shield className="h-3 w-3 text-emerald-500" />
                   Xavfsizlik kafolati:
                 </span>
-                Barcha maxfiy kalitlar Go backendda alohida shifrlangan holda saqlanadi.
+                Barcha maxfiy ulanish maʼlumotlari xavfsiz shifrlangan holda saqlanadi.
               </div>
             </div>
 

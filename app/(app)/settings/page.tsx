@@ -70,10 +70,6 @@ export default function SettingsPage() {
             <Shield className="h-3.5 w-3.5" />
             Xavfsizlik & E-IMZO
           </TabsTrigger>
-          <TabsTrigger value="dev-role" className="text-xs gap-1.5">
-            <Lock className="h-3.5 w-3.5 text-amber-500" />
-            Dev: Rolni tekshirish
-          </TabsTrigger>
           <TabsTrigger value="notifications" className="text-xs gap-1.5">
             <Bell className="h-3.5 w-3.5" />
             Xabarnomalar
@@ -223,52 +219,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* 3. Dev Role Switcher Tab */}
-        <TabsContent value="dev-role" className="space-y-4 mt-4">
-          <Card className="border-amber-500/30 bg-amber-500/5">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                <CardTitle className="text-sm font-semibold text-foreground">
-                  Dasturchi / Mijoz uchun: Foydalanuvchi Rolini Oʻzgartirish
-                </CardTitle>
-              </div>
-              <CardDescription className="text-xs">
-                Tizim turli xodimlar (Direktor, Bosh buxgalter, Auditor) koʻzi bilan qanday koʻrinishini darhol tekshirib koʻring.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-0">
-              <p className="text-xs text-muted-foreground">
-                Hozirgi faol rol: <strong className="text-foreground uppercase">{currentRole}</strong>
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
-                {(
-                  [
-                    "workspace_owner",
-                    "chief_accountant",
-                    "accountant",
-                    "auditor",
-                    "company_director",
-                    "viewer",
-                  ] as UserRole[]
-                ).map((role) => (
-                  <Button
-                    key={role}
-                    variant={currentRole === role ? "default" : "outline"}
-                    className={`justify-start text-xs h-9 ${currentRole === role ? "bg-indigo-600 text-white font-bold" : ""}`}
-                    onClick={() => {
-                      setCurrentRole(role);
-                      toast.success(`Rol oʻzgartirildi: ${roleLabels[role]}`);
-                    }}
-                  >
-                    {roleLabels[role]}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* 4. Notifications Tab */}
         <TabsContent value="notifications" className="space-y-4 mt-4">

@@ -21,7 +21,7 @@ export function Footer() {
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground/80">
-            © 2026 FIRMUS SaaS Inc. Barcha huquqlar himoyalangan. Maʼlumotlar xavfsizligi 256-bitli E-IMZO Zero-Trust standarti bilan kafolatlangan.
+            © 2026 FIRMUS SaaS Inc. Barcha huquqlar himoyalangan. Maʼlumotlar xavfsizligi 256-bitli E-IMZO shifrlash tizimi bilan kafolatlangan.
           </p>
         </div>
 
@@ -29,18 +29,18 @@ export function Footer() {
         <div className="flex flex-wrap items-center gap-3 text-[11px]">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Xizmatlar faol (99.9%)</span>
+            <span>Tizim faol</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-indigo-500" />
-            <span>Soliq.uz & Didox integratsiya</span>
+            <span>Soliq.uz & Didox sinxron</span>
           </div>
 
           <span className="text-muted-foreground/40 hidden sm:inline">•</span>
 
           <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
-            v1.0.4-prod
+            v1.0.4
           </span>
         </div>
       </div>

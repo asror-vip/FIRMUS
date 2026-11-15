@@ -15,7 +15,7 @@ export const mockExceptions: ExceptionItem[] = [
     counterparty: "Universal Logistics Partners MCHJ",
     evidence: {
       sourceSystem: "Didox E-SF №LOG-1480 / Kapitalbank tranzaksiya №98124",
-      referenceId: "tx-105",
+      referenceId: "№LOG-1480",
       details: "Hisob-fakturada QQS 12% qo'shilgan, to'lov topshiriqnomasida esa QQS chegirib to'langan.",
     },
     aiSuggestion: "Yetkazib beruvchidan tuzatuvchi hisob-faktura (korrektirovochnyy E-SF) so'ralsin yoki qoldiq 1,300,000 so'm to'lab berilsin.",
@@ -35,7 +35,7 @@ export const mockExceptions: ExceptionItem[] = [
     counterparty: "Diyorbek Trans Servis YaTT",
     evidence: {
       sourceSystem: "Kapitalbank Ko'chirma №109",
-      referenceId: "tx-109",
+      referenceId: "№KB-109",
       details: "Xizmat turi: Kuryerlik xizmati. E-IMZO orqali tasdiqlangan hujjat mavjud emas.",
     },
     aiSuggestion: "Kontragentdan Didox orqali elektron dalolatnoma (Akt) yuborish talab qilinsin. Aks holda foyda solig'idan xarajat sifatida chegirib bo'lmaydi.",
@@ -55,7 +55,7 @@ export const mockExceptions: ExceptionItem[] = [
     counterparty: "Bekobod Sement Zavodi AJ",
     evidence: {
       sourceSystem: "1C:Enterprise 8.3 / Didox",
-      referenceId: "tx-117",
+      referenceId: "№IKPU-025",
       details: "Yangi soliq qo'mitasi tasniflagichiga ko'ra IKPU kodi 2026-yilda yangilangan.",
     },
     aiSuggestion: "1C dagi nomenklatura kartochkasiga Didox'dan kelgan yangi IKPU kodi avtomatik yozilsin. Provodka to'g'ri shakllanadi.",
@@ -75,7 +75,7 @@ export const mockExceptions: ExceptionItem[] = [
     counterparty: "Toshkent Metallurgiya Zavodi QK MCHJ",
     evidence: {
       sourceSystem: "Shartnoma №04/26 / Schet 4310",
-      referenceId: "tx-103",
+      referenceId: "№SH-04/26",
       details: "Normativ muddat: avansdan keyin 10 ish kuni ichida jo'natilishi kerak.",
     },
     aiSuggestion: "TMZ savdo bo'limi bilan bog'lanib, yuk xati va E-SF chiqarilishini tezlashtirish so'ralsin.",

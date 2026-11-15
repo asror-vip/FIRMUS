@@ -99,12 +99,12 @@ export function AiDrawer() {
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-foreground">FIRMUS Copilot</span>
               <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
-                gpt-6-luna
+                GPT-6
               </span>
             </div>
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Responses API onlayn
+              Onlayn yordamchi
             </span>
           </div>
         </div>
@@ -161,23 +161,11 @@ export function AiDrawer() {
             >
               <p>{msg.text}</p>
 
-              {/* Tool Calls Chips */}
+              {/* Verified Status */}
               {msg.toolCalls && msg.toolCalls.length > 0 && (
-                <div className="mt-2.5 pt-2 border-t border-border/40">
-                  <div className="text-[10px] text-muted-foreground font-mono mb-1 flex items-center gap-1">
-                    <Wrench className="h-2.5 w-2.5" />
-                    Ishlatilgan Go tool funksiyalari:
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {msg.toolCalls.map((t, idx) => (
-                      <span
-                        key={idx}
-                        className="font-mono text-[9px] bg-background/80 border border-border px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 font-semibold"
-                      >
-                        {t}()
-                      </span>
-                    ))}
-                  </div>
+                <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                  <span>Didox va bank maʼlumotlari asosida tekshirildi</span>
                 </div>
               )}
 

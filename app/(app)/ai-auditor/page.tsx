@@ -156,7 +156,7 @@ export default function AiAuditorPage() {
                   <div className="flex items-center justify-between">
                     <StatusPill status={selectedExc.severity} />
                     <span className="text-[10px] font-mono text-muted-foreground">
-                      ID: {selectedExc.id}
+                      Hujjat №{selectedExc.evidence.referenceId || selectedExc.id.replace("exc-", "")}
                     </span>
                   </div>
                   <CardTitle className="text-base font-bold mt-2">
@@ -182,17 +182,17 @@ export default function AiAuditorPage() {
                   <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2">
                     <span className="font-semibold text-foreground text-xs flex items-center gap-1.5">
                       <FileText className="h-3.5 w-3.5 text-indigo-500" />
-                      Aniqlangan dalillar (Evidence):
+                      Taqqoslangan hujjatlar:
                     </span>
                     <div className="space-y-1 text-[11px]">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tizim va Hujjat:</span>
+                        <span className="text-muted-foreground">Manba va Hujjat:</span>
                         <span className="font-mono font-medium text-foreground">
                           {selectedExc.evidence.sourceSystem}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tafsilot:</span>
+                        <span className="text-muted-foreground">Tafovut izohi:</span>
                         <span className="font-medium text-foreground text-right max-w-xs">
                           {selectedExc.evidence.details}
                         </span>

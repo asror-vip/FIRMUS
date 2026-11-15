@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { EntitySwitcher } from "./entity-switcher";
 import { NotificationsPopover } from "./notifications-popover";
@@ -33,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { UserRole } from "@/lib/mock/types";
 
 export function Topbar() {
+  const router = useRouter();
   const {
     setIsSearchOpen,
     toggleAiDrawer,
@@ -141,13 +143,13 @@ export function Topbar() {
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuContent align="end" className="w-56">
             <div className="flex flex-col space-y-1 p-2">
               <p className="text-xs font-semibold leading-none text-foreground">
                 Dilnoza Xalilova
               </p>
-              <p className="text-[11px] leading-none text-muted-foreground">
-                dilnoza.bux@auvrio.uz
+              <p className="text-[11px] leading-none text-muted-foreground font-mono">
+                dilnoza.bux@firmus.uz
               </p>
               <div className="pt-1.5 flex items-center gap-1.5">
                 <Badge variant="indigo" className="text-[10px] px-1.5 py-0 h-4 font-normal">
@@ -158,44 +160,15 @@ export function Topbar() {
 
             <DropdownMenuSeparator />
 
-            {/* Dev Role Switcher */}
-            <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-              <Shield className="h-3 w-3 text-amber-500" />
-              Testlash: Foydalanuvchi roli
-            </DropdownMenuLabel>
-            {(
-              [
-                "workspace_owner",
-                "chief_accountant",
-                "accountant",
-                "auditor",
-                "company_director",
-                "viewer",
-              ] as UserRole[]
-            ).map((role) => (
-              <DropdownMenuItem
-                key={role}
-                onClick={() => {
-                  setCurrentRole(role);
-                  toast.success(`Rol oʻzgartirildi: ${t.roles[role]}`);
-                }}
-                className="text-xs py-1.5 cursor-pointer flex items-center justify-between"
-              >
-                <span>{t.roles[role]}</span>
-                {currentRole === role && <UserCheck className="h-3.5 w-3.5 text-primary" />}
-              </DropdownMenuItem>
-            ))}
-
-            <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => toast.info("Profil sozlamalari...")}
+              onClick={() => router.push("/settings")}
               className="text-xs cursor-pointer"
             >
               <Settings className="mr-2 h-3.5 w-3.5" />
               Sozlamalar
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => toast.info("Demo rejimida chiqish simulyatsiyasi")}
+              onClick={() => toast.info("Tizimdan chiqish tasdiqlandi")}
               className="text-xs text-rose-600 cursor-pointer"
             >
               <LogOut className="mr-2 h-3.5 w-3.5" />

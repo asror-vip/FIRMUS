@@ -18,9 +18,9 @@ export const mockIntegrations: Integration[] = [
     category: "erp",
     description: "OData REST orqali provodkalar, tovar qoldiqlari va kontragentlar ma'lumotlarini ikki tomonlama sinxronizatsiya qilish.",
     status: "error",
-    lastSyncTime: "Bugun 11:20 (Xatolik)",
+    lastSyncTime: "Bugun 11:20 (Kutilmoqda)",
     recordsSyncedToday: 32,
-    errorDetail: "HTTP 504: 1C serveri 30 soniya ichida javob bermadi. Mahalliy tarmoqni tekshiring.",
+    errorDetail: "1C bazasi bilan aloqa sekinlashdi. Tizim avtomatik qayta ulanishni amalga oshirmoqda.",
   },
   {
     id: "int-3",
@@ -119,8 +119,8 @@ export const mockSyncLogs: SyncLog[] = [
     timestamp: "2026-11-14 11:20:45",
     type: "outbound",
     recordsProcessed: 0,
-    status: "error",
-    message: "Ulanish xatosi (HTTP 504): 1C OData xizmati javob bermadi.",
+    status: "warning",
+    message: "1C serveri bilan vaqtinchalik aloqa sekin. Qayta sinxronizatsiya kutilmoqda.",
   },
   {
     id: "log-4",
