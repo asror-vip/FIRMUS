@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAppState } from "@/lib/mock/store";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,29 +25,30 @@ interface ChatMessage {
 
 export function AiDrawer() {
   const { isAiDrawerOpen, setIsAiDrawerOpen } = useAppState();
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "m-1",
       sender: "ai",
-      text: "Assalomu alaykum! Men FIRMUS operatsion tizimining GPT-6 Luna AI koordinatori boʻlaman. Bugun 6 ta yangi istisno aniqlandi va 14 ta Didox hisob-fakturasi avtomatik tekshirildi. Sizga qanday yordam bera olaman?",
+      text: t.aiDrawer.greeting,
       time: "14:30",
     },
     {
       id: "m-2",
       sender: "user",
-      text: "Bugungi eng muhim istisnolarni ko‘rsat va ularni hal qilishni taklif ber.",
+      text: t.aiDrawer.prompts.exceptions,
       time: "14:32",
     },
     {
       id: "m-3",
       sender: "ai",
-      text: "Didox va bank tushumlari boʻyicha eng jiddiy holat: Universal Logistics Partners MCHJ dan kelgan E-SF summasi 14,800,000 soʻm, biroq bankdan 13,500,000 soʻm toʻlangan. Qoldiq 1,300,000 soʻm (QQS hisobiga farq) boʻyicha tuzatuvchi hisob-faktura shakllantirishni taklif qilaman.",
+      text: "Universal Logistics Partners: E-SF summasi 14,800,000, lekin bank toʻlovi 13,500,000. Qoldiq 1,300,000 boʻyicha tuzatuvchi hisob-faktura shakllantirish taklif etiladi.",
       time: "14:32",
-      toolCalls: ["search_documents", "get_bank_transactions", "get_accounting_anomalies"],
+      toolCalls: ["search_documents", "get_bank_transactions"],
       actionProposed: {
-        title: "Korrektirovochnyy E-SF soʻrovi joʻnatish",
-        amount: "1,300,000 soʻm",
+        title: "Tuzatuvchi E-SF soʻrovi",
+        amount: "1,300,000",
         accounts: "Debet 6010 / Kredit 5110",
       },
     },
@@ -71,11 +73,11 @@ export function AiDrawer() {
       const aiReply: ChatMessage = {
         id: `m-${Date.now() + 1}`,
         sender: "ai",
-        text: `"${userText}" soʻrovingiz boʻyicha maʼlumotlar tekshirildi. Tizimda 1C OData va Didox koʻrsatkichlari solishtirildi. Operatsiyani yakunlash uchun buxgalter tasdigʻi zarur.`,
+        text: `"${userText}": ${t.aiDrawer.approvalRequired}`,
         time: "Hozir",
-        toolCalls: ["validate_journal_entry", "reconcile_transaction"],
+        toolCalls: ["reconcile_transaction"],
         actionProposed: {
-          title: "Hisob-fakturani avtomatik yopish taklifi",
+          title: "Hisob-fakturani yopish taklifi",
           amount: "Tekshiruv kutilmoqda",
         },
       };
@@ -97,14 +99,14 @@ export function AiDrawer() {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-foreground">FIRMUS Copilot</span>
+              <span className="text-xs font-semibold text-foreground">{t.aiDrawer.title}</span>
               <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                 GPT-6
               </span>
             </div>
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Onlayn yordamchi
+              {t.aiDrawer.online}
             </span>
           </div>
         </div>
@@ -122,13 +124,13 @@ export function AiDrawer() {
       {/* Suggested Prompts */}
       <div className="border-b border-border bg-muted/40 p-2.5">
         <div className="text-[10px] font-medium text-muted-foreground mb-1.5 px-1">
-          Tezkor amallar (Suggested prompts):
+          {t.aiDrawer.suggestedTitle}
         </div>
         <div className="flex flex-wrap gap-1.5">
           {[
-            "Bugungi istisnolarni ko‘rsat",
-            "Bank tranzaksiyalarini tasnifla",
-            "Soliq hisobotini tayyorla",
+            t.aiDrawer.prompts.exceptions,
+            t.aiDrawer.prompts.bank,
+            t.aiDrawer.prompts.tax,
           ].map((prompt, i) => (
             <button
               key={i}
@@ -165,7 +167,7 @@ export function AiDrawer() {
               {msg.toolCalls && msg.toolCalls.length > 0 && (
                 <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
-                  <span>Didox va bank maʼlumotlari asosida tekshirildi</span>
+                  <span>{t.aiDrawer.verified}</span>
                 </div>
               )}
 
@@ -177,13 +179,13 @@ export function AiDrawer() {
                       {msg.actionProposed.title}
                     </span>
                     <Badge variant="warning" className="text-[9px] px-1 py-0 h-4">
-                      Tasdiqlash kerak
+                      {t.common.pending}
                     </Badge>
                   </div>
 
                   {msg.actionProposed.amount && (
                     <div className="text-[11px] font-mono text-muted-foreground">
-                      Summa: <span className="font-semibold text-foreground">{msg.actionProposed.amount}</span>
+                      {t.common.amount}: <span className="font-semibold text-foreground">{msg.actionProposed.amount} {t.common.currency}</span>
                     </div>
                   )}
 
@@ -198,27 +200,19 @@ export function AiDrawer() {
                       size="sm"
                       variant="success"
                       className="h-7 px-2.5 text-[11px]"
-                      onClick={() => toast.success("AI taklifi tasdiqlandi va 1C/Didox ga jo'natildi!")}
+                      onClick={() => toast.success(t.common.approve)}
                     >
                       <CheckCircle2 className="mr-1 h-3 w-3" />
-                      Tasdiqlash
+                      {t.aiDrawer.approveAction}
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       className="h-7 px-2 text-[11px]"
-                      onClick={() => toast.info("Taklif rad etildi")}
+                      onClick={() => toast.info(t.common.reject)}
                     >
                       <XCircle className="mr-1 h-3 w-3" />
-                      Rad etish
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-1.5 text-[11px] text-muted-foreground"
-                      onClick={() => toast.info("Tafsilotlar sahifasi ochilmoqda...")}
-                    >
-                      <ArrowUpRight className="h-3 w-3" />
+                      {t.aiDrawer.rejectAction}
                     </Button>
                   </div>
                 </div>
@@ -244,16 +238,13 @@ export function AiDrawer() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="AI assistantga buyruq yoki savol bering..."
+            placeholder={t.aiDrawer.inputPlaceholder}
             className="text-xs h-9"
           />
           <Button type="submit" size="sm" className="h-9 px-3 shrink-0">
             <Send className="h-3.5 w-3.5" />
           </Button>
         </form>
-        <div className="mt-1.5 text-[10px] text-center text-muted-foreground">
-          Moliyaviy hisob-kitoblar Go deterministik kodi orqali tekshiriladi.
-        </div>
       </div>
     </div>
   );

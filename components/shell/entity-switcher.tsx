@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useAppState } from "@/lib/mock/store";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 
 export function EntitySwitcher() {
   const { entities, currentEntity, setCurrentEntityId } = useAppState();
+  const { t } = useTranslation();
 
   return (
     <DropdownMenu>
@@ -35,7 +37,7 @@ export function EntitySwitcher() {
                 {currentEntity.tradeName || currentEntity.name}
               </span>
               <span className="text-[10px] text-muted-foreground font-mono">
-                STIR: {currentEntity.tinStir}
+                {t.entity.tin}: {currentEntity.tinStir}
               </span>
             </div>
           </div>
@@ -45,7 +47,7 @@ export function EntitySwitcher() {
 
       <DropdownMenuContent align="start" className="w-[280px]">
         <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          Biriktirilgan korxonalar (Client Entities)
+          {t.entity.title}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
@@ -54,7 +56,7 @@ export function EntitySwitcher() {
             key={ent.id}
             onClick={() => {
               setCurrentEntityId(ent.id);
-              toast.success(`Faol korxona tanlandi: ${ent.name}`);
+              toast.success(`${t.entity.title}: ${ent.name}`);
             }}
             className="flex items-center justify-between text-xs py-2 cursor-pointer"
           >
@@ -62,7 +64,7 @@ export function EntitySwitcher() {
               <span className="font-medium truncate text-foreground">{ent.name}</span>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-[10px] font-mono text-muted-foreground">
-                  STIR: {ent.tinStir}
+                  {t.entity.tin}: {ent.tinStir}
                 </span>
                 <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
                   {ent.taxRegime === "vat_profit_tax"
@@ -81,11 +83,11 @@ export function EntitySwitcher() {
 
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => toast.info("Yangi korxona qoʻshish (STIR orqali) ochilmoqda...")}
+          onClick={() => toast.info(`${t.entity.add}...`)}
           className="text-xs text-primary font-medium cursor-pointer"
         >
           <Plus className="mr-2 h-3.5 w-3.5" />
-          Yangi korxona biriktirish
+          {t.entity.add}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

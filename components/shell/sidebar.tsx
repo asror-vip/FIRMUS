@@ -222,7 +222,7 @@ export function Sidebar() {
             <div className="flex items-center justify-between text-[11px]">
               <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="truncate">Soliq & Didox sinxron</span>
+                <span className="truncate">{t.sidebarFooter.syncStatus}</span>
               </div>
               <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                 v1.0.4
@@ -230,10 +230,10 @@ export function Sidebar() {
             </div>
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
               <ShieldCheck className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-              <span className="truncate">256-bit shifrlangan • E-IMZO</span>
+              <span className="truncate">{t.sidebarFooter.security}</span>
             </div>
             <p className="text-[9px] text-muted-foreground/60 leading-tight">
-              © 2026 FIRMUS. Barcha huquqlar himoyalangan.
+              {t.sidebarFooter.rights}
             </p>
           </div>
         ) : (

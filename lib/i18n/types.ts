@@ -46,6 +46,11 @@ export interface Translations {
     currency: string;
     loading: string;
     actions: string;
+    income: string;
+    expense: string;
+    pending: string;
+    exceptions: string;
+    sync: string;
   };
   dashboard: {
     title: string;
@@ -86,5 +91,54 @@ export interface Translations {
     auditor: string;
     company_director: string;
     viewer: string;
+  };
+  aiDrawer: {
+    title: string;
+    online: string;
+    greeting: string;
+    suggestedTitle: string;
+    prompts: {
+      exceptions: string;
+      bank: string;
+      tax: string;
+    };
+    inputPlaceholder: string;
+    verified: string;
+    approvalRequired: string;
+    approveAction: string;
+    rejectAction: string;
+  };
+  workspace: {
+    title: string;
+    firm: string;
+    single: string;
+    add: string;
+  };
+  entity: {
+    title: string;
+    tin: string;
+    add: string;
+  };
+  commandPalette: {
+    placeholder: string;
+    noResults: string;
+    modules: string;
+  };
+  footer: {
+    standards: string;
+    rights: string;
+    status: string;
+    sync: string;
+    settings: string;
+    integrations: string;
+    reports: string;
+    soliqPortal: string;
+    didoxEdo: string;
+    serverTime: string;
+  };
+  sidebarFooter: {
+    syncStatus: string;
+    security: string;
+    rights: string;
   };
 }

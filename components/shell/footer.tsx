@@ -17,11 +17,11 @@ export function Footer() {
             <span className="font-bold text-foreground tracking-tight text-sm">FIRMUS</span>
             <span className="text-muted-foreground/60">•</span>
             <span className="text-[11px] text-muted-foreground">
-              Oʻzbekiston Respublikasi buxgalteriya va soliq hisobi avtomatizatsiyasi (BHMS / Soliq Kodeksi)
+              {t.footer.standards}
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground/80">
-            © 2026 FIRMUS SaaS Inc. Barcha huquqlar himoyalangan. Maʼlumotlar xavfsizligi 256-bitli E-IMZO shifrlash tizimi bilan kafolatlangan.
+            {t.footer.rights}
           </p>
         </div>
 
@@ -29,12 +29,12 @@ export function Footer() {
         <div className="flex flex-wrap items-center gap-3 text-[11px]">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Tizim faol</span>
+            <span>{t.footer.status}</span>
           </div>
 
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-indigo-500" />
-            <span>Soliq.uz & Didox sinxron</span>
+            <span>{t.footer.sync}</span>
           </div>
 
           <span className="text-muted-foreground/40 hidden sm:inline">•</span>
@@ -49,13 +49,13 @@ export function Footer() {
       <div className="mt-4 pt-4 border-t border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-muted-foreground/70">
         <div className="flex flex-wrap items-center gap-4">
           <Link href="/settings" className="hover:text-foreground transition-colors">
-            Tizim sozlamalari
+            {t.footer.settings}
           </Link>
           <Link href="/integrations" className="hover:text-foreground transition-colors">
-            Integratsiya holati
+            {t.footer.integrations}
           </Link>
           <Link href="/reports" className="hover:text-foreground transition-colors">
-            BHMS hisobotlari
+            {t.footer.reports}
           </Link>
           <a
             href="https://soliq.uz"
@@ -63,7 +63,7 @@ export function Footer() {
             rel="noopener noreferrer"
             className="hover:text-foreground transition-colors flex items-center gap-1"
           >
-            <span>Soliq.uz portali</span>
+            <span>{t.footer.soliqPortal}</span>
             <ExternalLink className="h-3 w-3" />
           </a>
           <a
@@ -72,13 +72,13 @@ export function Footer() {
             rel="noopener noreferrer"
             className="hover:text-foreground transition-colors flex items-center gap-1"
           >
-            <span>Didox E-SF</span>
+            <span>{t.footer.didoxEdo}</span>
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
 
         <div className="text-[10px] text-muted-foreground/60">
-          Server vaqti: Toshkent (UTC+5)
+          {t.footer.serverTime}
         </div>
       </div>
     </footer>

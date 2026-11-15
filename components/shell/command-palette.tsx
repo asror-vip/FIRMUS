@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAppState } from "@/lib/mock/store";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
@@ -26,26 +27,27 @@ import {
 
 export function CommandPalette() {
   const { isSearchOpen, setIsSearchOpen, toggleAiDrawer } = useAppState();
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const router = useRouter();
 
   const navigationItems = [
-    { name: "Asosiy boshqaruv (Dashboard)", href: "/", icon: LayoutDashboard },
-    { name: "AI Auditor & Istisnolar", href: "/ai-auditor", icon: ShieldAlert },
-    { name: "Bank va hisob-faktura tranzaksiyalari", href: "/transactions", icon: ArrowLeftRight },
-    { name: "Buxgalteriya va Hisoblar rejasi", href: "/accounting", icon: BookOpen },
-    { name: "Bank hisoblari va koʻchirmalar", href: "/banking", icon: Landmark },
-    { name: "Didox elektron hujjatlari", href: "/documents", icon: FileText },
-    { name: "Soliq hisob-kitoblari va kalendar", href: "/tax", icon: Percent },
-    { name: "Moliyaviy hisobotlar (P&L, Balans)", href: "/finance", icon: TrendingUp },
-    { name: "Omborxona va tovar qoldiqlari", href: "/inventory", icon: Package },
-    { name: "Shartnomalar va yuridik hujjatlar", href: "/contracts", icon: FileCheck },
-    { name: "Xodimlar va mehnat haqi", href: "/employees", icon: Users },
-    { name: "Integratsiyalar (1C, Didox, E-IMZO)", href: "/integrations", icon: Cable },
-    { name: "Hisobot shablonlari", href: "/reports", icon: BarChart3 },
-    { name: "Jamoa aʼzolari va ruxsatlar", href: "/team", icon: Users },
-    { name: "Obuna va toʻlovlar", href: "/billing", icon: CreditCard },
-    { name: "Tizim sozlamalari", href: "/settings", icon: Settings },
+    { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
+    { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
+    { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
+    { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
+    { name: t.nav.banking, href: "/banking", icon: Landmark },
+    { name: t.nav.documents, href: "/documents", icon: FileText },
+    { name: t.nav.tax, href: "/tax", icon: Percent },
+    { name: t.nav.finance, href: "/finance", icon: TrendingUp },
+    { name: t.nav.inventory, href: "/inventory", icon: Package },
+    { name: t.nav.contracts, href: "/contracts", icon: FileCheck },
+    { name: t.nav.employees, href: "/employees", icon: Users },
+    { name: t.nav.integrations, href: "/integrations", icon: Cable },
+    { name: t.nav.reports, href: "/reports", icon: BarChart3 },
+    { name: t.nav.team, href: "/team", icon: Users },
+    { name: t.nav.billing, href: "/billing", icon: CreditCard },
+    { name: t.nav.settings, href: "/settings", icon: Settings },
   ];
 
   const filtered = navigationItems.filter((item) =>
@@ -66,7 +68,7 @@ export function CommandPalette() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Sahifa, hisobot yoki modul qidiring (masalan: Soliq, Tranzaksiyalar, 1C)..."
+            placeholder={t.commandPalette.placeholder}
             className="border-0 shadow-none focus-visible:ring-0 text-sm h-8 px-0 placeholder:text-muted-foreground/60"
             autoFocus
           />
@@ -81,12 +83,12 @@ export function CommandPalette() {
 
         <div className="max-h-[340px] overflow-y-auto p-2">
           <div className="text-[10px] font-semibold text-muted-foreground px-2 py-1.5 uppercase tracking-wider">
-            Navigatsiya va Modullar
+            {t.commandPalette.modules}
           </div>
 
           {filtered.length === 0 ? (
             <div className="py-6 text-center text-xs text-muted-foreground">
-              Soʻrovingiz boʻyicha natija topilmadi.
+              {t.commandPalette.noResults}
             </div>
           ) : (
             filtered.map((item) => {
