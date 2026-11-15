@@ -76,13 +76,13 @@ export function Topbar() {
         <Button
           onClick={toggleAiDrawer}
           size="sm"
-          className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm px-2.5 text-xs"
+          className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm px-2.5 text-xs transition-colors"
         >
-          <Sparkles className="h-3.5 w-3.5" />
+          <Sparkles className="h-3.5 w-3.5 text-indigo-100" />
           <span className="hidden sm:inline">AI Copilot</span>
-          <Badge variant="indigo" className="h-4 px-1 py-0 text-[9px] bg-white/20 text-white border-0">
+          <span className="inline-flex items-center h-4 px-1.5 rounded-full text-[9px] font-bold bg-white text-indigo-700 shadow-xs tracking-wide">
             GPT-6
-          </Badge>
+          </span>
         </Button>
 
         {/* Enhanced Multi-Category Notifications Popover */}

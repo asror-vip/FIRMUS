@@ -98,9 +98,9 @@ export function AiDrawer() {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-foreground">AUVRIO Copilot</span>
-              <Badge variant="indigo" className="text-[9px] px-1 py-0 h-4">
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                 gpt-6-luna
-              </Badge>
+              </span>
             </div>
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
