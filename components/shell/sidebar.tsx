@@ -22,9 +22,9 @@ import {
   BarChart3,
   CreditCard,
   Settings,
-  ChevronLeft,
-  ChevronRight,
   Sparkles,
+  PanelLeft,
+  ShieldCheck,
 } from "lucide-react";
 
 interface NavigationItem {
@@ -93,22 +93,44 @@ export function Sidebar() {
       )}
     >
       {/* Brand Header */}
-      <div className="flex h-16 items-center justify-between border-b border-border px-4">
-        <Link href="/" className="flex items-center gap-2.5 overflow-hidden">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm tracking-wider shadow-sm">
-            AU
-          </div>
-          {!isCollapsed && (
-            <div className="flex flex-col truncate">
-              <span className="font-bold text-sm tracking-tight text-foreground font-sans">
-                AUVRIO
-              </span>
-              <span className="text-[10px] text-muted-foreground font-mono leading-none">
-                AI SaaS • Oʻzbekiston
-              </span>
-            </div>
-          )}
-        </Link>
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-border transition-colors",
+          isCollapsed ? "justify-center px-2" : "justify-between px-3.5"
+        )}
+      >
+        {isCollapsed ? (
+          <button
+            onClick={() => setIsCollapsed(false)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-all group relative"
+            title="Menyuni ochish (Expand sidebar)"
+          >
+            <PanelLeft className="h-5 w-5 transition-transform group-hover:scale-110 text-foreground" />
+          </button>
+        ) : (
+          <>
+            <Link href="/" className="flex items-center gap-2.5 overflow-hidden">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm tracking-wider shadow-sm">
+                AU
+              </div>
+              <div className="flex flex-col truncate">
+                <span className="font-bold text-sm tracking-tight text-foreground font-sans">
+                  AUVRIO
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono leading-none">
+                  AI SaaS • Oʻzbekiston
+                </span>
+              </div>
+            </Link>
+            <button
+              onClick={() => setIsCollapsed(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              title="Menyuni yigʻish (Collapse sidebar)"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Navigation Groups */}
@@ -193,24 +215,38 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Collapse Toggle Footer */}
-      <div className="border-t border-border p-2 flex items-center justify-between">
-        {!isCollapsed && (
-          <span className="text-[10px] text-muted-foreground px-2 font-mono">
-            {currentRole.replace("_", " ")}
-          </span>
+      {/* Sidebar Footer: Security & Version */}
+      <div className="border-t border-border mt-auto">
+        {!isCollapsed ? (
+          <div className="p-3 space-y-2 bg-muted/10">
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="truncate">Soliq & Didox sinxron</span>
+              </div>
+              <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                v1.0.4
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <ShieldCheck className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+              <span className="truncate">256-bit shifrlangan • E-IMZO</span>
+            </div>
+            <p className="text-[9px] text-muted-foreground/60 leading-tight">
+              © 2026 AUVRIO. Barcha huquqlar himoyalangan.
+            </p>
+          </div>
+        ) : (
+          <div className="p-3 flex flex-col items-center justify-center gap-2.5">
+            <div
+              className="h-2 w-2 rounded-full bg-emerald-500"
+              title="Barcha xizmatlar faol (99.9%)"
+            />
+            <span title="256-bit shifrlangan • Barcha huquqlar himoyalangan">
+              <ShieldCheck className="h-4 w-4 text-indigo-500 hover:scale-110 transition-transform cursor-help" />
+            </span>
+          </div>
         )}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent text-muted-foreground hover:text-foreground mx-auto"
-          title={isCollapsed ? "Menyuni kengaytirish" : "Menyuni yig'ish"}
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </button>
       </div>
     </aside>
   );
