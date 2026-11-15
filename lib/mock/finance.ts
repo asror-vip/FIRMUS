@@ -1,0 +1,48 @@
+export const mockCashFlowData = [
+  { date: "16 Okt", income: 18500000, expense: 9500000, net: 9000000 },
+  { date: "19 Okt", income: 24000000, expense: 12400000, net: 11600000 },
+  { date: "22 Okt", income: 42000000, expense: 28000000, net: 14000000 },
+  { date: "25 Okt", income: 15000000, expense: 18500000, net: -3500000 },
+  { date: "28 Okt", income: 38000000, expense: 22000000, net: 16000000 },
+  { date: "31 Okt", income: 88500000, expense: 35000000, net: 53500000 },
+  { date: "03 Noy", income: 22000000, expense: 68400000, net: -46400000 }, // Salary run
+  { date: "06 Noy", income: 115000000, expense: 41000000, net: 74000000 },
+  { date: "09 Noy", income: 45000000, expense: 24000000, net: 21000000 },
+  { date: "12 Noy", income: 72000000, expense: 45200000, net: 26800000 },
+  { date: "14 Noy", income: 142500000, expense: 38400000, net: 104100000 },
+];
+
+export const mockPnLStatement = [
+  { category: "I. Sof tushum (Sotishdan sof daromad)", code: "010", currentPeriod: 945000000, prevPeriod: 810000000, isHeader: false },
+  { category: "II. Sotilgan mahsulotlar tannarxi", code: "020", currentPeriod: -520000000, prevPeriod: -445000000, isHeader: false },
+  { category: "Yalpi foyda (zarar) (I - II)", code: "030", currentPeriod: 425000000, prevPeriod: 365000000, isHeader: true },
+  { category: "III. Davr xarajatlari, jami:", code: "040", currentPeriod: -102550000, prevPeriod: -91200000, isHeader: false },
+  { category: "   — Sotish xarajatlari (Marketing va logistika)", code: "050", currentPeriod: -14800000, prevPeriod: -12500000, isHeader: false },
+  { category: "   — Maʼmuriy xarajatlar (Ijara, aloqa, xodimlar)", code: "060", currentPeriod: -83600000, prevPeriod: -75100000, isHeader: false },
+  { category: "   — Boshqa operatsion xarajatlar (Bank komissiyasi)", code: "070", currentPeriod: -4150000, prevPeriod: -3600000, isHeader: false },
+  { category: "Asosiy faoliyatning foydasi (zarari)", code: "100", currentPeriod: 322450000, prevPeriod: 273800000, isHeader: true },
+  { category: "IV. Moliyaviy faoliyat daromadlari va xarajatlari", code: "110", currentPeriod: 12400000, prevPeriod: 8900000, isHeader: false },
+  { category: "Foyda soligʻini toʻlagunga qadar foyda", code: "140", currentPeriod: 334850000, prevPeriod: 282700000, isHeader: true },
+  { category: "V. Foyda soligʻi (15%)", code: "150", currentPeriod: -50227500, prevPeriod: -42405000, isHeader: false },
+  { category: "Hisobot davrining sof foydasi (zarari)", code: "160", currentPeriod: 284622500, prevPeriod: 240295000, isHeader: true },
+];
+
+export const mockBalanceSheet = [
+  { section: "AKTIVLAR", code: "", amount: 3749700000, isSectionHeader: true },
+  { section: "I. Uzoq muddatli aktivlar", code: "001", amount: 674500000, isHeader: true },
+  { section: "   — Asosiy vositalar (boshlangʻich qiymati)", code: "010", amount: 640000000, isHeader: false },
+  { section: "   — Asosiy vositalarni sotib olish (kapital qoʻyilmalar)", code: "020", amount: 34500000, isHeader: false },
+  { section: "II. Joriy aktivlar", code: "100", amount: 3075200000, isHeader: true },
+  { section: "   — Tovar-moddiy zaxiralar (xomashyo va yoqilgʻi)", code: "110", amount: 579500000, isHeader: false },
+  { section: "   — Debitorlik qarzlari (xaridorlar va avanslar)", code: "120", amount: 732500000, isHeader: false },
+  { section: "   — Pul mablagʻlari (bank va valyuta schyotlari)", code: "130", amount: 1763200000, isHeader: false },
+  { section: "PASSIVLAR (Majburiyatlar va Kapital)", code: "", amount: 3749700000, isSectionHeader: true },
+  { section: "I. Oʻz mablagʻlari manbalari (Xususiy kapital)", code: "200", amount: 2469806500, isHeader: true },
+  { section: "   — Ustav kapitali", code: "210", amount: 1500000000, isHeader: false },
+  { section: "   — Taqsimlanmagan foyda va zaxiralar", code: "220", amount: 969806500, isHeader: false },
+  { section: "II. Qisqa muddatli majburiyatlar", code: "300", amount: 1279893500, isHeader: true },
+  { section: "   — Mol yetkazib beruvchilarga qarzlar (6010)", code: "310", amount: 298400000, isHeader: false },
+  { section: "   — Olingan avanslar (6310)", code: "320", amount: 145000000, isHeader: false },
+  { section: "   — Budjetga toʻlovlar boʻyicha qarzlar (6410)", code: "330", amount: 65316000, isHeader: false },
+  { section: "   — Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar (6710)", code: "340", amount: 68400000, isHeader: false },
+];
