@@ -111,11 +111,11 @@ export function Sidebar() {
           <>
             <Link href="/" className="flex items-center gap-2.5 overflow-hidden">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm tracking-wider shadow-sm">
-                AU
+                FI
               </div>
               <div className="flex flex-col truncate">
                 <span className="font-bold text-sm tracking-tight text-foreground font-sans">
-                  AUVRIO
+                  FIRMUS
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono leading-none">
                   AI SaaS • Oʻzbekiston
@@ -233,7 +233,7 @@ export function Sidebar() {
               <span className="truncate">256-bit shifrlangan • E-IMZO</span>
             </div>
             <p className="text-[9px] text-muted-foreground/60 leading-tight">
-              © 2026 AUVRIO. Barcha huquqlar himoyalangan.
+              © 2026 FIRMUS. Barcha huquqlar himoyalangan.
             </p>
           </div>
         ) : (

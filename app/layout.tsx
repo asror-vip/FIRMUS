@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AUVRIO — AI-Powered Business & Accounting Automation",
+  title: "FIRMUS — AI-Powered Business & Accounting Automation",
   description:
     "Avtomatlashtirilgan buxgalteriya, 1C va Didox integratsiyasi, moliyaviy hisobotlar va GPT-6 Luna AI koordinatsiyasi.",
 };

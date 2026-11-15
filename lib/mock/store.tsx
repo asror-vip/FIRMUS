@@ -44,11 +44,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Load persisted language from localStorage safely
   useEffect(() => {
     try {
-      const savedLang = localStorage.getItem("auvrio_lang");
+      const savedLang = localStorage.getItem("firmus_lang") || localStorage.getItem("auvrio_lang");
       if (savedLang === "uz" || savedLang === "ru" || savedLang === "en") {
         setLanguageState(savedLang);
       }
-      const savedEntity = localStorage.getItem("auvrio_entity");
+      const savedEntity = localStorage.getItem("firmus_entity") || localStorage.getItem("auvrio_entity");
       if (savedEntity) {
         setCurrentEntityId(savedEntity);
       }
@@ -58,14 +58,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const setLanguage = (lang: "uz" | "ru" | "en") => {
     setLanguageState(lang);
     try {
-      localStorage.setItem("auvrio_lang", lang);
+      localStorage.setItem("firmus_lang", lang);
     } catch {}
   };
 
   const setEntityWithPersistence = (id: string) => {
     setCurrentEntityId(id);
     try {
-      localStorage.setItem("auvrio_entity", id);
+      localStorage.setItem("firmus_entity", id);
     } catch {}
   };
 

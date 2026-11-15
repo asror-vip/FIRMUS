@@ -1,6 +1,6 @@
-# AUVRIO — AI-Powered Business Automation SaaS
+# FIRMUS — AI-Powered Business & Accounting Automation SaaS
 
-AUVRIO is an enterprise-grade business automation and accounting SaaS platform designed specifically for the Uzbekistan market, with global extensibility. It delivers end-to-end automation of financial operations, accounting reconciliation, tax management, and primary document workflows (Didox EDO and 1C:Enterprise).
+FIRMUS is an enterprise-grade business automation and accounting SaaS platform designed specifically for the Uzbekistan market, with global extensibility. It delivers end-to-end automation of financial operations, accounting reconciliation, tax management, and primary document workflows (Didox EDO and 1C:Enterprise).
 
 ---
 
@@ -17,7 +17,7 @@ AUVRIO is an enterprise-grade business automation and accounting SaaS platform d
 ## Monorepo Layout
 
 ```text
-AUVRIO/
+firmus/
 ├── apps/
 │   └── web/                         # Next.js App Router presentation layer
 ├── services/

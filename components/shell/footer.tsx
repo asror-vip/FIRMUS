@@ -14,14 +14,14 @@ export function Footer() {
         {/* Left: Brand & Standards */}
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-foreground tracking-tight text-sm">AUVRIO</span>
+            <span className="font-bold text-foreground tracking-tight text-sm">FIRMUS</span>
             <span className="text-muted-foreground/60">•</span>
             <span className="text-[11px] text-muted-foreground">
               Oʻzbekiston Respublikasi buxgalteriya va soliq hisobi avtomatizatsiyasi (BHMS / Soliq Kodeksi)
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground/80">
-            © 2026 AUVRIO SaaS Inc. Barcha huquqlar himoyalangan. Maʼlumotlar xavfsizligi 256-bitli E-IMZO Zero-Trust standarti bilan kafolatlangan.
+            © 2026 FIRMUS SaaS Inc. Barcha huquqlar himoyalangan. Maʼlumotlar xavfsizligi 256-bitli E-IMZO Zero-Trust standarti bilan kafolatlangan.
           </p>
         </div>
 

@@ -1,6 +1,7 @@
 {
-  "name": "auvrio",
-  "version": "0.1.0",
+  "name": "firmus",
+  "version": "1.0.0",
+  "description": "FIRMUS — AI-powered business and accounting automation SaaS for Uzbekistan",
   "private": true,
   "scripts": {
     "dev": "next dev",

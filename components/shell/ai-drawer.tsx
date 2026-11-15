@@ -29,7 +29,7 @@ export function AiDrawer() {
     {
       id: "m-1",
       sender: "ai",
-      text: "Assalomu alaykum! Men AUVRIO operatsion tizimining GPT-6 Luna AI koordinatori boʻlaman. Bugun 6 ta yangi istisno aniqlandi va 14 ta Didox hisob-fakturasi avtomatik tekshirildi. Sizga qanday yordam bera olaman?",
+      text: "Assalomu alaykum! Men FIRMUS operatsion tizimining GPT-6 Luna AI koordinatori boʻlaman. Bugun 6 ta yangi istisno aniqlandi va 14 ta Didox hisob-fakturasi avtomatik tekshirildi. Sizga qanday yordam bera olaman?",
       time: "14:30",
     },
     {
@@ -97,7 +97,7 @@ export function AiDrawer() {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-foreground">AUVRIO Copilot</span>
+              <span className="text-xs font-semibold text-foreground">FIRMUS Copilot</span>
               <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                 gpt-6-luna
               </span>
