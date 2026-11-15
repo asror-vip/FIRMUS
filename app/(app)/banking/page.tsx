@@ -22,8 +22,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function BankingPage() {
+  const { t } = useTranslation();
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -45,10 +47,10 @@ export default function BankingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Bank Hisoblari & Koʻchirmalar
+            {t.pages.banking.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Oʻzbekiston tijorat banklari bilan toʻgʻridan-toʻgʻri Open Banking integratsiyasi
+            {t.pages.banking.subtitle}
           </p>
         </div>
 
@@ -60,7 +62,7 @@ export default function BankingPage() {
             onClick={() => setIsImportModalOpen(true)}
           >
             <Upload className="h-3.5 w-3.5" />
-            CSV / 1C Koʻchirma yuklash
+            CSV / 1C
           </Button>
 
           <Button
@@ -71,7 +73,7 @@ export default function BankingPage() {
             disabled={isSyncing}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin text-primary" : ""}`} />
-            Sinxronlash
+            {t.common.sync}
           </Button>
 
           <Button
@@ -80,7 +82,7 @@ export default function BankingPage() {
             onClick={() => setIsConnectModalOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Yangi bank ulash
+            {t.pages.banking.connectBank}
           </Button>
         </div>
       </div>
@@ -172,12 +174,12 @@ export default function BankingPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Sana</TableHead>
-                <TableHead>Kontragent va Tavsif</TableHead>
-                <TableHead>Yoʻnalish</TableHead>
-                <TableHead className="text-right">Summa</TableHead>
-                <TableHead>Buxgalteriya Holati</TableHead>
-                <TableHead className="text-right">Harakat</TableHead>
+                <TableHead>{t.common.date}</TableHead>
+                <TableHead>{t.pages.transactions.tableHeaders.counterparty} & {t.pages.transactions.tableHeaders.description}</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">{t.common.amount}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
+                <TableHead className="text-right">{t.common.actions}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -194,12 +196,12 @@ export default function BankingPage() {
                     {tx.type === "income" ? (
                       <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                         <ArrowDownLeft className="h-3 w-3" />
-                        Kirim
+                        {t.common.income}
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
                         <ArrowUpRight className="h-3 w-3" />
-                        Chiqim
+                        {t.common.expense}
                       </span>
                     )}
                   </TableCell>
@@ -214,9 +216,9 @@ export default function BankingPage() {
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs px-2.5"
-                      onClick={() => toast.info(`Tranzaksiya №${tx.id} tafsilotlari`)}
+                      onClick={() => toast.info(`№${tx.id}`)}
                     >
-                      Batafsil
+                      {t.common.details}
                     </Button>
                   </TableCell>
                 </TableRow>

@@ -28,8 +28,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function DocumentsPage() {
+  const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -54,10 +56,10 @@ export default function DocumentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Didox Elektron Hujjatlari & Birlamchi Hujjatlar
+            {t.pages.documents.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Hisob-fakturalar (E-SF), dalolatnomalar (Akt), shartnomalar va ishonchnomalar
+            {t.pages.documents.subtitle}
           </p>
         </div>
 
@@ -66,9 +68,9 @@ export default function DocumentsPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Didox serveridan yangi hujjatlar tekshirildi (14 ta yangi)")}
+            onClick={() => toast.success(t.pages.documents.syncDidox)}
           >
-            Didox Sinxronlash
+            {t.pages.documents.syncDidox}
           </Button>
 
           <Button
@@ -77,7 +79,7 @@ export default function DocumentsPage() {
             onClick={() => setIsUploadOpen(true)}
           >
             <Upload className="h-3.5 w-3.5" />
-            Hujjat yuklash (E-IMZO)
+            {t.pages.documents.uploadDoc}
           </Button>
         </div>
       </div>
@@ -85,23 +87,21 @@ export default function DocumentsPage() {
       {/* Filters and View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          {["all", "invoice", "act", "contract", "power_of_attorney"].map((t) => (
+          {["all", "invoice", "act", "contract"].map((typeKey) => (
             <Button
-              key={t}
-              variant={selectedType === t ? "default" : "outline"}
+              key={typeKey}
+              variant={selectedType === typeKey ? "default" : "outline"}
               size="sm"
-              onClick={() => setSelectedType(t)}
+              onClick={() => setSelectedType(typeKey)}
               className="text-xs h-8 capitalize"
             >
-              {t === "all"
-                ? "Barchasi"
-                : t === "invoice"
-                ? "Hisob-faktura"
-                : t === "act"
-                ? "Dalolatnoma"
-                : t === "contract"
-                ? "Shartnoma"
-                : "Ishonchnoma"}
+              {typeKey === "all"
+                ? t.pages.documents.tabs.all
+                : typeKey === "invoice"
+                ? t.pages.documents.tabs.invoices
+                : typeKey === "act"
+                ? t.pages.documents.tabs.acts
+                : t.pages.documents.tabs.contracts}
             </Button>
           ))}
         </div>
@@ -112,7 +112,7 @@ export default function DocumentsPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Raqam, kontragent..."
+              placeholder={t.common.search}
               className="h-8 pl-8 text-xs"
             />
           </div>
@@ -140,12 +140,12 @@ export default function DocumentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Hujjat raqami</TableHead>
-                <TableHead>Nomi & Mazmuni</TableHead>
-                <TableHead>Kontragent</TableHead>
-                <TableHead className="text-right">Summa</TableHead>
-                <TableHead>Sana</TableHead>
-                <TableHead>Holat</TableHead>
+                <TableHead>№</TableHead>
+                <TableHead>{t.common.description}</TableHead>
+                <TableHead>{t.common.counterparty}</TableHead>
+                <TableHead className="text-right">{t.common.amount}</TableHead>
+                <TableHead>{t.common.date}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
                 <TableHead>Format</TableHead>
               </TableRow>
             </TableHeader>

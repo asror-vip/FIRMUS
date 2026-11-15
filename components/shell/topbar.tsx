@@ -165,14 +165,14 @@ export function Topbar() {
               className="text-xs cursor-pointer"
             >
               <Settings className="mr-2 h-3.5 w-3.5" />
-              Sozlamalar
+              {t.nav.settings}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => toast.info("Tizimdan chiqish tasdiqlandi")}
+              onClick={() => toast.info(t.common.logout)}
               className="text-xs text-rose-600 cursor-pointer"
             >
               <LogOut className="mr-2 h-3.5 w-3.5" />
-              Chiqish
+              {t.common.logout}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

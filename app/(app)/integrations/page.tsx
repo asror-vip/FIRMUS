@@ -22,8 +22,10 @@ import {
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function IntegrationsPage() {
+  const { t } = useTranslation();
   const [selectedInteg, setSelectedInteg] = useState<Integration | null>(null);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
 
@@ -42,10 +44,10 @@ export default function IntegrationsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Integratsiyalar & Tashqi Xizmatlar
+            {t.pages.integrations.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            1C:Enterprise 8.3, Didox EDO, E-IMZO, Tijorat banklari va toʻlov shlyuzlari
+            {t.pages.integrations.subtitle}
           </p>
         </div>
 
@@ -54,10 +56,10 @@ export default function IntegrationsPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Barcha integratsiyalar sinxronlandi!")}
+            onClick={() => toast.success(t.pages.integrations.syncAll)}
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Barchasini yangilash
+            {t.pages.integrations.syncAll}
           </Button>
         </div>
       </div>
@@ -146,10 +148,10 @@ export default function IntegrationsPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">
-            Sinxronizatsiya Tarixi & Loglar (Audit Trail)
+            {t.pages.integrations.syncHistory}
           </CardTitle>
           <CardDescription>
-            Barcha tashqi xizmatlar bilan maʼlumotlar almashinuvi hodisalari
+            {t.pages.integrations.syncHistorySub}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">

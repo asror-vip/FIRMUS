@@ -204,13 +204,13 @@ export function Sidebar() {
             <span>GPT-6 Luna Copilot</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-tight mb-2">
-            6 ta kutilayotgan istisno mavjud.
+            {t.sidebarFooter.copilotSubtitle}
           </p>
           <button
             onClick={toggleAiDrawer}
             className="w-full text-center text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 py-1 rounded-md transition-colors"
           >
-            Tekshirish
+            {t.sidebarFooter.copilotButton}
           </button>
         </div>
       )}

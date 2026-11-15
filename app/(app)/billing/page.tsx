@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Money } from "@/components/shared/money";
 import { Check, Sparkles, CreditCard, Shield, Download, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function BillingPage() {
+  const { t } = useTranslation();
   const { currentPlan, usageMeters, plans, invoices } = mockBillingData;
 
   return (
@@ -19,10 +21,10 @@ export default function BillingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Obuna & Toʻlovlar (Billing)
+            {t.pages.billing.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Joriy tarif rejasi, resurslar sarfi va toʻlov invoyslari
+            {t.pages.billing.subtitle}
           </p>
         </div>
       </div>

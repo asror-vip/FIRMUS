@@ -12,8 +12,10 @@ import { Money } from "@/components/shared/money";
 import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { JournalEntry } from "@/lib/mock/types";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function AccountingPage() {
+  const { t } = useTranslation();
   const [subTab, setSubTab] = useState("coa");
   const [coaSearch, setCoaSearch] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
@@ -35,10 +37,10 @@ export default function AccountingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Buxgalteriya & Deterministik Ledger
+            {t.pages.accounting.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Oʻzbekiston Milliy Buxgalteriya Standartlari (BHMS) asosidagi hisoblar rejasi va provodkalar
+            {t.pages.accounting.subtitle}
           </p>
         </div>
 
@@ -47,18 +49,18 @@ export default function AccountingPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Hisoblar rejasi va vedomost eksport qilindi")}
+            onClick={() => toast.success(t.common.export)}
           >
             <Download className="h-3.5 w-3.5" />
-            Eksport (Excel)
+            {t.common.export} (Excel)
           </Button>
           <Button
             size="sm"
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => toast.info("Yangi memorial provodka kiritish...")}
+            onClick={() => toast.info(t.common.addNew)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Yangi provodka
+            {t.common.addNew}
           </Button>
         </div>
       </div>
@@ -68,18 +70,18 @@ export default function AccountingPage() {
         <TabsList className="h-9">
           <TabsTrigger value="coa" className="gap-1.5 text-xs">
             <Layers className="h-3.5 w-3.5" />
-            Hisoblar rejasi (Chart of Accounts)
+            {t.pages.accounting.tabs.coa}
           </TabsTrigger>
           <TabsTrigger value="journal" className="gap-1.5 text-xs">
             <BookOpen className="h-3.5 w-3.5" />
-            Jurnal provodkalari (Journal Entries)
+            {t.pages.accounting.tabs.journal}
           </TabsTrigger>
           <TabsTrigger value="trial" className="gap-1.5 text-xs">
             <FileSpreadsheet className="h-3.5 w-3.5" />
-            Oborotno-Sal'dovaya Vedomost (Trial Balance)
+            {t.pages.accounting.tabs.trialBalance}
           </TabsTrigger>
           <TabsTrigger value="ledger" className="gap-1.5 text-xs">
-            Bosh kitob (General Ledger)
+            {t.pages.accounting.tabs.ledger}
           </TabsTrigger>
         </TabsList>
 
@@ -91,12 +93,12 @@ export default function AccountingPage() {
               <Input
                 value={coaSearch}
                 onChange={(e) => setCoaSearch(e.target.value)}
-                placeholder="Schyot kodi yoki nomini qidiring (masalan: 5110)..."
+                placeholder={t.common.search}
                 className="h-8 pl-8 text-xs"
               />
             </div>
             <span className="text-xs text-muted-foreground">
-              Jami schyotlar: {filteredCoa.length} ta
+              {filteredCoa.length} / {mockChartOfAccounts.length}
             </span>
           </div>
 
@@ -104,11 +106,11 @@ export default function AccountingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">Kod</TableHead>
-                  <TableHead>Schyot Nomi</TableHead>
-                  <TableHead>Kategoriya</TableHead>
-                  <TableHead>Turi</TableHead>
-                  <TableHead className="text-right">Joriy Saldo (soʻm)</TableHead>
+                  <TableHead className="w-24">{t.pages.accounting.code}</TableHead>
+                  <TableHead>{t.pages.accounting.name}</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.balance} ({t.common.currency})</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -144,14 +146,14 @@ export default function AccountingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-32">Provodka №</TableHead>
-                  <TableHead className="w-24">Sana</TableHead>
-                  <TableHead>Mazmuni va Tavsif</TableHead>
-                  <TableHead>Manba</TableHead>
-                  <TableHead className="text-right">Debet jami</TableHead>
-                  <TableHead className="text-right">Kredit jami</TableHead>
-                  <TableHead>Holat</TableHead>
-                  <TableHead>Kiritdi</TableHead>
+                  <TableHead className="w-32">№</TableHead>
+                  <TableHead className="w-24">{t.common.date}</TableHead>
+                  <TableHead>{t.common.description}</TableHead>
+                  <TableHead>{t.common.source}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
+                  <TableHead>{t.common.status}</TableHead>
+                  <TableHead>User</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -269,12 +271,12 @@ export default function AccountingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-20">Kod</TableHead>
-                  <TableHead>Schyot Nomi</TableHead>
+                  <TableHead className="w-20">{t.pages.accounting.code}</TableHead>
+                  <TableHead>{t.pages.accounting.name}</TableHead>
                   <TableHead className="text-right">Dastlabki Saldo</TableHead>
-                  <TableHead className="text-right">Debet Aylanmasi</TableHead>
-                  <TableHead className="text-right">Kredit Aylanmasi</TableHead>
-                  <TableHead className="text-right">Oxirgi Saldo</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

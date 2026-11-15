@@ -23,8 +23,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function AiAuditorPage() {
+  const { t } = useTranslation();
   const [exceptions, setExceptions] = useState<ExceptionItem[]>(mockExceptions);
   const [selectedExc, setSelectedExc] = useState<ExceptionItem>(mockExceptions[0]);
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
@@ -58,14 +60,14 @@ export default function AiAuditorPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-foreground">
-              AI Auditor & Istisnolar Markazi (Exception Center)
+              {t.pages.aiAuditor.title}
             </h1>
             <Badge variant="indigo" className="text-[10px] px-2 py-0.5">
               GPT-6 Luna
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Barcha moliyaviy nomutanosibliklar, hujjat yetishmovchiliklari va AI tomonidan taklif etilgan yechimlar
+            {t.pages.aiAuditor.subtitle}
           </p>
         </div>
 
@@ -74,9 +76,9 @@ export default function AiAuditorPage() {
             size="sm"
             variant="outline"
             className="text-xs h-8"
-            onClick={() => toast.info("Toʻliq audit tekshiruvi qayta ishga tushirildi")}
+            onClick={() => toast.info(t.pages.aiAuditor.recheck)}
           >
-            Qayta tekshirish
+            {t.pages.aiAuditor.recheck}
           </Button>
         </div>
       </div>
@@ -91,7 +93,7 @@ export default function AiAuditorPage() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Istisnolarni qidirish..."
+                placeholder={t.pages.aiAuditor.searchPlaceholder}
                 className="h-8 pl-8 text-xs"
               />
             </div>
@@ -100,10 +102,10 @@ export default function AiAuditorPage() {
               onChange={(e) => setFilterSeverity(e.target.value)}
               className="h-8 rounded-lg border border-input bg-card px-2 text-xs text-foreground"
             >
-              <option value="all">Barcha darajalar</option>
-              <option value="critical">Faqat kritik</option>
-              <option value="warning">Ogohlantirish</option>
-              <option value="info">Maʼlumot</option>
+              <option value="all">{t.pages.aiAuditor.tabs.all}</option>
+              <option value="critical">{t.pages.aiAuditor.tabs.critical}</option>
+              <option value="warning">{t.pages.aiAuditor.tabs.warning}</option>
+              <option value="info">{t.pages.aiAuditor.tabs.info}</option>
             </select>
           </div>
 
@@ -171,7 +173,7 @@ export default function AiAuditorPage() {
                   {/* Problem Description */}
                   <div>
                     <span className="font-semibold text-foreground text-xs block mb-1">
-                      Muammo tafsiloti:
+                      {t.pages.aiAuditor.problemTitle}
                     </span>
                     <p className="text-muted-foreground leading-relaxed text-xs">
                       {selectedExc.description}
@@ -182,17 +184,17 @@ export default function AiAuditorPage() {
                   <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2">
                     <span className="font-semibold text-foreground text-xs flex items-center gap-1.5">
                       <FileText className="h-3.5 w-3.5 text-indigo-500" />
-                      Taqqoslangan hujjatlar:
+                      {t.pages.aiAuditor.evidenceTitle}
                     </span>
                     <div className="space-y-1 text-[11px]">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Manba va Hujjat:</span>
+                        <span className="text-muted-foreground">Source & Doc:</span>
                         <span className="font-mono font-medium text-foreground">
                           {selectedExc.evidence.sourceSystem}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Tafovut izohi:</span>
+                        <span className="text-muted-foreground">{t.common.description}:</span>
                         <span className="font-medium text-foreground text-right max-w-xs">
                           {selectedExc.evidence.details}
                         </span>
@@ -205,10 +207,10 @@ export default function AiAuditorPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold">
                         <Sparkles className="h-4 w-4" />
-                        <span>AI Tavsiyasi (GPT-6 Luna)</span>
+                        <span>{t.pages.aiAuditor.aiSuggestionTitle}</span>
                       </div>
                       <Badge variant="indigo" className="text-[10px] px-2 py-0.5">
-                        {selectedExc.aiConfidence}% Ishonch
+                        {selectedExc.aiConfidence}% {t.pages.aiAuditor.confidence}
                       </Badge>
                     </div>
 
@@ -219,7 +221,7 @@ export default function AiAuditorPage() {
                     {/* AI Confidence Meter Bar */}
                     <div className="pt-2">
                       <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                        <span>Ishonchlilik darajasi</span>
+                        <span>{t.pages.aiAuditor.confidence}</span>
                         <span className="font-mono">{selectedExc.aiConfidence}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
@@ -239,10 +241,10 @@ export default function AiAuditorPage() {
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs"
-                  onClick={() => toast.info("Buxgalterga biriktirildi")}
+                  onClick={() => toast.info(t.pages.aiAuditor.forwardToAccountant)}
                 >
                   <UserCheck className="mr-1.5 h-3.5 w-3.5" />
-                  Buxgalterga yoʻnaltirish
+                  {t.pages.aiAuditor.forwardToAccountant}
                 </Button>
 
                 <div className="flex items-center gap-2">
@@ -253,7 +255,7 @@ export default function AiAuditorPage() {
                     onClick={() => handleResolve(selectedExc.id, "reject")}
                   >
                     <XCircle className="mr-1.5 h-3.5 w-3.5" />
-                    Rad etish
+                    {t.pages.aiAuditor.rejectButton}
                   </Button>
                   <Button
                     size="sm"
@@ -261,7 +263,7 @@ export default function AiAuditorPage() {
                     onClick={() => handleResolve(selectedExc.id, "approve")}
                   >
                     <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                    AI taklifini tasdiqlash
+                    {t.pages.aiAuditor.approveButton}
                   </Button>
                 </div>
               </div>

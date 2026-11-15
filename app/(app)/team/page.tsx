@@ -14,8 +14,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Users, UserPlus, Shield, Check, Mail, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function TeamPage() {
+  const { t } = useTranslation();
   const [members, setMembers] = useState<TeamMember[]>(mockTeamMembers);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteName, setInviteName] = useState("");
@@ -72,10 +74,10 @@ export default function TeamPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Jamoa Boshqaruvi & Ruxsatlar (RBAC)
+            {t.pages.team.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Buxgalteriya firmasi xodimlari va ularga biriktirilgan mijoz korxonalari
+            {t.pages.team.subtitle}
           </p>
         </div>
 
@@ -86,7 +88,7 @@ export default function TeamPage() {
             onClick={() => setIsInviteOpen(true)}
           >
             <UserPlus className="h-3.5 w-3.5" />
-            Yangi aʼzo taklif qilish
+            {t.pages.team.inviteMember}
           </Button>
         </div>
       </div>

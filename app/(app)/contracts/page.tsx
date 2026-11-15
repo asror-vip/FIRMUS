@@ -11,8 +11,10 @@ import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import { FileCheck, Search, Plus, Download, X, Clock, Calendar, Building, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function ContractsPage() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [selectedContract, setSelectedContract] = useState<ContractItem | null>(null);
 
@@ -29,10 +31,10 @@ export default function ContractsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Shartnomalar & Yuridik Hujjatlar
+            {t.pages.contracts.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Yetkazib beruvchilar va xaridorlar bilan tuzilgan bosh shartnomalar va ularning muddatlari
+            {t.pages.contracts.subtitle}
           </p>
         </div>
 
@@ -41,19 +43,19 @@ export default function ContractsPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Shartnomalar reyestri eksport qilindi")}
+            onClick={() => toast.success(t.common.export)}
           >
             <Download className="h-3.5 w-3.5" />
-            Eksport
+            {t.common.export}
           </Button>
 
           <Button
             size="sm"
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => toast.info("Yangi shartnoma kiritish oynasi...")}
+            onClick={() => toast.info(t.pages.contracts.addContract)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Yangi shartnoma
+            {t.pages.contracts.addContract}
           </Button>
         </div>
       </div>

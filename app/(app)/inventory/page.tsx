@@ -10,8 +10,10 @@ import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import { Package, AlertTriangle, Plus, Search, Download, ArrowDownUp } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function InventoryPage() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
 
   const filteredItems = mockInventoryItems.filter(
@@ -28,10 +30,10 @@ export default function InventoryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Omborxona & Tovar Qoldiqlari
+            {t.pages.inventory.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            1C:Enterprise va Didox yuk xatlari orqali avtomatik yangilanuvchi tovar-moddiy zaxiralar
+            {t.pages.inventory.subtitle}
           </p>
         </div>
 
@@ -40,19 +42,19 @@ export default function InventoryPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Inventarizatsiya vedomosti eksport qilindi")}
+            onClick={() => toast.success(t.common.export)}
           >
             <Download className="h-3.5 w-3.5" />
-            Eksport
+            {t.common.export}
           </Button>
 
           <Button
             size="sm"
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => toast.info("Yangi tovar kartochkasi kiritish...")}
+            onClick={() => toast.info(t.pages.inventory.addItem)}
           >
             <Plus className="h-3.5 w-3.5" />
-            Tovar qoʻshish
+            {t.pages.inventory.addItem}
           </Button>
         </div>
       </div>

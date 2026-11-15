@@ -9,8 +9,10 @@ import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import { Users, Plus, DollarSign, Download, CheckCircle2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function EmployeesPage() {
+  const { t } = useTranslation();
   const [isPayrollRunning, setIsPayrollRunning] = useState(false);
 
   const totalPayroll = mockEmployees.reduce((acc, curr) => acc + curr.salary, 0);
@@ -32,10 +34,10 @@ export default function EmployeesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Xodimlar & Mehnat Haqi (Payroll)
+            {t.pages.employees.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Shtatlar jadvali, ish haqi hisob-kitoblari va JShDS/INPS ajratmalari
+            {t.pages.employees.subtitle}
           </p>
         </div>
 
@@ -44,10 +46,10 @@ export default function EmployeesPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Xodimlar reyestri eksport qilindi")}
+            onClick={() => toast.success(t.common.export)}
           >
             <Download className="h-3.5 w-3.5" />
-            Eksport (Excel)
+            {t.common.export} (Excel)
           </Button>
 
           <Button
@@ -57,7 +59,7 @@ export default function EmployeesPage() {
             disabled={isPayrollRunning}
           >
             <DollarSign className="h-3.5 w-3.5" />
-            {isPayrollRunning ? "Hisoblanmoqda..." : "Ish haqini hisoblash"}
+            {isPayrollRunning ? t.common.loading : t.pages.employees.monthlyPayroll}
           </Button>
         </div>
       </div>

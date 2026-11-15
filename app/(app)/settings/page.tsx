@@ -24,8 +24,10 @@ import {
   Save,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const {
     currentWorkspace,
     currentRole,
@@ -53,10 +55,10 @@ export default function SettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold tracking-tight text-foreground">
-          Tizim Sozlamalari
+          {t.pages.settings.title}
         </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Profil, ishchi maydon, korxonalar, xavfsizlik va ruxsat parametrlarini sozlang
+          {t.pages.settings.subtitle}
         </p>
       </div>
 
@@ -64,19 +66,19 @@ export default function SettingsPage() {
         <TabsList className="h-9 flex-wrap">
           <TabsTrigger value="entities" className="text-xs gap-1.5">
             <Building className="h-3.5 w-3.5" />
-            Korxonalar (Entities)
+            {t.pages.settings.tabs.entities}
           </TabsTrigger>
           <TabsTrigger value="security" className="text-xs gap-1.5">
             <Shield className="h-3.5 w-3.5" />
-            Xavfsizlik & E-IMZO
+            {t.pages.settings.tabs.security}
           </TabsTrigger>
           <TabsTrigger value="notifications" className="text-xs gap-1.5">
             <Bell className="h-3.5 w-3.5" />
-            Xabarnomalar
+            {t.pages.settings.tabs.notifications}
           </TabsTrigger>
           <TabsTrigger value="language" className="text-xs gap-1.5">
             <Globe className="h-3.5 w-3.5" />
-            Til (Language)
+            {t.pages.settings.tabs.language}
           </TabsTrigger>
         </TabsList>
 

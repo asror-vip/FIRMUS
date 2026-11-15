@@ -26,9 +26,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppState } from "@/lib/mock/store";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function TransactionsPage() {
   const { currentEntity, currentRole } = useAppState();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
@@ -78,10 +80,10 @@ export default function TransactionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Tranzaksiyalar va Bank Tushumlari
+            {t.pages.transactions.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Bank, Didox va 1C orqali kelgan barcha moliyaviy operatsiyalar
+            {t.pages.transactions.subtitle}
           </p>
         </div>
 
@@ -90,20 +92,20 @@ export default function TransactionsPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Tranzaksiyalar Excel (XLSX) formatida eksport qilindi")}
+            onClick={() => toast.success("Excel XLSX")}
           >
             <Download className="h-3.5 w-3.5" />
-            Eksport
+            {t.common.export}
           </Button>
 
           {currentRole !== "viewer" && currentRole !== "auditor" && (
             <Button
               size="sm"
               className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => toast.info("Qoʻlda tranzaksiya kiritish oynasi...")}
+              onClick={() => toast.info(t.common.addNew)}
             >
               <Plus className="h-3.5 w-3.5" />
-              Yangi kiritish
+              {t.common.addNew}
             </Button>
           )}
         </div>
@@ -113,11 +115,11 @@ export default function TransactionsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
           <TabsList className="h-8">
-            <TabsTrigger value="all">Barchasi ({mockTransactions.length})</TabsTrigger>
-            <TabsTrigger value="income">Kirim</TabsTrigger>
-            <TabsTrigger value="expense">Chiqim</TabsTrigger>
-            <TabsTrigger value="pending">Kutilmoqda</TabsTrigger>
-            <TabsTrigger value="exception">Istisnolar</TabsTrigger>
+            <TabsTrigger value="all">{t.pages.transactions.tabs.all} ({mockTransactions.length})</TabsTrigger>
+            <TabsTrigger value="income">{t.pages.transactions.tabs.income}</TabsTrigger>
+            <TabsTrigger value="expense">{t.pages.transactions.tabs.expense}</TabsTrigger>
+            <TabsTrigger value="pending">{t.pages.transactions.tabs.pending}</TabsTrigger>
+            <TabsTrigger value="exception">{t.pages.transactions.tabs.exception}</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -127,13 +129,13 @@ export default function TransactionsPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Kontragent, izoh yoki summa..."
+              placeholder={t.pages.transactions.searchPlaceholder}
               className="h-8 pl-8 text-xs"
             />
           </div>
           <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-muted-foreground">
             <Filter className="h-3.5 w-3.5 mr-1" />
-            Filtr
+            {t.common.filter}
           </Button>
         </div>
       </div>
@@ -142,7 +144,7 @@ export default function TransactionsPage() {
       {selectedIds.length > 0 && (
         <div className="flex items-center justify-between rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2.5 text-xs">
           <span className="font-medium text-foreground">
-            {selectedIds.length} ta tranzaksiya tanlandi
+            {selectedIds.length} — {t.nav.transactions}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -150,12 +152,12 @@ export default function TransactionsPage() {
               variant="success"
               className="h-7 px-3 text-xs"
               onClick={() => {
-                toast.success(`${selectedIds.length} ta tranzaksiya tasdiqlandi va 1C ga oʻtkazildi`);
+                toast.success(`${selectedIds.length} - ${t.pages.transactions.batchApprove}`);
                 setSelectedIds([]);
               }}
             >
               <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-              Barchasini tasdiqlash
+              {t.pages.transactions.batchApprove}
             </Button>
             <Button
               size="sm"
@@ -163,7 +165,7 @@ export default function TransactionsPage() {
               className="h-7 px-2 text-xs"
               onClick={() => setSelectedIds([])}
             >
-              Bekor qilish
+              {t.common.cancel}
             </Button>
           </div>
         </div>
@@ -180,13 +182,13 @@ export default function TransactionsPage() {
                   onCheckedChange={(checked) => handleSelectAll(!!checked)}
                 />
               </TableHead>
-              <TableHead>Sana</TableHead>
-              <TableHead>Kontragent</TableHead>
-              <TableHead>Tavsif / Mazmun</TableHead>
-              <TableHead className="text-right">Summa (soʻm)</TableHead>
-              <TableHead>Manba</TableHead>
-              <TableHead>Holat</TableHead>
-              <TableHead>Bogʻlangan E-SF</TableHead>
+              <TableHead>{t.pages.transactions.tableHeaders.date}</TableHead>
+              <TableHead>{t.pages.transactions.tableHeaders.counterparty}</TableHead>
+              <TableHead>{t.pages.transactions.tableHeaders.description}</TableHead>
+              <TableHead className="text-right">{t.pages.transactions.tableHeaders.amount}</TableHead>
+              <TableHead>{t.pages.transactions.tableHeaders.source}</TableHead>
+              <TableHead>{t.pages.transactions.tableHeaders.status}</TableHead>
+              <TableHead>{t.pages.transactions.tableHeaders.linkedDoc}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -275,21 +277,21 @@ export default function TransactionsPage() {
             {/* Details List */}
             <div className="space-y-2.5">
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">Sana:</span>
+                <span className="text-muted-foreground">{t.common.date}:</span>
                 <span className="font-medium text-foreground">{selectedTx.date}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">STIR:</span>
+                <span className="text-muted-foreground">{t.entity.tin}:</span>
                 <span className="font-mono text-foreground">{selectedTx.counterpartyStir || "—"}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">Tizimdagi manba:</span>
+                <span className="text-muted-foreground">{t.pages.transactions.tableHeaders.source}:</span>
                 <Badge variant="outline" className="uppercase font-mono text-[10px]">
                   {selectedTx.source}
                 </Badge>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
-                <span className="text-muted-foreground">Bogʻlangan hisob (Schet):</span>
+                <span className="text-muted-foreground">{t.nav.accounting}:</span>
                 <span className="font-mono font-medium text-foreground">
                   {selectedTx.accountCode ? `${selectedTx.accountCode} (${selectedTx.accountName})` : "—"}
                 </span>
@@ -301,10 +303,10 @@ export default function TransactionsPage() {
               <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3.5">
                 <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold mb-1">
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>AI Xulosasi va Solishtirish</span>
+                  <span>{t.dashboard.aiRecommendationTitle}</span>
                   {selectedTx.aiConfidence && (
                     <Badge variant="indigo" className="ml-auto text-[9px] px-1 py-0 h-4">
-                      {selectedTx.aiConfidence}% ishonch
+                      {selectedTx.aiConfidence}% {t.pages.aiAuditor.confidence}
                     </Badge>
                   )}
                 </div>
@@ -323,11 +325,11 @@ export default function TransactionsPage() {
                   </div>
                   <div>
                     <p className="font-medium text-foreground">{selectedTx.matchedDocumentName}</p>
-                    <p className="text-[10px] text-muted-foreground">Didox E-SF elektron hujjati</p>
+                    <p className="text-[10px] text-muted-foreground">{t.nav.documents}</p>
                   </div>
                 </div>
                 <Button size="sm" variant="outline" className="h-7 text-xs">
-                  Ochish <ArrowUpRight className="ml-1 h-3 w-3" />
+                  {t.common.details} <ArrowUpRight className="ml-1 h-3 w-3" />
                 </Button>
               </div>
             )}
@@ -337,22 +339,22 @@ export default function TransactionsPage() {
               <Button
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-9"
                 onClick={() => {
-                  toast.success("Tranzaksiya muvaffaqiyatli tasdiqlandi va 1C ga provodka qilindi!");
+                  toast.success(t.common.approve);
                   setSelectedTx(null);
                 }}
               >
                 <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                Tasdiqlash
+                {t.common.approve}
               </Button>
               <Button
                 variant="outline"
                 className="h-9"
                 onClick={() => {
-                  toast.info("Storno yoki istisnoga jo'natildi");
+                  toast.info(t.common.reject);
                   setSelectedTx(null);
                 }}
               >
-                Istisnoga olish
+                {t.common.reject}
               </Button>
             </div>
           </div>

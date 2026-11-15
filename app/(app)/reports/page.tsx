@@ -17,8 +17,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function ReportsPage() {
+  const { t } = useTranslation();
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
 
   const reportTemplates = [
@@ -78,10 +80,10 @@ export default function ReportsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Hisobot Shablonlari & Eksport
+            {t.pages.reports.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Oʻzbekiston soliq va buxgalteriya standartlariga mos rasmiy davlat va boshqaruv hisobotlari
+            {t.pages.reports.subtitle}
           </p>
         </div>
 
@@ -89,9 +91,9 @@ export default function ReportsPage() {
           <Button
             size="sm"
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => toast.info("Maxsus hisobot konstruktori ochilmoqda...")}
+            onClick={() => toast.info(t.pages.reports.generateReport)}
           >
-            Yangi shablon yaratish
+            {t.pages.reports.generateReport}
           </Button>
         </div>
       </div>

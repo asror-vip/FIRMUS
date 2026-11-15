@@ -51,6 +51,8 @@ export interface Translations {
     pending: string;
     exceptions: string;
     sync: string;
+    view: string;
+    logout: string;
   };
   dashboard: {
     title: string;
@@ -140,5 +142,196 @@ export interface Translations {
     syncStatus: string;
     security: string;
     rights: string;
+    copilotSubtitle: string;
+    copilotButton: string;
+  };
+  pages: {
+    transactions: {
+      title: string;
+      subtitle: string;
+      searchPlaceholder: string;
+      batchApprove: string;
+      tabs: {
+        all: string;
+        income: string;
+        expense: string;
+        pending: string;
+        exception: string;
+      };
+      tableHeaders: {
+        date: string;
+        counterparty: string;
+        description: string;
+        amount: string;
+        source: string;
+        status: string;
+        linkedDoc: string;
+      };
+    };
+    accounting: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        coa: string;
+        journal: string;
+        trialBalance: string;
+        ledger: string;
+      };
+      debit: string;
+      credit: string;
+      balance: string;
+      code: string;
+      name: string;
+    };
+    banking: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        accounts: string;
+        statements: string;
+        payments: string;
+      };
+      totalBalance: string;
+      activeAccounts: string;
+      pendingTransfers: string;
+      connectBank: string;
+    };
+    documents: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        all: string;
+        invoices: string;
+        acts: string;
+        contracts: string;
+        customs: string;
+      };
+      syncDidox: string;
+      uploadDoc: string;
+    };
+    tax: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        calendar: string;
+        vat: string;
+        profit: string;
+        turnover: string;
+      };
+      vatPayable: string;
+      annualTurnover: string;
+      nextDeadline: string;
+    };
+    finance: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        pnl: string;
+        balanceSheet: string;
+        cashflow: string;
+      };
+      revenue: string;
+      netProfit: string;
+      totalExpenses: string;
+      assets: string;
+    };
+    aiAuditor: {
+      title: string;
+      subtitle: string;
+      recheck: string;
+      searchPlaceholder: string;
+      tabs: {
+        all: string;
+        critical: string;
+        warning: string;
+        info: string;
+      };
+      problemTitle: string;
+      evidenceTitle: string;
+      aiSuggestionTitle: string;
+      confidence: string;
+      approveButton: string;
+      rejectButton: string;
+      forwardToAccountant: string;
+    };
+    inventory: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        all: string;
+        goods: string;
+        materials: string;
+        lowStock: string;
+      };
+      totalStockValue: string;
+      totalItems: string;
+      addItem: string;
+    };
+    contracts: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        all: string;
+        clients: string;
+        suppliers: string;
+        active: string;
+      };
+      totalContracts: string;
+      activeContracts: string;
+      addContract: string;
+    };
+    employees: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        all: string;
+        management: string;
+        accountants: string;
+        staff: string;
+      };
+      totalEmployees: string;
+      monthlyPayroll: string;
+      addEmployee: string;
+    };
+    integrations: {
+      title: string;
+      subtitle: string;
+      syncAll: string;
+      syncHistory: string;
+      syncHistorySub: string;
+    };
+    reports: {
+      title: string;
+      subtitle: string;
+      generateReport: string;
+      financialReports: string;
+      taxReports: string;
+      managementReports: string;
+    };
+    team: {
+      title: string;
+      subtitle: string;
+      inviteMember: string;
+      activeMembers: string;
+      assignedCompanies: string;
+    };
+    billing: {
+      title: string;
+      subtitle: string;
+      currentPlan: string;
+      changePlan: string;
+      billingHistory: string;
+      activeFirmPlan: string;
+    };
+    settings: {
+      title: string;
+      subtitle: string;
+      tabs: {
+        entities: string;
+        security: string;
+        notifications: string;
+        language: string;
+      };
+    };
   };
 }

@@ -21,8 +21,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function TaxPage() {
+  const { t } = useTranslation();
   const [selectedTax, setSelectedTax] = useState<TaxRecord | null>(null);
   const [isCalcModalOpen, setIsCalcModalOpen] = useState(false);
 
@@ -32,10 +34,10 @@ export default function TaxPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Soliqlar & Soliq Kalendari
+            {t.pages.tax.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Oʻzbekiston Respublikasi Soliq Kodeksi asosida avtomatik hisob-kitoblar va muddatlar monitoringi
+            {t.pages.tax.subtitle}
           </p>
         </div>
 
@@ -44,10 +46,10 @@ export default function TaxPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Soliq hisobotlari paketi eksport qilindi")}
+            onClick={() => toast.success(t.common.export)}
           >
             <Download className="h-3.5 w-3.5" />
-            Eksport (PDF/Excel)
+            {t.common.export} (PDF/Excel)
           </Button>
 
           <Button
@@ -56,7 +58,7 @@ export default function TaxPage() {
             onClick={() => setIsCalcModalOpen(true)}
           >
             <Calculator className="h-3.5 w-3.5" />
-            Soliqni qayta hisoblash
+            {t.pages.tax.tabs.vat}
           </Button>
         </div>
       </div>
@@ -133,7 +135,7 @@ export default function TaxPage() {
               Kelayotgan Soliq Hisoboti Muddatlari (Soliq Kalendari)
             </CardTitle>
             <CardDescription>
-              Muddati oʻtib ketmasligi uchun AUVRIO AI oldindan ogohlantiradi
+              FIRMUS AI
             </CardDescription>
           </div>
         </CardHeader>
@@ -158,7 +160,7 @@ export default function TaxPage() {
                     variant={dl.status === "urgent" ? "warning" : dl.status === "completed" ? "success" : "outline"}
                     className="text-[9px] px-1 py-0 h-4"
                   >
-                    {dl.status === "urgent" ? "5 kun qoldi" : dl.status === "completed" ? "Yopilgan" : "Kutilmoqda"}
+                    {dl.status === "urgent" ? "urgent" : dl.status === "completed" ? "completed" : t.common.pending}
                   </Badge>
                 </div>
                 <h4 className="font-semibold text-xs text-foreground line-clamp-1">
@@ -177,23 +179,23 @@ export default function TaxPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">
-            Soliq Majburiyatlari & Hisoblash Tarixi
+            {t.nav.tax}
           </CardTitle>
           <CardDescription>
-            Barcha hisoblangan va toʻlangan soliqlar reestri
+            {t.pages.tax.subtitle}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Soliq Turi</TableHead>
-                <TableHead>Davr</TableHead>
-                <TableHead className="text-right">Hisoblangan Summa</TableHead>
-                <TableHead className="text-right">Toʻlangan Summa</TableHead>
-                <TableHead>Muddati</TableHead>
-                <TableHead>Holat</TableHead>
-                <TableHead className="text-right">Tafsilot</TableHead>
+                <TableHead>{t.pages.accounting.name}</TableHead>
+                <TableHead>Period</TableHead>
+                <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
+                <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
+                <TableHead>{t.common.date}</TableHead>
+                <TableHead>{t.common.status}</TableHead>
+                <TableHead className="text-right">{t.common.details}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

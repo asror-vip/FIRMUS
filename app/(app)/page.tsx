@@ -81,7 +81,7 @@ export default function DashboardPage() {
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            AI Yordamchi
+            {t.aiDrawer.title}
           </Button>
         </div>
       </div>

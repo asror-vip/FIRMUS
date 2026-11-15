@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Money } from "@/components/shared/money";
 import { Download, TrendingUp, DollarSign, PieChart, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
   ResponsiveContainer,
   BarChart,
@@ -21,6 +22,7 @@ import {
 } from "recharts";
 
 export default function FinancePage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("pnl");
 
   return (
@@ -29,10 +31,10 @@ export default function FinancePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Moliya & Buxgalteriya Hisobotlari
+            {t.pages.finance.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Moliyaviy natijalar toʻgʻrisida hisobot (2-shakl) va Buxgalteriya balansi (1-shakl)
+            {t.pages.finance.subtitle}
           </p>
         </div>
 
@@ -41,20 +43,20 @@ export default function FinancePage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Moliyaviy hisobotlar PDF formatida yuklab olindi")}
+            onClick={() => toast.success(t.common.export)}
           >
             <Download className="h-3.5 w-3.5" />
-            PDF Yuklab olish
+            PDF {t.common.export}
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Hisobotlar Excel (XLSX) formatida yuklab olindi")}
+            onClick={() => toast.success(t.common.export)}
           >
             <Download className="h-3.5 w-3.5" />
-            Excel (1-2 shakllar)
+            Excel {t.common.export}
           </Button>
         </div>
       </div>
@@ -64,15 +66,15 @@ export default function FinancePage() {
         <TabsList className="h-9">
           <TabsTrigger value="pnl" className="text-xs gap-1.5">
             <TrendingUp className="h-3.5 w-3.5" />
-            P&L (Foyda va zararlar • 2-shakl)
+            {t.pages.finance.tabs.pnl}
           </TabsTrigger>
           <TabsTrigger value="balance" className="text-xs gap-1.5">
             <PieChart className="h-3.5 w-3.5" />
-            Buxgalteriya Balansi (1-shakl)
+            {t.pages.finance.tabs.balanceSheet}
           </TabsTrigger>
           <TabsTrigger value="cashflow" className="text-xs gap-1.5">
             <DollarSign className="h-3.5 w-3.5" />
-            Pul Oqimi Tahlili (Cash Flow)
+            {t.pages.finance.tabs.cashflow}
           </TabsTrigger>
         </TabsList>
 
