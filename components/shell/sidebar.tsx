@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppState } from "@/lib/mock/store";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -24,7 +25,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  Bot,
 } from "lucide-react";
 
 interface NavigationItem {
@@ -43,43 +43,44 @@ interface NavigationGroup {
 export function Sidebar() {
   const pathname = usePathname();
   const { currentRole, toggleAiDrawer } = useAppState();
+  const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navigationGroups: NavigationGroup[] = [
     {
-      label: "Umumiy",
+      label: t.nav.groups.overview,
       items: [
-        { name: "Boshqaruv (Dashboard)", href: "/", icon: LayoutDashboard },
-        { name: "AI Auditor & Istisnolar", href: "/ai-auditor", icon: ShieldAlert, badge: "6" },
+        { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
+        { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert, badge: "6" },
       ],
     },
     {
-      label: "Buxgalteriya",
+      label: t.nav.groups.accounting,
       items: [
-        { name: "Tranzaksiyalar", href: "/transactions", icon: ArrowLeftRight },
-        { name: "Hisoblar rejasi & Ledger", href: "/accounting", icon: BookOpen },
-        { name: "Bank va Koʻchirmalar", href: "/banking", icon: Landmark },
-        { name: "Didox Hujjatlar", href: "/documents", icon: FileText, badge: "14" },
+        { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
+        { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
+        { name: t.nav.banking, href: "/banking", icon: Landmark },
+        { name: t.nav.documents, href: "/documents", icon: FileText, badge: "14" },
       ],
     },
     {
-      label: "Biznes",
+      label: t.nav.groups.business,
       items: [
-        { name: "Soliqlar & Kalendar", href: "/tax", icon: Percent },
-        { name: "Moliya & P&L", href: "/finance", icon: TrendingUp },
-        { name: "Omborxona & Qoldiq", href: "/inventory", icon: Package },
-        { name: "Shartnomalar", href: "/contracts", icon: FileCheck },
-        { name: "Xodimlar & HR", href: "/employees", icon: Users },
+        { name: t.nav.tax, href: "/tax", icon: Percent },
+        { name: t.nav.finance, href: "/finance", icon: TrendingUp },
+        { name: t.nav.inventory, href: "/inventory", icon: Package },
+        { name: t.nav.contracts, href: "/contracts", icon: FileCheck },
+        { name: t.nav.employees, href: "/employees", icon: Users },
       ],
     },
     {
-      label: "Tizim",
+      label: t.nav.groups.system,
       items: [
-        { name: "Integratsiyalar", href: "/integrations", icon: Cable, badgeDot: true },
-        { name: "Hisobot shablonlari", href: "/reports", icon: BarChart3 },
-        { name: "Jamoa boshqaruvi", href: "/team", icon: Users },
-        { name: "Obuna & Tariflar", href: "/billing", icon: CreditCard },
-        { name: "Sozlamalar", href: "/settings", icon: Settings },
+        { name: t.nav.integrations, href: "/integrations", icon: Cable, badgeDot: true },
+        { name: t.nav.reports, href: "/reports", icon: BarChart3 },
+        { name: t.nav.team, href: "/team", icon: Users },
+        { name: t.nav.billing, href: "/billing", icon: CreditCard },
+        { name: t.nav.settings, href: "/settings", icon: Settings },
       ],
     },
   ];

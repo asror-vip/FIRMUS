@@ -14,6 +14,7 @@ import { mockExceptions } from "@/lib/mock/exceptions";
 import { mockIntegrations } from "@/lib/mock/integrations";
 import { mockCashFlowData } from "@/lib/mock/finance";
 import { useAppState } from "@/lib/mock/store";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
   Sparkles,
   ArrowRight,
@@ -39,6 +40,7 @@ import {
 export default function DashboardPage() {
   const router = useRouter();
   const { currentEntity, toggleAiDrawer } = useAppState();
+  const { t } = useTranslation();
 
   const pendingApprovals = mockTransactions
     .filter((tx) => tx.status === "pending")
@@ -53,14 +55,14 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-              Boshqaruv Paneli (Dashboard)
+              {t.dashboard.title}
             </h1>
             <span className="text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium px-2 py-0.5 rounded-full">
               {currentEntity.tradeName || currentEntity.name}
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Bugungi avtomatlashtirish koʻrsatkichlari, bank tushumlari va E-SF holati
+            {t.dashboard.subtitle}
           </p>
         </div>
 
@@ -71,7 +73,7 @@ export default function DashboardPage() {
             onClick={() => router.push("/transactions")}
             className="text-xs h-8"
           >
-            Tranzaksiyalarga oʻtish
+            {t.nav.transactions}
           </Button>
           <Button
             size="sm"
@@ -87,35 +89,35 @@ export default function DashboardPage() {
       {/* Row 1: 4 KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Avtomatlashtirilgan operatsiyalar"
+          title={t.dashboard.kpiAutomated}
           value="90.4%"
-          subtitle="1,284 / 1,420 operatsiya inson aralashuvisiz"
+          subtitle={t.dashboard.kpiAutomatedSub}
           trend={{ value: "+4.2%", isPositive: true }}
           icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
         />
 
         <KpiCard
-          title="Kutilayotgan tasdiqlar"
+          title={t.dashboard.kpiApprovals}
           value="17"
-          subtitle="Buxgalter imzosi va ruxsati zarur"
-          badge={<StatusPill status="pending" label="17 ta kutilmoqda" />}
+          subtitle={t.dashboard.kpiApprovalsSub}
+          badge={<StatusPill status="pending" label="17" />}
           icon={<Clock className="h-4 w-4 text-amber-500" />}
           onClick={() => router.push("/transactions?tab=pending")}
         />
 
         <KpiCard
-          title="Faol istisnolar (Exceptions)"
+          title={t.dashboard.kpiExceptions}
           value="6"
-          subtitle="3 ta kritik, 2 ta ogohlantirish"
-          badge={<StatusPill status="exception" label="6 ta istisno" />}
+          subtitle={t.dashboard.kpiExceptionsSub}
+          badge={<StatusPill status="exception" label="6" />}
           icon={<ShieldAlert className="h-4 w-4 text-rose-500" />}
           onClick={() => router.push("/ai-auditor")}
         />
 
         <KpiCard
-          title="Integratsiyalar holati"
+          title={t.dashboard.kpiIntegrations}
           value="3 / 4"
-          subtitle="Didox, Bank va E-IMZO ulangan"
+          subtitle={t.dashboard.kpiIntegrationsSub}
           badge={
             <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -135,10 +137,10 @@ export default function DashboardPage() {
             <div>
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-indigo-500" />
-                Oxirgi 30 kunlik pul oqimi (Kirim va Chiqim)
+                {t.dashboard.cashflowTitle}
               </CardTitle>
               <CardDescription>
-                Bank hisoblaridagi real tushumlar va xarajatlar dinamikasi
+                {t.dashboard.cashflowSubtitle}
               </CardDescription>
             </div>
             <div className="flex items-center gap-3 text-xs">
@@ -278,7 +280,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
               <CardTitle className="text-sm font-semibold">
-                Kutilayotgan tasdiqlar (Approvals)
+                {t.dashboard.pendingApprovalsTitle}
               </CardTitle>
               <CardDescription>
                 Buxgalter ruxsatini kutayotgan hisob-fakturalar va toʻlovlar
@@ -288,17 +290,17 @@ export default function DashboardPage() {
               href="/transactions?tab=pending"
               className="text-xs text-primary hover:underline flex items-center gap-0.5"
             >
-              Koʻrish <ArrowRight className="h-3 w-3" />
+              {t.common.details} <ArrowRight className="h-3 w-3" />
             </Link>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sana</TableHead>
-                  <TableHead>Kontragent</TableHead>
-                  <TableHead className="text-right">Summa</TableHead>
-                  <TableHead className="text-right">Harakat</TableHead>
+                  <TableHead>{t.common.date}</TableHead>
+                  <TableHead>{t.common.counterparty}</TableHead>
+                  <TableHead className="text-right">{t.common.amount}</TableHead>
+                  <TableHead className="text-right">{t.common.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -323,7 +325,7 @@ export default function DashboardPage() {
                         className="h-7 px-2 text-xs"
                         onClick={() => router.push(`/transactions?id=${tx.id}`)}
                       >
-                        Koʻrish
+                        {t.common.details}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -338,7 +340,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
               <CardTitle className="text-sm font-semibold">
-                Soʻnggi istisnolar (Exceptions)
+                {t.dashboard.recentExceptionsTitle}
               </CardTitle>
               <CardDescription>
                 Nomutanosibliklar, tafovutlar va xatoliklar
@@ -355,10 +357,10 @@ export default function DashboardPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Daraja</TableHead>
-                  <TableHead>Tafsilot</TableHead>
-                  <TableHead className="text-right">Summa</TableHead>
-                  <TableHead className="text-right">Holat</TableHead>
+                  <TableHead>{t.common.status}</TableHead>
+                  <TableHead>{t.common.description}</TableHead>
+                  <TableHead className="text-right">{t.common.amount}</TableHead>
+                  <TableHead className="text-right">{t.common.status}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

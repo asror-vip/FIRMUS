@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { EntitySwitcher } from "./entity-switcher";
+import { NotificationsPopover } from "./notifications-popover";
 import { useAppState } from "@/lib/mock/store";
+import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -16,7 +18,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Search,
-  Bell,
   Sparkles,
   Sun,
   Moon,
@@ -33,7 +34,6 @@ import { UserRole } from "@/lib/mock/types";
 
 export function Topbar() {
   const {
-    isSearchOpen,
     setIsSearchOpen,
     toggleAiDrawer,
     currentRole,
@@ -42,17 +42,8 @@ export function Topbar() {
     setLanguage,
   } = useAppState();
 
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
-  const [unreadNotifications, setUnreadNotifications] = useState(4);
-
-  const roleLabels: Record<UserRole, string> = {
-    workspace_owner: "Workspace Owner",
-    chief_accountant: "Bosh buxgalter",
-    accountant: "Buxgalter",
-    auditor: "Auditor (Faqat oʻqish)",
-    company_director: "Bosh direktor",
-    viewer: "Kuzatuvchi",
-  };
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -71,7 +62,7 @@ export function Topbar() {
         >
           <div className="flex items-center gap-2">
             <Search className="h-3.5 w-3.5" />
-            <span>Sahifa yoki hujjat qidiring...</span>
+            <span>{t.common.search}</span>
           </div>
           <kbd className="pointer-events-none flex h-5 select-none items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
             ⌘K
@@ -94,53 +85,8 @@ export function Topbar() {
           </Badge>
         </Button>
 
-        {/* Notifications */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative h-8 w-8 text-muted-foreground hover:text-foreground"
-            >
-              <Bell className="h-4 w-4" />
-              {unreadNotifications > 0 && (
-                <span className="absolute top-1.5 right-1.5 flex h-2 w-2 rounded-full bg-rose-500 ring-2 ring-background" />
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[300px]">
-            <DropdownMenuLabel className="flex items-center justify-between text-xs">
-              <span>Bildirishnomalar</span>
-              <span className="text-[10px] text-muted-foreground font-normal">
-                4 ta yangi
-              </span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="flex flex-col gap-1 p-1 text-xs">
-              <div className="p-2 hover:bg-accent rounded-md cursor-pointer">
-                <p className="font-medium text-rose-600 dark:text-rose-400">Yangi istisno aniqlandi</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Universal Logistics E-SF va bank toʻlovida 1,300,000 soʻm farq.
-                </p>
-                <span className="text-[9px] text-muted-foreground">10 daqiqa oldin</span>
-              </div>
-              <div className="p-2 hover:bg-accent rounded-md cursor-pointer">
-                <p className="font-medium text-emerald-600 dark:text-emerald-400">Didox sinxronizatsiyasi</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  14 ta yangi elektron hisob-faktura qabul qilindi.
-                </p>
-                <span className="text-[9px] text-muted-foreground">Bugun 14:32</span>
-              </div>
-              <div className="p-2 hover:bg-accent rounded-md cursor-pointer">
-                <p className="font-medium text-amber-600 dark:text-amber-400">Soliq toʻlovi eslatmasi</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  QQS hisoboti topshirishga 5 kun qoldi.
-                </p>
-                <span className="text-[9px] text-muted-foreground">Bugun 09:00</span>
-              </div>
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Enhanced Multi-Category Notifications Popover */}
+        <NotificationsPopover />
 
         {/* Theme Toggle */}
         <Button
@@ -168,7 +114,7 @@ export function Topbar() {
               <span className="uppercase">{language}</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-28 text-xs">
+          <DropdownMenuContent align="end" className="w-32 text-xs">
             <DropdownMenuItem onClick={() => setLanguage("uz")} className="cursor-pointer">
               🇺🇿 Oʻzbekcha
             </DropdownMenuItem>
@@ -195,7 +141,7 @@ export function Topbar() {
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuContent align="end" className="w-64">
             <div className="flex flex-col space-y-1 p-2">
               <p className="text-xs font-semibold leading-none text-foreground">
                 Dilnoza Xalilova
@@ -205,7 +151,7 @@ export function Topbar() {
               </p>
               <div className="pt-1.5 flex items-center gap-1.5">
                 <Badge variant="indigo" className="text-[10px] px-1.5 py-0 h-4 font-normal">
-                  {roleLabels[currentRole]}
+                  {t.roles[currentRole]}
                 </Badge>
               </div>
             </div>
@@ -231,11 +177,11 @@ export function Topbar() {
                 key={role}
                 onClick={() => {
                   setCurrentRole(role);
-                  toast.success(`Rol oʻzgartirildi: ${roleLabels[role]}`);
+                  toast.success(`Rol oʻzgartirildi: ${t.roles[role]}`);
                 }}
                 className="text-xs py-1.5 cursor-pointer flex items-center justify-between"
               >
-                <span>{roleLabels[role]}</span>
+                <span>{t.roles[role]}</span>
                 {currentRole === role && <UserCheck className="h-3.5 w-3.5 text-primary" />}
               </DropdownMenuItem>
             ))}

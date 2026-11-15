@@ -37,9 +37,37 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [currentEntityId, setCurrentEntityId] = useState<string>("ent-alfa");
 
   const [currentRole, setCurrentRole] = useState<UserRole>("chief_accountant");
-  const [language, setLanguage] = useState<"uz" | "ru" | "en">("uz");
+  const [language, setLanguageState] = useState<"uz" | "ru" | "en">("uz");
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+
+  // Load persisted language from localStorage safely
+  useEffect(() => {
+    try {
+      const savedLang = localStorage.getItem("auvrio_lang");
+      if (savedLang === "uz" || savedLang === "ru" || savedLang === "en") {
+        setLanguageState(savedLang);
+      }
+      const savedEntity = localStorage.getItem("auvrio_entity");
+      if (savedEntity) {
+        setCurrentEntityId(savedEntity);
+      }
+    } catch {}
+  }, []);
+
+  const setLanguage = (lang: "uz" | "ru" | "en") => {
+    setLanguageState(lang);
+    try {
+      localStorage.setItem("auvrio_lang", lang);
+    } catch {}
+  };
+
+  const setEntityWithPersistence = (id: string) => {
+    setCurrentEntityId(id);
+    try {
+      localStorage.setItem("auvrio_entity", id);
+    } catch {}
+  };
 
   // Keyboard shortcut listener for ⌘K and AI drawer
   useEffect(() => {
