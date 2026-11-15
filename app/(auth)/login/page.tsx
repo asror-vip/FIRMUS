@@ -2,22 +2,57 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
+import { Lock, Mail, ArrowRight, ShieldCheck, Loader2, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("dilnoza.bux@auvrio.uz");
-  const [password, setPassword] = useState("••••••••••••");
+  const searchParams = useSearchParams();
+  const redirectedFrom = searchParams.get("redirectedFrom") || "/";
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [email, setEmail] = useState("dilnoza@firmus.uz");
+  const [password, setPassword] = useState("Firmus2026!Secured");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Muvaffaqiyatli kirdingiz!");
-    router.push("/");
+    if (!email || !password) {
+      toast.error("Iltimos, elektron pochta va parolni kiriting");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Muvaffaqiyatli kirdingiz! Xush kelibsiz.");
+      router.push(redirectedFrom);
+      router.refresh();
+    } catch (err: any) {
+      console.error("Login error:", err);
+      toast.error(err.message || "Kirishda xatolik yuz berdi. Parol yoki pochtani tekshiring.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuickSelect = (testEmail: string, roleName: string) => {
+    setEmail(testEmail);
+    setPassword("Firmus2026!Secured");
+    toast.info(`«${roleName}» test hisobi tanlandi: ${testEmail}`);
   };
 
   return (
@@ -26,14 +61,45 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="text-center space-y-1">
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold text-base shadow-sm mb-2">
-            AU
+            F
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-            AUVRIO Platformasiga Kirish
+            FIRMUS Platformasiga Kirish
           </h1>
           <p className="text-xs text-muted-foreground">
-            Buxgalteriya va biznes boshqaruvi tizimi
+            Biznesingiz uchun aqlli moliyaviy yechim
           </p>
+        </div>
+
+        {/* Quick Test Accounts Switcher */}
+        <div className="p-2.5 rounded-lg border border-border/80 bg-muted/40 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+            <Sparkles className="h-3 w-3 text-indigo-600" />
+            <span>Tezkor test hisoblari:</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleQuickSelect("dilnoza@firmus.uz", "Buxgalter")}
+              className="text-[10px] px-2 py-0.5 rounded border border-border bg-background hover:bg-accent transition-colors font-medium text-foreground"
+            >
+              Dilnoza (Buxgalter)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickSelect("azizbek@firmus.uz", "Bosh buxgalter")}
+              className="text-[10px] px-2 py-0.5 rounded border border-border bg-background hover:bg-accent transition-colors font-medium text-foreground"
+            >
+              Azizbek (Bosh Bux.)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickSelect("jasur@firmus.uz", "Auditor")}
+              className="text-[10px] px-2 py-0.5 rounded border border-border bg-background hover:bg-accent transition-colors font-medium text-foreground"
+            >
+              Jasur (Auditor)
+            </button>
+          </div>
         </div>
 
         <Card className="shadow-lg border-border">
@@ -41,7 +107,7 @@ export default function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-3.5">
               <div>
                 <label className="font-semibold text-foreground block mb-1">
-                  Elektron pochta (yoki telefon):
+                  Elektron pochta:
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -50,6 +116,7 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
                     className="pl-8 text-xs h-9"
+                    placeholder="foydalanuvchi@firmus.uz"
                     required
                   />
                 </div>
@@ -79,9 +146,19 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-semibold"
               >
-                Tizimga kirish <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    Tekshirilmoqda...
+                  </>
+                ) : (
+                  <>
+                    Tizimga kirish <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </>
+                )}
               </Button>
             </form>
 
@@ -99,8 +176,7 @@ export default function LoginPage() {
               variant="outline"
               className="w-full text-xs h-9 gap-2"
               onClick={() => {
-                toast.success("E-IMZO moduli orqali kirish tasdiqlandi!");
-                router.push("/");
+                toast.info("E-IMZO moduli orqali kirish tez kunda ishga tushadi. Standart login/paroldan foydalaning.");
               }}
             >
               <ShieldCheck className="h-4 w-4 text-indigo-600" />
@@ -117,5 +193,19 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center text-xs text-muted-foreground">
+          Yuklanmoqda...
+        </div>
+      }
+    >
+      <LoginForm />
+    </React.Suspense>
   );
 }

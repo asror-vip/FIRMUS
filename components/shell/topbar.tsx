@@ -36,6 +36,8 @@ import { UserRole } from "@/lib/mock/types";
 export function Topbar() {
   const router = useRouter();
   const {
+    user,
+    handleSignOut,
     setIsSearchOpen,
     toggleAiDrawer,
     currentRole,
@@ -46,6 +48,20 @@ export function Topbar() {
 
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
+
+  const displayName =
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    (user?.email ? user.email.split("@")[0] : "Dilnoza Karimova");
+
+  const displayEmail = user?.email || "dilnoza@firmus.uz";
+
+  const initials = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .substring(0, 2)
+    .toUpperCase() || "FM";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -129,7 +145,7 @@ export function Topbar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* User Menu & Dev Role Switcher */}
+        {/* User Menu & Real Session */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -138,22 +154,22 @@ export function Topbar() {
             >
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-indigo-600 text-white font-semibold text-xs">
-                  DX
+                  {initials}
                 </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="flex flex-col space-y-1 p-2">
-              <p className="text-xs font-semibold leading-none text-foreground">
-                Dilnoza Xalilova
+              <p className="text-xs font-semibold leading-none text-foreground truncate">
+                {displayName}
               </p>
-              <p className="text-[11px] leading-none text-muted-foreground font-mono">
-                dilnoza.bux@firmus.uz
+              <p className="text-[11px] leading-none text-muted-foreground font-mono truncate">
+                {displayEmail}
               </p>
               <div className="pt-1.5 flex items-center gap-1.5">
                 <Badge variant="indigo" className="text-[10px] px-1.5 py-0 h-4 font-normal">
-                  {t.roles[currentRole]}
+                  {t.roles[currentRole] || currentRole}
                 </Badge>
               </div>
             </div>
@@ -168,7 +184,10 @@ export function Topbar() {
               {t.nav.settings}
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => toast.info(t.common.logout)}
+              onClick={async () => {
+                toast.info("Tizimdan chiqilmoqda...");
+                await handleSignOut();
+              }}
               className="text-xs text-rose-600 cursor-pointer"
             >
               <LogOut className="mr-2 h-3.5 w-3.5" />

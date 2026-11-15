@@ -2,20 +2,41 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isSent, setIsSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSent(true);
-    toast.success("Parolni tiklash havolasi emailingizga yuborildi!");
+    if (!email) {
+      toast.error("Iltimos, elektron pochtangizni kiriting");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/login`,
+      });
+
+      if (error) throw error;
+
+      setIsSent(true);
+      toast.success("Parolni tiklash havolasi emailingizga yuborildi!");
+    } catch (err: any) {
+      console.error("Reset password error:", err);
+      toast.error(err.message || "Parolni tiklash soʻrovida xatolik yuz berdi");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -23,7 +44,7 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-1">
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold text-base shadow-sm mb-2">
-            AU
+            F
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
             Parolni Qayta Tiklash
@@ -56,9 +77,17 @@ export default function ForgotPasswordPage() {
 
                 <Button
                   type="submit"
+                  disabled={isLoading}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-semibold"
                 >
-                  Tiklash havolasini yuborish
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      Yuborilmoqda...
+                    </>
+                  ) : (
+                    "Tiklash havolasini yuborish"
+                  )}
                 </Button>
               </form>
             ) : (

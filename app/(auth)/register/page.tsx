@@ -3,11 +3,12 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { User, Mail, Lock, Phone, ArrowRight } from "lucide-react";
+import { User, Mail, Lock, Phone, ArrowRight, Loader2 } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -15,11 +16,45 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("+998 ");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Roʻyxatdan oʻtish muvaffaqiyatli! Onboarding bosqichiga yoʻnaltirilmoqda...");
-    router.push("/onboarding");
+    if (!fullName || !email || !password) {
+      toast.error("Iltimos, barcha majburiy maydonlarni toʻldiring");
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error("Parol kamida 8 ta belgidan iborat boʻlishi kerak");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            phone: phone.trim(),
+            role: "accountant",
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Roʻyxatdan oʻtish muvaffaqiyatli! Xush kelibsiz.");
+      router.push("/");
+      router.refresh();
+    } catch (err: any) {
+      console.error("Register error:", err);
+      toast.error(err.message || "Roʻyxatdan oʻtishda xatolik yuz berdi");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -27,13 +62,13 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-1">
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold text-base shadow-sm mb-2">
-            AU
+            F
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-            AUVRIO Hisobini Yaratish
+            FIRMUS Hisobini Yaratish
           </h1>
           <p className="text-xs text-muted-foreground">
-            14 kunlik bepul sinov davri (Karta talab etilmaydi)
+            Buxgalteriya va biznes boshqaruvi platformasi
           </p>
         </div>
 
@@ -84,7 +119,6 @@ export default function RegisterPage() {
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+998 90 123-45-67"
                     className="pl-8 text-xs h-9 font-mono"
-                    required
                   />
                 </div>
               </div>
@@ -108,9 +142,19 @@ export default function RegisterPage() {
 
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-semibold mt-2"
               >
-                Roʻyxatdan oʻtish <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    Yaratilmoqda...
+                  </>
+                ) : (
+                  <>
+                    Roʻyxatdan oʻtish <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </>
+                )}
               </Button>
             </form>
           </CardContent>

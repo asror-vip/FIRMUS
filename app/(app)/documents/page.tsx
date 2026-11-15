@@ -32,8 +32,10 @@ import {
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useAppState } from "@/lib/mock/store";
 
 export default function DocumentsPage() {
+  const { currentEntity } = useAppState();
   const { t } = useTranslation();
   const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,12 +60,12 @@ export default function DocumentsPage() {
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    fetchDocuments()
+    fetchDocuments(currentEntity?.id)
       .then((data) => {
         if (isMounted && data && data.length > 0) {
           const mapped: DocumentItem[] = data.map((d: any) => ({
             id: d.id,
-            entityId: "ent-alfa",
+            entityId: d.entityId || currentEntity?.id,
             number: d.documentNumber,
             type: d.type,
             title: `${d.type === "invoice" ? "Elektron hisob-faktura" : d.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${d.documentNumber}`,
@@ -92,16 +94,16 @@ export default function DocumentsPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentEntity?.id]);
 
   const handleSyncDidox = async () => {
     setIsLoading(true);
     try {
-      const data = await fetchDocuments();
+      const data = await fetchDocuments(currentEntity?.id);
       if (data && data.length > 0) {
         const mapped: DocumentItem[] = data.map((d: any) => ({
           id: d.id,
-          entityId: "ent-alfa",
+          entityId: d.entityId || currentEntity?.id,
           number: d.documentNumber,
           type: d.type,
           title: `${d.type === "invoice" ? "Elektron hisob-faktura" : d.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${d.documentNumber}`,
@@ -161,6 +163,7 @@ export default function DocumentsPage() {
     setIsSubmitting(true);
     try {
       const created = await createDocument({
+        entityId: currentEntity?.id,
         documentNumber: newDoc.number,
         type: newDoc.type,
         counterparty: newDoc.counterparty,
@@ -172,7 +175,7 @@ export default function DocumentsPage() {
 
       const newDocItem: DocumentItem = {
         id: created.id,
-        entityId: "ent-alfa",
+        entityId: created.entityId || currentEntity?.id,
         number: created.documentNumber,
         type: created.type as any,
         title: `${created.type === "invoice" ? "Elektron hisob-faktura" : created.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${created.documentNumber}`,

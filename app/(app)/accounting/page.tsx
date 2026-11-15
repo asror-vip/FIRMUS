@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { mockChartOfAccounts, mockJournalEntries } from "@/lib/mock/accounting";
-import { createJournalEntryRecord } from "@/lib/services/supabase-service";
+import { createJournalEntryRecord, fetchJournalEntries } from "@/lib/services/supabase-service";
+import { useAppState } from "@/lib/mock/store";
 import { generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -19,6 +20,7 @@ import { JournalEntry } from "@/lib/mock/types";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function AccountingPage() {
+  const { currentEntity } = useAppState();
   const { t } = useTranslation();
   const [subTab, setSubTab] = useState("coa");
   const [coaSearch, setCoaSearch] = useState("");
@@ -27,6 +29,21 @@ export default function AccountingPage() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(mockJournalEntries);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchJournalEntries(currentEntity?.id)
+      .then((data) => {
+        if (isMounted && data && data.length > 0) {
+          setJournalEntries(data);
+        }
+      })
+      .catch((err) => console.error("Error loading journal entries:", err));
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentEntity?.id]);
 
   const [newEntry, setNewEntry] = useState({
     entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
@@ -101,6 +118,7 @@ export default function AccountingPage() {
         "Kredit schyoti";
 
       await createJournalEntryRecord({
+        entityId: currentEntity?.id,
         entryNumber: newEntry.entryNumber,
         entryDate: newEntry.date,
         description: newEntry.description,
@@ -113,7 +131,7 @@ export default function AccountingPage() {
 
       const createdJe: JournalEntry = {
         id: `je-${Date.now()}`,
-        entityId: "ent-alfa",
+        entityId: currentEntity?.id || "11111111-1111-1111-1111-111111111111",
         entryNumber: newEntry.entryNumber,
         date: newEntry.date,
         description: newEntry.description,

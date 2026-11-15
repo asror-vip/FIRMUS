@@ -3,8 +3,11 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { BusinessEntity, UserRole, Workspace } from "./types";
 import { mockBusinessEntities, mockWorkspaces } from "./entities";
+import { supabase } from "@/lib/supabase/client";
+import { fetchBusinessEntities } from "@/lib/services/supabase-service";
 
 interface AppStateContextType {
+  user: any | null;
   workspaces: Workspace[];
   currentWorkspace: Workspace;
   setCurrentWorkspaceId: (id: string) => void;
@@ -25,32 +28,101 @@ interface AppStateContextType {
 
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
+
+  handleSignOut: () => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
-  const [workspaces] = useState<Workspace[]>(mockWorkspaces);
+  const [user, setUser] = useState<any | null>(null);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>(mockWorkspaces);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>("ws-1");
 
-  const [entities] = useState<BusinessEntity[]>(mockBusinessEntities);
-  const [currentEntityId, setCurrentEntityId] = useState<string>("ent-alfa");
+  const [entities, setEntities] = useState<BusinessEntity[]>(mockBusinessEntities);
+  const [currentEntityId, setCurrentEntityId] = useState<string>("11111111-1111-1111-1111-111111111111");
 
   const [currentRole, setCurrentRole] = useState<UserRole>("chief_accountant");
   const [language, setLanguageState] = useState<"uz" | "ru" | "en">("uz");
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
 
-  // Load persisted language from localStorage safely
+  // 1. Fetch real Supabase Auth session & real business entities
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initSession() {
+      try {
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+
+        if (isMounted && authUser) {
+          setUser(authUser);
+
+          // Get role from user metadata or team_members
+          const metaRole = authUser.user_metadata?.role as UserRole;
+          if (metaRole) {
+            setCurrentRole(metaRole);
+          } else {
+            const { data: member } = await supabase
+              .from("team_members")
+              .select("role")
+              .eq("user_id", authUser.id)
+              .maybeSingle();
+
+            if (member?.role) {
+              setCurrentRole(member.role as UserRole);
+            }
+          }
+
+          // Fetch real business entities from Supabase
+          const realEntities = await fetchBusinessEntities();
+          if (isMounted && realEntities && realEntities.length > 0) {
+            setEntities(realEntities as BusinessEntity[]);
+
+            // Verify currentEntityId is valid
+            const savedEntity = localStorage.getItem("firmus_entity");
+            if (savedEntity && realEntities.some((e: any) => e.id === savedEntity)) {
+              setCurrentEntityId(savedEntity);
+            } else {
+              setCurrentEntityId(realEntities[0].id);
+              try {
+                localStorage.setItem("firmus_entity", realEntities[0].id);
+              } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error initializing session in AppStateProvider:", err);
+      }
+    }
+
+    initSession();
+
+    // Listen to Auth State Changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // 2. Load persisted language from localStorage safely
   useEffect(() => {
     try {
       const savedLang = localStorage.getItem("firmus_lang") || localStorage.getItem("auvrio_lang");
       if (savedLang === "uz" || savedLang === "ru" || savedLang === "en") {
         setLanguageState(savedLang);
-      }
-      const savedEntity = localStorage.getItem("firmus_entity") || localStorage.getItem("auvrio_entity");
-      if (savedEntity) {
-        setCurrentEntityId(savedEntity);
       }
     } catch {}
   }, []);
@@ -67,6 +139,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem("firmus_entity", id);
     } catch {}
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    window.location.href = "/login";
   };
 
   // Keyboard shortcut listener for ⌘K and AI drawer
@@ -95,21 +173,29 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppStateContext.Provider
       value={{
+        user,
         workspaces,
         currentWorkspace,
         setCurrentWorkspaceId,
+
         entities,
         currentEntity,
-        setCurrentEntityId,
+        setCurrentEntityId: setEntityWithPersistence,
+
         currentRole,
         setCurrentRole,
+
         language,
         setLanguage,
+
         isAiDrawerOpen,
         setIsAiDrawerOpen,
         toggleAiDrawer,
+
         isSearchOpen,
         setIsSearchOpen,
+
+        handleSignOut,
       }}
     >
       {children}

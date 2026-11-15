@@ -133,10 +133,11 @@ export function parseBankCsv(csvContent: string): ParsedBankTransaction[] {
 /**
  * Batch insert parsed transactions into Supabase
  */
-export async function importBatchTransactions(items: ParsedBankTransaction[]) {
+export async function importBatchTransactions(items: ParsedBankTransaction[], entityId?: string) {
   const results = [];
   for (const item of items) {
     const created = await createTransaction({
+      entityId,
       date: item.date,
       amount: item.amount,
       type: item.type,

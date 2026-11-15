@@ -15,6 +15,7 @@ out/
 build/
 dist/
 bin/
+*.tsbuildinfo
 
 # Go binaries and cache
 *.exe

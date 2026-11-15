@@ -109,7 +109,7 @@ export default function TransactionsPage() {
     if (importedList.length === 0) return;
     setIsImporting(true);
     try {
-      const saved = await importBatchTransactions(importedList);
+      const saved = await importBatchTransactions(importedList, currentEntity?.id);
       setTransactions((prev) => [...(saved as any), ...prev]);
       toast.success(`${saved.length} ta bank toʻlovi Supabase bazasiga kiritildi va hisob-fakturalarga bogʻlandi!`);
       setIsImportOpen(false);
@@ -125,7 +125,7 @@ export default function TransactionsPage() {
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    fetchTransactions()
+    fetchTransactions(currentEntity?.id)
       .then((data) => {
         if (isMounted && data && data.length > 0) {
           setTransactions(data);
@@ -138,7 +138,7 @@ export default function TransactionsPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentEntity?.id]);
 
   const handleExport = () => {
     const headers = ["ID", "Sana", "Kontragent", "STIR", "Turi", "Summa", "Tavsif", "Holat"];
@@ -172,6 +172,7 @@ export default function TransactionsPage() {
     setIsSubmitting(true);
     try {
       const created = await createTransaction({
+        entityId: currentEntity?.id,
         date: newTx.date,
         amount: Number(newTx.amount),
         type: newTx.type,

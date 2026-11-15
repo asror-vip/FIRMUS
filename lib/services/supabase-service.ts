@@ -27,13 +27,16 @@ export async function fetchBusinessEntities() {
     return data.map((ent: any) => ({
       id: ent.id,
       name: ent.legal_name,
-      tradeName: ent.trade_name,
+      tradeName: ent.trade_name || undefined,
       tinStir: ent.tin_stir,
-      companyType: ent.company_type,
-      taxRegime: ent.tax_regime,
-      currency: ent.currency,
+      companyType: ent.company_type || "MChJ",
+      taxRegime: ent.tax_regime || "vat_profit_tax",
+      currency: ent.currency || "UZS",
       accountantName: ent.accountant_name || "Azizbek Rahimov",
       isActive: ent.is_active,
+      directorName: "Masʼul rahbar",
+      bankAccount: "20208000700543210001",
+      bankName: "ATB Kapitalbank",
     }));
   } catch (err) {
     console.error("fetchBusinessEntities error:", err);
@@ -93,6 +96,10 @@ export async function fetchTransactions(entityId?: string) {
       .select("*")
       .order("date", { ascending: false });
 
+    if (entityId) {
+      query = query.eq("business_entity_id", entityId);
+    }
+
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
       return mockTransactions;
@@ -100,7 +107,7 @@ export async function fetchTransactions(entityId?: string) {
 
     return data.map((tx: any) => ({
       id: tx.id,
-      entityId: tx.entity_id || "ent-alfa",
+      entityId: tx.business_entity_id || "ent-alfa",
       date: tx.date,
       amount: Number(tx.amount),
       type: tx.type,
@@ -122,6 +129,7 @@ export async function fetchTransactions(entityId?: string) {
 }
 
 export async function createTransaction(tx: {
+  entityId?: string;
   date: string;
   amount: number;
   type: "income" | "expense";
@@ -135,6 +143,7 @@ export async function createTransaction(tx: {
     const { data, error } = await supabase
       .from("transactions")
       .insert({
+        business_entity_id: tx.entityId,
         date: tx.date,
         amount: tx.amount,
         type: tx.type,
@@ -152,7 +161,7 @@ export async function createTransaction(tx: {
     if (error) throw error;
     return {
       id: data.id,
-      entityId: data.entity_id || "ent-alfa",
+      entityId: data.business_entity_id || "ent-alfa",
       date: data.date,
       amount: Number(data.amount),
       type: data.type,
@@ -175,10 +184,16 @@ export async function createTransaction(tx: {
 // ==========================================
 export async function fetchDocuments(entityId?: string) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("documents")
       .select("*")
       .order("date", { ascending: false });
+
+    if (entityId) {
+      query = query.eq("business_entity_id", entityId);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
       return mockDocuments;
@@ -186,6 +201,7 @@ export async function fetchDocuments(entityId?: string) {
 
     return data.map((doc: any) => ({
       id: doc.id,
+      entityId: doc.business_entity_id || "ent-alfa",
       documentNumber: doc.document_number,
       type: doc.type,
       counterparty: doc.counterparty,
@@ -207,6 +223,7 @@ export async function fetchDocuments(entityId?: string) {
 }
 
 export async function createDocument(doc: {
+  entityId?: string;
   documentNumber: string;
   type: string;
   counterparty: string;
@@ -221,6 +238,7 @@ export async function createDocument(doc: {
     const { data, error } = await supabase
       .from("documents")
       .insert({
+        business_entity_id: doc.entityId,
         document_number: doc.documentNumber,
         type: doc.type,
         counterparty: doc.counterparty,
@@ -239,6 +257,7 @@ export async function createDocument(doc: {
     if (error) throw error;
     return {
       id: data.id,
+      entityId: data.business_entity_id || "ent-alfa",
       documentNumber: data.document_number,
       type: data.type,
       counterparty: data.counterparty,
@@ -284,10 +303,16 @@ export async function signDocumentWithEImzo(documentId: string) {
 // ==========================================
 export async function fetchContracts(entityId?: string) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("contracts")
       .select("*")
       .order("start_date", { ascending: false });
+
+    if (entityId) {
+      query = query.eq("business_entity_id", entityId);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
       return mockContracts;
@@ -295,6 +320,7 @@ export async function fetchContracts(entityId?: string) {
 
     return data.map((c: any) => ({
       id: c.id,
+      entityId: c.business_entity_id || "ent-alfa",
       number: c.number,
       type: c.type,
       counterparty: c.counterparty,
@@ -313,6 +339,7 @@ export async function fetchContracts(entityId?: string) {
 }
 
 export async function createContract(contract: {
+  entityId?: string;
   number: string;
   type: string;
   counterparty: string;
@@ -327,6 +354,7 @@ export async function createContract(contract: {
     const { data, error } = await supabase
       .from("contracts")
       .insert({
+        business_entity_id: contract.entityId,
         number: contract.number,
         type: contract.type,
         counterparty: contract.counterparty,
@@ -344,6 +372,7 @@ export async function createContract(contract: {
     if (error) throw error;
     return {
       id: data.id,
+      entityId: data.business_entity_id || "ent-alfa",
       number: data.number,
       type: data.type,
       counterparty: data.counterparty,
@@ -366,10 +395,16 @@ export async function createContract(contract: {
 // ==========================================
 export async function fetchInventoryItems(entityId?: string) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("inventory_items")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (entityId) {
+      query = query.eq("business_entity_id", entityId);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
       return mockInventoryItems;
@@ -377,6 +412,7 @@ export async function fetchInventoryItems(entityId?: string) {
 
     return data.map((item: any) => ({
       id: item.id,
+      entityId: item.business_entity_id || "ent-alfa",
       sku: item.sku,
       name: item.name,
       category: item.category,
@@ -393,6 +429,7 @@ export async function fetchInventoryItems(entityId?: string) {
 }
 
 export async function createInventoryItem(item: {
+  entityId?: string;
   sku: string;
   name: string;
   category: string;
@@ -405,6 +442,7 @@ export async function createInventoryItem(item: {
     const { data, error } = await supabase
       .from("inventory_items")
       .insert({
+        business_entity_id: item.entityId,
         sku: item.sku,
         name: item.name,
         category: item.category,
@@ -419,6 +457,7 @@ export async function createInventoryItem(item: {
     if (error) throw error;
     return {
       id: data.id,
+      entityId: data.business_entity_id || "ent-alfa",
       sku: data.sku,
       name: data.name,
       category: data.category,
@@ -439,10 +478,16 @@ export async function createInventoryItem(item: {
 // ==========================================
 export async function fetchEmployees(entityId?: string) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("employees")
       .select("*")
       .order("hire_date", { ascending: false });
+
+    if (entityId) {
+      query = query.eq("business_entity_id", entityId);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
       return mockEmployees;
@@ -450,6 +495,7 @@ export async function fetchEmployees(entityId?: string) {
 
     return data.map((emp: any) => ({
       id: emp.id,
+      entityId: emp.business_entity_id || "ent-alfa",
       name: emp.full_name,
       position: emp.position,
       department: emp.department,
@@ -465,6 +511,7 @@ export async function fetchEmployees(entityId?: string) {
 }
 
 export async function createEmployee(emp: {
+  entityId?: string;
   fullName: string;
   position: string;
   department: string;
@@ -476,6 +523,7 @@ export async function createEmployee(emp: {
     const { data, error } = await supabase
       .from("employees")
       .insert({
+        business_entity_id: emp.entityId,
         full_name: emp.fullName,
         position: emp.position,
         department: emp.department,
@@ -490,6 +538,7 @@ export async function createEmployee(emp: {
     if (error) throw error;
     return {
       id: data.id,
+      entityId: data.business_entity_id || "ent-alfa",
       name: data.full_name,
       position: data.position,
       department: data.department,
@@ -509,10 +558,16 @@ export async function createEmployee(emp: {
 // ==========================================
 export async function fetchExceptions(entityId?: string) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("exceptions")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (entityId) {
+      query = query.eq("business_entity_id", entityId);
+    }
+
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
       return mockExceptions;
@@ -520,7 +575,7 @@ export async function fetchExceptions(entityId?: string) {
 
     return data.map((exc: any) => ({
       id: exc.id,
-      entityId: exc.entity_id || "ent-alfa",
+      entityId: exc.business_entity_id || "ent-alfa",
       entityName: exc.entity_name || "ORIENT AGRO EXPORT MChJ",
       severity: exc.severity || "warning",
       status: exc.status || "open",
@@ -628,7 +683,57 @@ export async function createTeamMember(member: {
 // ==========================================
 // 9. JOURNAL ENTRIES (Double-Entry Ledger)
 // ==========================================
+export async function fetchJournalEntries(entityId?: string) {
+  try {
+    let query = supabase
+      .from("journal_entries")
+      .select("*, journal_lines(*)")
+      .order("entry_date", { ascending: false });
+
+    if (entityId) {
+      query = query.eq("business_entity_id", entityId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      return mockJournalEntries;
+    }
+
+    return data.map((je: any) => {
+      const lines = (je.journal_lines || []).map((l: any) => ({
+        id: l.id,
+        accountCode: l.account_code,
+        accountName: l.account_name,
+        debit: Number(l.debit_amount || 0),
+        credit: Number(l.credit_amount || 0),
+        memo: l.memo,
+      }));
+
+      const totalDebit = lines.reduce((acc: number, curr: any) => acc + curr.debit, 0);
+      const totalCredit = lines.reduce((acc: number, curr: any) => acc + curr.credit, 0);
+
+      return {
+        id: je.id,
+        entityId: je.business_entity_id,
+        entryNumber: je.entry_number,
+        date: je.entry_date,
+        description: je.description,
+        sourceType: je.source_type,
+        status: je.status,
+        totalDebit,
+        totalCredit,
+        createdBy: "Bosh buxgalter",
+        lines,
+      };
+    });
+  } catch (err) {
+    console.error("fetchJournalEntries error:", err);
+    return mockJournalEntries;
+  }
+}
+
 export async function createJournalEntryRecord(entry: {
+  entityId?: string;
   entryNumber: string;
   entryDate: string;
   description: string;
@@ -642,6 +747,7 @@ export async function createJournalEntryRecord(entry: {
     const { data: journalEntry, error: jError } = await supabase
       .from("journal_entries")
       .insert({
+        business_entity_id: entry.entityId,
         entry_number: entry.entryNumber,
         entry_date: entry.entryDate,
         status: "posted",
