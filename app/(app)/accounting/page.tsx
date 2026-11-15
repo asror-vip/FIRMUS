@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { mockChartOfAccounts, mockJournalEntries } from "@/lib/mock/accounting";
-import { createJournalEntryRecord, fetchJournalEntries } from "@/lib/services/supabase-service";
+import {
+  createJournalEntryRecord,
+  fetchJournalEntries,
+  reverseJournalEntryRecord,
+  fetchTrialBalance,
+  fetchGeneralLedger,
+  fetchChartOfAccounts,
+} from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/mock/store";
 import { generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,26 +20,41 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
-import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet, FileCode } from "lucide-react";
+import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet, FileCode, RotateCcw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { JournalEntry } from "@/lib/mock/types";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function AccountingPage() {
-  const { currentEntity } = useAppState();
+  const { currentEntity, currentRole } = useAppState();
   const { t } = useTranslation();
   const [subTab, setSubTab] = useState("coa");
   const [coaSearch, setCoaSearch] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [selectedLedgerAccount, setSelectedLedgerAccount] = useState("5110");
+  const [chartOfAccounts, setChartOfAccounts] = useState<any[]>(mockChartOfAccounts);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(mockJournalEntries);
+  const [trialBalanceData, setTrialBalanceData] = useState<any[]>([]);
+  const [generalLedgerData, setGeneralLedgerData] = useState<any[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReversing, setIsReversing] = useState(false);
+  const [reversalReason, setReversalReason] = useState("Notoʻgʻri summa kiritilgan");
+  const [isReversalDialogOpen, setIsReversalDialogOpen] = useState(false);
 
+  // Load real Chart of Accounts & Journal Entries
   useEffect(() => {
     let isMounted = true;
-    fetchJournalEntries(currentEntity?.id)
+    if (!currentEntity?.id) return;
+
+    fetchChartOfAccounts(currentEntity.id).then((accounts) => {
+      if (isMounted && accounts && accounts.length > 0) {
+        setChartOfAccounts(accounts);
+      }
+    });
+
+    fetchJournalEntries(currentEntity.id)
       .then((data) => {
         if (isMounted && data && data.length > 0) {
           setJournalEntries(data);
@@ -45,6 +67,38 @@ export default function AccountingPage() {
     };
   }, [currentEntity?.id]);
 
+  // Load real Trial Balance
+  useEffect(() => {
+    let isMounted = true;
+    if (!currentEntity?.id) return;
+
+    fetchTrialBalance(currentEntity.id).then((tb) => {
+      if (isMounted && tb) {
+        setTrialBalanceData(tb);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentEntity?.id, journalEntries.length]);
+
+  // Load real General Ledger for selected account
+  useEffect(() => {
+    let isMounted = true;
+    if (!currentEntity?.id || !selectedLedgerAccount) return;
+
+    fetchGeneralLedger(currentEntity.id, selectedLedgerAccount).then((gl) => {
+      if (isMounted && gl) {
+        setGeneralLedgerData(gl);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentEntity?.id, selectedLedgerAccount, journalEntries.length]);
+
   const [newEntry, setNewEntry] = useState({
     entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
     date: new Date().toISOString().split("T")[0],
@@ -54,7 +108,7 @@ export default function AccountingPage() {
     amount: "",
   });
 
-  const filteredCoa = mockChartOfAccounts.filter(
+  const filteredCoa = chartOfAccounts.filter(
     (acc) =>
       acc.code.includes(coaSearch) ||
       acc.name.toLowerCase().includes(coaSearch.toLowerCase())
@@ -63,6 +117,11 @@ export default function AccountingPage() {
   const totalDebit = journalEntries.reduce((acc, curr) => acc + curr.totalDebit, 0);
   const totalCredit = journalEntries.reduce((acc, curr) => acc + curr.totalCredit, 0);
   const isBalanced = totalDebit === totalCredit;
+
+  // Trial balance totals from real database
+  const tbTotalDebit = trialBalanceData.reduce((acc, row) => acc + Number(row.period_debit || 0), 0);
+  const tbTotalCredit = trialBalanceData.reduce((acc, row) => acc + Number(row.period_credit || 0), 0);
+  const isTbBalanced = Math.abs(tbTotalDebit - tbTotalCredit) < 0.01;
 
   const handleExport = () => {
     const headers = ["Provodka №", "Sana", "Tavsif", "Manba", "Debet", "Kredit", "Holat", "Muallif"];
@@ -107,17 +166,29 @@ export default function AccountingPage() {
       toast.error("Iltimos, tavsif va summani kiriting");
       return;
     }
+
+    const amountNum = Number(newEntry.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error("Summa musbat son boʻlishi kerak");
+      return;
+    }
+
+    if (newEntry.debitAccountCode === newEntry.creditAccountCode) {
+      toast.error("Debet va kredit schyotlari bir xil boʻlishi mumkin emas");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const amountNum = Number(newEntry.amount);
       const debitAcc =
-        mockChartOfAccounts.find((a) => a.code === newEntry.debitAccountCode)?.name ||
+        chartOfAccounts.find((a) => a.code === newEntry.debitAccountCode)?.name ||
         "Debet schyoti";
       const creditAcc =
-        mockChartOfAccounts.find((a) => a.code === newEntry.creditAccountCode)?.name ||
+        chartOfAccounts.find((a) => a.code === newEntry.creditAccountCode)?.name ||
         "Kredit schyoti";
 
-      await createJournalEntryRecord({
+      // Atomic PostgreSQL RPC
+      const result = await createJournalEntryRecord({
         entityId: currentEntity?.id,
         entryNumber: newEntry.entryNumber,
         entryDate: newEntry.date,
@@ -130,7 +201,7 @@ export default function AccountingPage() {
       });
 
       const createdJe: JournalEntry = {
-        id: `je-${Date.now()}`,
+        id: result?.id || `je-${Date.now()}`,
         entityId: currentEntity?.id || "11111111-1111-1111-1111-111111111111",
         entryNumber: newEntry.entryNumber,
         date: newEntry.date,
@@ -161,7 +232,7 @@ export default function AccountingPage() {
       };
 
       setJournalEntries((prev) => [createdJe, ...prev]);
-      toast.success("Buxgalteriya provodkasi Supabase bosh kitobiga (Ledger) muvaffaqiyatli saqlandi!");
+      toast.success("Buxgalteriya provodkasi atomar tranzaksiya bilan Ledgerga saqlandi!");
       setIsAddOpen(false);
       setNewEntry({
         entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
@@ -172,9 +243,32 @@ export default function AccountingPage() {
         amount: "",
       });
     } catch (err: any) {
-      toast.error("Provodka saqlashda xatolik: " + err.message);
+      console.error("Create entry error:", err);
+      toast.error("Provodka saqlashda xatolik: " + (err.message || "Balans xatosi"));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleReverseEntry = async () => {
+    if (!selectedEntry) return;
+    setIsReversing(true);
+    try {
+      const res = await reverseJournalEntryRecord(selectedEntry.id, reversalReason);
+      toast.success(`«${selectedEntry.entryNumber}» provodkasi storno qilindi (Reversal yozuvi yaratildi: ${res.reversal_entry_number})`);
+      setIsReversalDialogOpen(false);
+      setSelectedEntry(null);
+
+      // Refresh list
+      if (currentEntity?.id) {
+        const refreshed = await fetchJournalEntries(currentEntity.id);
+        setJournalEntries(refreshed);
+      }
+    } catch (err: any) {
+      console.error("Reversal error:", err);
+      toast.error("Storno qilishda xatolik: " + err.message);
+    } finally {
+      setIsReversing(false);
     }
   };
 
@@ -358,21 +452,37 @@ export default function AccountingPage() {
             <div className="rounded-xl border border-indigo-500/30 bg-card p-5 space-y-4 shadow-sm animate-in fade-in">
               <div className="flex items-center justify-between pb-3 border-b border-border">
                 <div>
-                  <span className="text-xs text-muted-foreground font-mono">
-                    {selectedEntry.entryNumber} • {selectedEntry.date}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-mono">
+                      {selectedEntry.entryNumber} • {selectedEntry.date}
+                    </span>
+                    <StatusPill status={selectedEntry.status} />
+                  </div>
                   <h3 className="text-sm font-bold text-foreground mt-0.5">
                     {selectedEntry.description}
                   </h3>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedEntry(null)}
-                  className="h-7 text-xs"
-                >
-                  {t.common.close}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {selectedEntry.status === "posted" && currentRole !== "auditor" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsReversalDialogOpen(true)}
+                      className="h-7 text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950 gap-1.5"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Storno qilish (Reversal)
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedEntry(null)}
+                    className="h-7 text-xs"
+                  >
+                    {t.common.close}
+                  </Button>
+                </div>
               </div>
 
               <div className="text-xs">
@@ -417,11 +527,13 @@ export default function AccountingPage() {
           <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-xs">
             <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-medium">
               <CheckCircle2 className="h-4 w-4" />
-              <span>{t.pages.accounting.debit} = {t.pages.accounting.credit}</span>
+              <span>
+                {isTbBalanced ? "Balans qonuni toʻliq taʼminlangan: Debet = Kredit" : "Diqqat: Debet va Kredit farqi mavjud"}
+              </span>
             </div>
             <div className="flex items-center gap-4 font-mono font-bold">
-              <span>{t.pages.accounting.debit}: 282,440,000 {t.common.currency}</span>
-              <span>{t.pages.accounting.credit}: 282,440,000 {t.common.currency}</span>
+              <span>{t.pages.accounting.debit}: {new Intl.NumberFormat("uz-UZ").format(tbTotalDebit)} {t.common.currency}</span>
+              <span>{t.pages.accounting.credit}: {new Intl.NumberFormat("uz-UZ").format(tbTotalCredit)} {t.common.currency}</span>
             </div>
           </div>
 
@@ -431,33 +543,53 @@ export default function AccountingPage() {
                 <TableRow>
                   <TableHead className="w-20">{t.pages.accounting.code}</TableHead>
                   <TableHead>{t.pages.accounting.name}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.balance} (Start)</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
+                  <TableHead className="text-right">Boshlangʻich saldo</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.debit} (Aylanma)</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.credit} (Aylanma)</TableHead>
+                  <TableHead className="text-right">Yakuniy saldo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockChartOfAccounts.slice(0, 10).map((acc) => (
-                  <TableRow key={acc.id}>
-                    <TableCell className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                      {acc.code}
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">{acc.name}</TableCell>
-                    <TableCell className="text-right font-mono text-muted-foreground">
-                      <Money amount={acc.balance * 0.9} />
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-emerald-600 dark:text-emerald-400 font-medium">
-                      <Money amount={acc.balance * 0.2} />
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-indigo-600 dark:text-indigo-400 font-medium">
-                      <Money amount={acc.balance * 0.1} />
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-bold text-foreground">
-                      <Money amount={acc.balance} />
+                {trialBalanceData.length > 0 ? (
+                  trialBalanceData.map((row) => (
+                    <TableRow key={row.account_code}>
+                      <TableCell className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                        {row.account_code}
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">{row.account_name}</TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {Number(row.opening_debit) > 0 ? (
+                          <Money amount={Number(row.opening_debit)} />
+                        ) : Number(row.opening_credit) > 0 ? (
+                          <span className="text-amber-600 font-medium">-<Money amount={Number(row.opening_credit)} /></span>
+                        ) : (
+                          "0"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-emerald-600 dark:text-emerald-400 font-medium">
+                        {Number(row.period_debit) > 0 ? <Money amount={Number(row.period_debit)} /> : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-indigo-600 dark:text-indigo-400 font-medium">
+                        {Number(row.period_credit) > 0 ? <Money amount={Number(row.period_credit)} /> : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold text-foreground">
+                        {Number(row.closing_debit) > 0 ? (
+                          <Money amount={Number(row.closing_debit)} />
+                        ) : Number(row.closing_credit) > 0 ? (
+                          <span className="text-amber-600">-<Money amount={Number(row.closing_credit)} /></span>
+                        ) : (
+                          "0"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-xs">
+                      Hozircha hisob-kitoblar maʼlumoti yuklanmadi yoki provodkalar yoʻq.
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
@@ -472,11 +604,11 @@ export default function AccountingPage() {
               onChange={(e) => setSelectedLedgerAccount(e.target.value)}
               className="h-8 rounded-lg border border-input bg-card px-3 text-xs font-medium font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             >
-              <option value="5110">5110 — Bank UZS</option>
-              <option value="4010">4010 — Accounts Receivable</option>
-              <option value="6010">6010 — Accounts Payable</option>
-              <option value="6410">6410 — Tax (VAT)</option>
-              <option value="1010">1010 — Inventory</option>
+              {chartOfAccounts.map((acc) => (
+                <option key={acc.id} value={acc.code}>
+                  {acc.code} — {acc.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -485,38 +617,40 @@ export default function AccountingPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t.common.date}</TableHead>
+                  <TableHead>Hujjat raqami</TableHead>
                   <TableHead>{t.common.description}</TableHead>
-                  <TableHead>{t.pages.accounting.code}</TableHead>
+                  <TableHead>Korr. schyot</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
+                  <TableHead className="text-right">Joriy qoldiq (Running Balance)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell className="font-mono text-xs">2026-11-14</TableCell>
-                  <TableCell className="font-medium text-foreground">Anglesey Food E-SF №189 tushumi</TableCell>
-                  <TableCell className="font-mono text-primary font-bold">4010</TableCell>
-                  <TableCell className="text-right text-emerald-600 font-mono font-medium">142,500,000 soʻm</TableCell>
-                  <TableCell className="text-right font-mono">—</TableCell>
-                  <TableCell className="text-right font-mono font-bold text-foreground">1,157,650,000 soʻm</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-mono text-xs">2026-11-14</TableCell>
-                  <TableCell className="font-medium text-foreground">Oʻzbektelekom internet toʻlovi</TableCell>
-                  <TableCell className="font-mono text-primary font-bold">6010</TableCell>
-                  <TableCell className="text-right font-mono">—</TableCell>
-                  <TableCell className="text-right text-indigo-600 font-mono font-medium">3,840,000 soʻm</TableCell>
-                  <TableCell className="text-right font-mono font-bold text-foreground">1,015,150,000 soʻm</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-mono text-xs">2026-11-12</TableCell>
-                  <TableCell className="font-medium text-foreground">E-Ijara ofis ijarasi toʻlovi</TableCell>
-                  <TableCell className="font-mono text-primary font-bold">9420</TableCell>
-                  <TableCell className="text-right font-mono">—</TableCell>
-                  <TableCell className="text-right text-indigo-600 font-mono font-medium">22,000,000 soʻm</TableCell>
-                  <TableCell className="text-right font-mono font-bold text-foreground">1,018,990,000 soʻm</TableCell>
-                </TableRow>
+                {generalLedgerData.length > 0 ? (
+                  generalLedgerData.map((row, idx) => (
+                    <TableRow key={row.entry_id || idx}>
+                      <TableCell className="font-mono text-xs">{row.entry_date}</TableCell>
+                      <TableCell className="font-mono text-xs text-primary font-medium">{row.entry_number}</TableCell>
+                      <TableCell className="font-medium text-foreground">{row.description}</TableCell>
+                      <TableCell className="font-mono text-primary font-bold">{row.correspondent_code}</TableCell>
+                      <TableCell className="text-right text-emerald-600 font-mono font-medium">
+                        {Number(row.debit_amount) > 0 ? <Money amount={Number(row.debit_amount)} /> : "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-indigo-600 font-mono font-medium">
+                        {Number(row.credit_amount) > 0 ? <Money amount={Number(row.credit_amount)} /> : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-bold text-foreground">
+                        <Money amount={Number(row.running_balance)} />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-xs">
+                      Tanlangan {selectedLedgerAccount} schyoti boʻyicha hozircha operatsiyalar mavjud emas.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
@@ -531,7 +665,7 @@ export default function AccountingPage() {
               Yangi buxgalteriya provodkasini kiritish
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Ikkiyoqlama yozuv (Double-Entry Ledger) boʻyicha Supabase bazasiga provodka saqlash.
+              Ikkiyoqlama yozuv (Double-Entry Ledger) boʻyicha atomar tranzaksiya bilan saqlash.
             </DialogDescription>
           </DialogHeader>
 
@@ -577,13 +711,11 @@ export default function AccountingPage() {
                   onChange={(e) => setNewEntry({ ...newEntry, debitAccountCode: e.target.value })}
                   className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2 font-mono"
                 >
-                  <option value="5110">5110 — Hisob-kitob schyoti</option>
-                  <option value="6010">6010 — Yetkazib beruvchilar</option>
-                  <option value="4010">4010 — Xaridorlar qarzi</option>
-                  <option value="1010">1010 — Xom-ashyo va materiallar</option>
-                  <option value="6710">6710 — Ish haqi hisob-kitobi</option>
-                  <option value="6410">6410 — Byudjetga toʻlovlar (QQS)</option>
-                  <option value="9420">9420 — Maʼmuriy xarajatlar</option>
+                  {chartOfAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.code}>
+                      {acc.code} — {acc.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -593,13 +725,11 @@ export default function AccountingPage() {
                   onChange={(e) => setNewEntry({ ...newEntry, creditAccountCode: e.target.value })}
                   className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2 font-mono"
                 >
-                  <option value="6010">6010 — Yetkazib beruvchilar</option>
-                  <option value="5110">5110 — Hisob-kitob schyoti</option>
-                  <option value="4010">4010 — Xaridorlar qarzi</option>
-                  <option value="1010">1010 — Xom-ashyo va materiallar</option>
-                  <option value="6710">6710 — Ish haqi hisob-kitobi</option>
-                  <option value="6410">6410 — Byudjetga toʻlovlar (QQS)</option>
-                  <option value="9420">9420 — Maʼmuriy xarajatlar</option>
+                  {chartOfAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.code}>
+                      {acc.code} — {acc.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -637,6 +767,56 @@ export default function AccountingPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Storno (Reversal) Confirmation Dialog */}
+      <Dialog open={isReversalDialogOpen} onOpenChange={setIsReversalDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2 text-rose-600 dark:text-rose-400">
+              <AlertTriangle className="h-4 w-4" />
+              Provodkani Storno qilish
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Tasdiqlangan provodka oʻchirib yuborilmaydi. Uning oʻrniga teskari (storno) provodka yaratilib, joriy provodka holati «reversed» deb belgilanadi.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 pt-2 text-xs">
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Storno qilish sababi *</Label>
+              <Input
+                value={reversalReason}
+                onChange={(e) => setReversalReason(e.target.value)}
+                placeholder="Masalan: Buxgalter kiritishda xato qilgan"
+                className="h-8 text-xs mt-1"
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsReversalDialogOpen(false)}
+                disabled={isReversing}
+              >
+                Bekor qilish
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs bg-rose-600 hover:bg-rose-700 text-white"
+                onClick={handleReverseEntry}
+                disabled={isReversing}
+              >
+                {isReversing ? "Storno qilinmoqda..." : "Storno yozuvini yaratish"}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -7,7 +7,7 @@ import { mockInventoryItems } from "@/lib/mock/inventory";
 import { mockEmployees } from "@/lib/mock/employees";
 import { mockExceptions } from "@/lib/mock/exceptions";
 import { mockTeamMembers } from "@/lib/mock/team";
-import { mockJournalEntries } from "@/lib/mock/accounting";
+import { mockJournalEntries, mockChartOfAccounts } from "@/lib/mock/accounting";
 import { mockIntegrations } from "@/lib/mock/integrations";
 
 // ==========================================
@@ -681,8 +681,40 @@ export async function createTeamMember(member: {
 }
 
 // ==========================================
-// 9. JOURNAL ENTRIES (Double-Entry Ledger)
+// 9. JOURNAL ENTRIES & ACCOUNTING LEDGER
 // ==========================================
+export async function fetchChartOfAccounts(entityId?: string) {
+  try {
+    let query = supabase
+      .from("chart_of_accounts")
+      .select("*")
+      .eq("is_active", true)
+      .order("code", { ascending: true });
+
+    if (entityId) {
+      query = query.or(`business_entity_id.eq.${entityId},business_entity_id.is.null`);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      return mockChartOfAccounts;
+    }
+
+    return data.map((acc: any) => ({
+      id: acc.id,
+      code: acc.code,
+      name: acc.name,
+      type: acc.type === "asset" || acc.type === "expense" ? "active" : "passive",
+      category: acc.type === "asset" ? "Aktivlar" : acc.type === "liability" ? "Majburiyatlar" : acc.type === "equity" ? "Xususiy kapital" : acc.type === "revenue" ? "Daromadlar" : "Xarajatlar",
+      balance: 0,
+      level: 2,
+    }));
+  } catch (err) {
+    console.error("fetchChartOfAccounts error:", err);
+    return mockChartOfAccounts;
+  }
+}
+
 export async function fetchJournalEntries(entityId?: string) {
   try {
     let query = supabase
@@ -742,48 +774,85 @@ export async function createJournalEntryRecord(entry: {
   creditAccountCode: string;
   creditAccountName: string;
   amount: number;
+  idempotencyKey?: string;
 }) {
   try {
-    const { data: journalEntry, error: jError } = await supabase
-      .from("journal_entries")
-      .insert({
-        business_entity_id: entry.entityId,
-        entry_number: entry.entryNumber,
-        entry_date: entry.entryDate,
-        status: "posted",
-        description: entry.description,
-        source_type: "manual",
-        posted_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (jError) throw jError;
-
-    // Insert debit line
-    await supabase.from("journal_lines").insert({
-      journal_entry_id: journalEntry.id,
-      account_code: entry.debitAccountCode,
-      account_name: entry.debitAccountName,
-      debit_amount: entry.amount,
-      credit_amount: 0,
-      memo: entry.description,
+    // Atomic double-entry execution via PostgreSQL RPC
+    const { data, error } = await supabase.rpc("create_journal_entry_atomic", {
+      p_business_entity_id: entry.entityId,
+      p_entry_number: entry.entryNumber,
+      p_entry_date: entry.entryDate,
+      p_description: entry.description,
+      p_source_type: "manual",
+      p_idempotency_key: entry.idempotencyKey || `idem-${entry.entryNumber}-${Date.now()}`,
+      p_lines: [
+        {
+          account_code: entry.debitAccountCode,
+          account_name: entry.debitAccountName,
+          debit_amount: entry.amount,
+          credit_amount: 0,
+          memo: entry.description,
+        },
+        {
+          account_code: entry.creditAccountCode,
+          account_name: entry.creditAccountName,
+          debit_amount: 0,
+          credit_amount: entry.amount,
+          memo: entry.description,
+        },
+      ],
     });
 
-    // Insert credit line
-    await supabase.from("journal_lines").insert({
-      journal_entry_id: journalEntry.id,
-      account_code: entry.creditAccountCode,
-      account_name: entry.creditAccountName,
-      debit_amount: 0,
-      credit_amount: entry.amount,
-      memo: entry.description,
-    });
-
-    return journalEntry;
+    if (error) throw error;
+    return data;
   } catch (err) {
-    console.error("createJournalEntryRecord error:", err);
+    console.error("createJournalEntryRecord atomic RPC error:", err);
     throw err;
+  }
+}
+
+export async function reverseJournalEntryRecord(entryId: string, reason: string = "Xatolik tufayli bekor qilindi") {
+  try {
+    const { data, error } = await supabase.rpc("reverse_journal_entry", {
+      p_entry_id: entryId,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error("reverseJournalEntryRecord error:", err);
+    throw err;
+  }
+}
+
+export async function fetchTrialBalance(entityId: string, fromDate?: string, toDate?: string) {
+  try {
+    const { data, error } = await supabase.rpc("get_trial_balance", {
+      p_entity_id: entityId,
+      p_from_date: fromDate || "1970-01-01",
+      p_to_date: toDate || "2099-12-31",
+    });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error("fetchTrialBalance error:", err);
+    return [];
+  }
+}
+
+export async function fetchGeneralLedger(entityId: string, accountCode: string, fromDate?: string, toDate?: string) {
+  try {
+    const { data, error } = await supabase.rpc("get_general_ledger", {
+      p_entity_id: entityId,
+      p_account_code: accountCode,
+      p_from_date: fromDate || "1970-01-01",
+      p_to_date: toDate || "2099-12-31",
+    });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error("fetchGeneralLedger error:", err);
+    return [];
   }
 }
 
