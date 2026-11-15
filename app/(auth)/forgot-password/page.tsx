@@ -42,9 +42,14 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-sm space-y-5">
-        <div className="text-center space-y-1">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold text-base shadow-sm mb-2">
-            F
+        <div className="text-center space-y-2">
+          <div className="relative inline-flex items-center justify-center mb-1">
+            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 opacity-50 blur-lg" />
+            <img
+              src="/brand/firmus-f.jpg"
+              alt="FIRMUS"
+              className="relative h-14 w-14 rounded-2xl object-cover shadow-2xl border border-blue-400/40"
+            />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
             Parolni Qayta Tiklash

@@ -110,8 +110,12 @@ export function Sidebar() {
         ) : (
           <>
             <Link href="/" className="flex items-center gap-2.5 overflow-hidden">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm tracking-wider shadow-sm">
-                FI
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-blue-400/40 shadow-sm bg-black">
+                <img
+                  src="/brand/firmus-f.jpg"
+                  alt="FIRMUS"
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div className="flex flex-col truncate">
                 <span className="font-bold text-sm tracking-tight text-foreground font-sans">
