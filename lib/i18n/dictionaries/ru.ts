@@ -66,9 +66,9 @@ export const ruTranslations: Translations = {
     aiRecommendationTitle: "Рекомендация GPT-6 Luna AI",
   },
   notifications: {
-    title: "Центр уведомлений",
-    unreadCount: "непрочитанных",
-    markAllRead: "Отметить все как прочитанные",
+    title: "Уведомления",
+    unreadCount: "новых",
+    markAllRead: "Прочитать все",
     clearAll: "Очистить",
     empty: "Нет новых уведомлений",
     tabs: {

@@ -66,9 +66,9 @@ export const uzTranslations: Translations = {
     aiRecommendationTitle: "GPT-6 Luna AI Tavsiyasi",
   },
   notifications: {
-    title: "Bildirishnomalar Markazi",
-    unreadCount: "ta oʻqilmagan",
-    markAllRead: "Barchasini oʻqilgan deb belgilash",
+    title: "Bildirishnomalar",
+    unreadCount: "yangi",
+    markAllRead: "Oʻqilgan qilish",
     clearAll: "Tozalash",
     empty: "Yangi bildirishnomalar yoʻq",
     tabs: {

@@ -86,16 +86,20 @@ export function NotificationsPopover() {
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-[380px] p-0 shadow-2xl rounded-xl border-border">
+      <DropdownMenuContent align="end" className="w-[420px] max-w-[95vw] p-0 shadow-2xl rounded-xl border-border">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border p-3.5 bg-muted/20">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-xs text-foreground">
+        <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5 bg-muted/20">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="font-semibold text-xs text-foreground whitespace-nowrap">
               {t.notifications.title}
             </h3>
             {unreadCount > 0 && (
-              <Badge variant="destructive" className="h-4 px-1.5 py-0 text-[10px]">
-                {unreadCount} {t.notifications.unreadCount}
+              <Badge
+                variant="destructive"
+                className="h-5 px-2 py-0 text-[10px] font-semibold whitespace-nowrap shrink-0 rounded-full flex items-center gap-1 shadow-xs"
+              >
+                <span>{unreadCount}</span>
+                <span>{t.notifications.unreadCount}</span>
               </Badge>
             )}
           </div>
@@ -103,21 +107,22 @@ export function NotificationsPopover() {
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllRead}
-              className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium"
+              className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 font-medium whitespace-nowrap shrink-0 px-2 py-1 rounded-md hover:bg-muted/50"
             >
-              <CheckCheck className="h-3 w-3" />
-              {t.notifications.markAllRead}
+              <CheckCheck className="h-3.5 w-3.5" />
+              <span>{t.notifications.markAllRead}</span>
             </button>
           )}
         </div>
 
         {/* Category Tabs */}
-        <div className="flex items-center border-b border-border bg-muted/10 px-2 py-1 gap-1 text-[11px] overflow-x-auto">
+        <div className="flex items-center border-b border-border bg-muted/10 px-2 py-1 gap-1 text-[11px] overflow-x-auto scrollbar-none">
           {[
             { id: "all", label: t.notifications.tabs.all },
             { id: "tax", label: t.notifications.tabs.tax },
             { id: "exception", label: t.notifications.tabs.exceptions },
             { id: "sync", label: t.notifications.tabs.sync },
+            { id: "system", label: t.notifications.tabs.system },
           ].map((cat) => (
             <button
               key={cat.id}

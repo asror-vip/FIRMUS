@@ -66,8 +66,8 @@ export const enTranslations: Translations = {
     aiRecommendationTitle: "GPT-6 Luna AI Recommendation",
   },
   notifications: {
-    title: "Notification Center",
-    unreadCount: "unread",
+    title: "Notifications",
+    unreadCount: "new",
     markAllRead: "Mark all as read",
     clearAll: "Clear",
     empty: "No new notifications",
