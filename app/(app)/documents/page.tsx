@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { mockDocuments } from "@/lib/mock/documents";
 import { DocumentItem } from "@/lib/mock/types";
+import { fetchDocuments, createDocument, signDocumentWithEImzo } from "@/lib/services/supabase-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
@@ -25,6 +27,7 @@ import {
   Clock,
   ArrowUpRight,
   ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -32,13 +35,181 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function DocumentsPage() {
   const { t } = useTranslation();
+  const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
+  const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredDocs = mockDocuments.filter((doc) => {
+  // Form state
+  const [newDoc, setNewDoc] = useState({
+    number: `SF-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+    type: "invoice",
+    counterparty: "",
+    counterpartyStir: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    contractNumber: "",
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    fetchDocuments()
+      .then((data) => {
+        if (isMounted && data && data.length > 0) {
+          const mapped: DocumentItem[] = data.map((d: any) => ({
+            id: d.id,
+            entityId: "ent-alfa",
+            number: d.documentNumber,
+            type: d.type,
+            title: `${d.type === "invoice" ? "Elektron hisob-faktura" : d.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${d.documentNumber}`,
+            counterparty: d.counterparty,
+            counterpartyStir: d.counterpartyStir || "309112233",
+            amount: d.amount,
+            date: d.date,
+            status: d.status,
+            format: "pdf",
+            fileSize: "1.4 MB",
+            signedByLocal: d.eImzoSigned ? "Imzolangan (E-IMZO)" : undefined,
+            signedByPartner: "Tasdiqlangan",
+            aiExtractedData: {
+              vatAmount: d.vatAmount,
+              itemsCount: 3,
+            },
+          }));
+          setDocuments(mapped);
+        }
+      })
+      .catch((err) => console.error("Error loading documents:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSyncDidox = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchDocuments();
+      if (data && data.length > 0) {
+        const mapped: DocumentItem[] = data.map((d: any) => ({
+          id: d.id,
+          entityId: "ent-alfa",
+          number: d.documentNumber,
+          type: d.type,
+          title: `${d.type === "invoice" ? "Elektron hisob-faktura" : d.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${d.documentNumber}`,
+          counterparty: d.counterparty,
+          counterpartyStir: d.counterpartyStir || "309112233",
+          amount: d.amount,
+          date: d.date,
+          status: d.status,
+          format: "pdf",
+          fileSize: "1.4 MB",
+          signedByLocal: d.eImzoSigned ? "Imzolangan (E-IMZO)" : undefined,
+          signedByPartner: "Tasdiqlangan",
+          aiExtractedData: {
+            vatAmount: d.vatAmount,
+            itemsCount: 3,
+          },
+        }));
+        setDocuments(mapped);
+      }
+      toast.success("Didox EDO tizimidan barcha elektron hujjatlar yangilandi!");
+    } catch (err: any) {
+      toast.error("Didox sinxronizatsiya xatosi: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignDocument = async (docId: string) => {
+    try {
+      await signDocumentWithEImzo(docId);
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === docId
+            ? { ...d, status: "signed", signedByLocal: "Imzolangan (E-IMZO Oʻzbekiston)" }
+            : d
+        )
+      );
+      if (selectedDoc && selectedDoc.id === docId) {
+        setSelectedDoc((prev) =>
+          prev
+            ? { ...prev, status: "signed", signedByLocal: "Imzolangan (E-IMZO Oʻzbekiston)" }
+            : null
+        );
+      }
+      toast.success("Hujjat E-IMZO elektron raqamli imzosi bilan muvaffaqiyatli tasdiqlandi!");
+    } catch (err: any) {
+      toast.error("Imzolashda xatolik yuz berdi: " + err.message);
+    }
+  };
+
+  const handleCreateDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDoc.counterparty || !newDoc.amount || !newDoc.number) {
+      toast.error("Iltimos, hujjat raqami, kontragent va summani kiriting");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const created = await createDocument({
+        documentNumber: newDoc.number,
+        type: newDoc.type,
+        counterparty: newDoc.counterparty,
+        counterpartyStir: newDoc.counterpartyStir || undefined,
+        amount: Number(newDoc.amount),
+        date: newDoc.date,
+        contractNumber: newDoc.contractNumber || undefined,
+      });
+
+      const newDocItem: DocumentItem = {
+        id: created.id,
+        entityId: "ent-alfa",
+        number: created.documentNumber,
+        type: created.type as any,
+        title: `${created.type === "invoice" ? "Elektron hisob-faktura" : created.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${created.documentNumber}`,
+        counterparty: created.counterparty,
+        counterpartyStir: created.counterpartyStir || "309112233",
+        amount: created.amount,
+        date: created.date,
+        status: created.status as any,
+        format: "pdf",
+        fileSize: "1.2 MB",
+        signedByPartner: "Kutilmoqda",
+        aiExtractedData: {
+          vatAmount: created.vatAmount,
+          itemsCount: 1,
+        },
+      };
+
+      setDocuments((prev) => [newDocItem, ...prev]);
+      toast.success("Hujjat Didox va Supabase tizimiga muvaffaqiyatli yuklandi!");
+      setIsUploadOpen(false);
+      setNewDoc({
+        number: `SF-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+        type: "invoice",
+        counterparty: "",
+        counterpartyStir: "",
+        amount: "",
+        date: new Date().toISOString().split("T")[0],
+        contractNumber: "",
+      });
+    } catch (err: any) {
+      toast.error("Hujjat yaratishda xatolik: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredDocs = documents.filter((doc) => {
     if (selectedType !== "all" && doc.type !== selectedType) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -68,8 +239,10 @@ export default function DocumentsPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success(t.pages.documents.syncDidox)}
+            onClick={handleSyncDidox}
+            disabled={isLoading}
           >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
             {t.pages.documents.syncDidox}
           </Button>
 
@@ -312,12 +485,11 @@ export default function DocumentsPage() {
             <div className="pt-2 flex items-center gap-2">
               <Button
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white h-9"
-                onClick={() => {
-                  toast.success(t.statuses.signed);
-                  setSelectedDoc(null);
-                }}
+                onClick={() => handleSignDocument(selectedDoc.id)}
+                disabled={selectedDoc.status === "signed"}
               >
-                E-IMZO {t.statuses.signed}
+                <ShieldCheck className="mr-1.5 h-4 w-4" />
+                {selectedDoc.status === "signed" ? "E-IMZO bilan imzolangan" : `E-IMZO ${t.statuses.signed}`}
               </Button>
               <Button
                 variant="outline"
@@ -334,31 +506,121 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* Upload Modal Mock */}
+      {/* Upload & Create Document Modal */}
       <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{t.pages.documents.uploadDoc}</DialogTitle>
-            <DialogDescription>
-              PDF, XML, DOCX, XLSX
+            <DialogTitle className="text-base font-bold text-foreground">
+              {t.pages.documents.uploadDoc} (Didox EDO)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Yangi elektron hujjatni (E-SF, dalolatnoma, shartnoma) tizimga kiritish va bazaga saqlash.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-xl border border-dashed border-border p-8 text-center my-3">
-            <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-xs font-semibold text-foreground">{t.pages.documents.uploadDoc}</p>
-            <p className="text-[10px] text-muted-foreground mt-1">PDF, XML, DOCX, XLSX (20 MB)</p>
-          </div>
-          <DialogFooter>
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
-              onClick={() => {
-                toast.success(t.pages.documents.uploadDoc);
-                setIsUploadOpen(false);
-              }}
-            >
-              {t.common.save}
-            </Button>
-          </DialogFooter>
+
+          <form onSubmit={handleCreateDocument} className="space-y-3 pt-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Hujjat turi *</Label>
+                <select
+                  value={newDoc.type}
+                  onChange={(e) => setNewDoc({ ...newDoc, type: e.target.value })}
+                  className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
+                >
+                  <option value="invoice">Elektron hisob-faktura (E-SF)</option>
+                  <option value="act">Bajarilgan ishlar dalolatnomasi</option>
+                  <option value="contract">Shartnoma / Bitim</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Hujjat raqami *</Label>
+                <Input
+                  value={newDoc.number}
+                  onChange={(e) => setNewDoc({ ...newDoc, number: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Kontragent nomi *</Label>
+                <Input
+                  placeholder="OOO / MChJ..."
+                  value={newDoc.counterparty}
+                  onChange={(e) => setNewDoc({ ...newDoc, counterparty: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Kontragent STIR (9 ta)</Label>
+                <Input
+                  placeholder="309887766"
+                  maxLength={9}
+                  value={newDoc.counterpartyStir}
+                  onChange={(e) => setNewDoc({ ...newDoc, counterpartyStir: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Summa (UZS) *</Label>
+                <Input
+                  type="number"
+                  placeholder="Masalan: 8500000"
+                  value={newDoc.amount}
+                  onChange={(e) => setNewDoc({ ...newDoc, amount: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Hujjat sanasi *</Label>
+                <Input
+                  type="date"
+                  value={newDoc.date}
+                  onChange={(e) => setNewDoc({ ...newDoc, date: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Bogʻlangan shartnoma raqami</Label>
+              <Input
+                placeholder="SH-2026/012 (ixtiyoriy)"
+                value={newDoc.contractNumber}
+                onChange={(e) => setNewDoc({ ...newDoc, contractNumber: e.target.value })}
+                className="h-8 text-xs mt-1"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsUploadOpen(false)}
+                disabled={isSubmitting}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Yuklanmoqda..." : "Didox bazasiga yuklash"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -2,15 +2,18 @@
 
 import React, { useState } from "react";
 import { mockChartOfAccounts, mockJournalEntries } from "@/lib/mock/accounting";
+import { createJournalEntryRecord } from "@/lib/services/supabase-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { JournalEntry } from "@/lib/mock/types";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -20,6 +23,18 @@ export default function AccountingPage() {
   const [coaSearch, setCoaSearch] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [selectedLedgerAccount, setSelectedLedgerAccount] = useState("5110");
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(mockJournalEntries);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [newEntry, setNewEntry] = useState({
+    entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+    debitAccountCode: "5110",
+    creditAccountCode: "6010",
+    amount: "",
+  });
 
   const filteredCoa = mockChartOfAccounts.filter(
     (acc) =>
@@ -27,9 +42,108 @@ export default function AccountingPage() {
       acc.name.toLowerCase().includes(coaSearch.toLowerCase())
   );
 
-  const totalDebit = mockJournalEntries.reduce((acc, curr) => acc + curr.totalDebit, 0);
-  const totalCredit = mockJournalEntries.reduce((acc, curr) => acc + curr.totalCredit, 0);
+  const totalDebit = journalEntries.reduce((acc, curr) => acc + curr.totalDebit, 0);
+  const totalCredit = journalEntries.reduce((acc, curr) => acc + curr.totalCredit, 0);
   const isBalanced = totalDebit === totalCredit;
+
+  const handleExport = () => {
+    const headers = ["Provodka №", "Sana", "Tavsif", "Manba", "Debet", "Kredit", "Holat", "Muallif"];
+    const rows = journalEntries.map((je) => [
+      je.entryNumber,
+      je.date,
+      `"${(je.description || "").replace(/"/g, '""')}"`,
+      je.sourceType,
+      je.totalDebit,
+      je.totalCredit,
+      je.status,
+      `"${je.createdBy || ""}"`,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `firmus_journal_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Buxgalteriya provodkalari CSV formatida yuklab olindi");
+  };
+
+  const handleCreateEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEntry.description || !newEntry.amount) {
+      toast.error("Iltimos, tavsif va summani kiriting");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const amountNum = Number(newEntry.amount);
+      const debitAcc =
+        mockChartOfAccounts.find((a) => a.code === newEntry.debitAccountCode)?.name ||
+        "Debet schyoti";
+      const creditAcc =
+        mockChartOfAccounts.find((a) => a.code === newEntry.creditAccountCode)?.name ||
+        "Kredit schyoti";
+
+      await createJournalEntryRecord({
+        entryNumber: newEntry.entryNumber,
+        entryDate: newEntry.date,
+        description: newEntry.description,
+        debitAccountCode: newEntry.debitAccountCode,
+        debitAccountName: debitAcc,
+        creditAccountCode: newEntry.creditAccountCode,
+        creditAccountName: creditAcc,
+        amount: amountNum,
+      });
+
+      const createdJe: JournalEntry = {
+        id: `je-${Date.now()}`,
+        entityId: "ent-alfa",
+        entryNumber: newEntry.entryNumber,
+        date: newEntry.date,
+        description: newEntry.description,
+        sourceType: "manual",
+        status: "posted",
+        totalDebit: amountNum,
+        totalCredit: amountNum,
+        createdBy: "Bosh buxgalter",
+        lines: [
+          {
+            id: `line-${Date.now()}-1`,
+            accountCode: newEntry.debitAccountCode,
+            accountName: debitAcc,
+            debit: amountNum,
+            credit: 0,
+            memo: newEntry.description,
+          },
+          {
+            id: `line-${Date.now()}-2`,
+            accountCode: newEntry.creditAccountCode,
+            accountName: creditAcc,
+            debit: 0,
+            credit: amountNum,
+            memo: newEntry.description,
+          },
+        ],
+      };
+
+      setJournalEntries((prev) => [createdJe, ...prev]);
+      toast.success("Buxgalteriya provodkasi Supabase bosh kitobiga (Ledger) muvaffaqiyatli saqlandi!");
+      setIsAddOpen(false);
+      setNewEntry({
+        entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+        date: new Date().toISOString().split("T")[0],
+        description: "",
+        debitAccountCode: "5110",
+        creditAccountCode: "6010",
+        amount: "",
+      });
+    } catch (err: any) {
+      toast.error("Provodka saqlashda xatolik: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -49,7 +163,7 @@ export default function AccountingPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success(t.common.export)}
+            onClick={handleExport}
           >
             <Download className="h-3.5 w-3.5" />
             {t.common.export} (Excel)
@@ -57,7 +171,7 @@ export default function AccountingPage() {
           <Button
             size="sm"
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => toast.info(t.common.addNew)}
+            onClick={() => setIsAddOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
             {t.common.addNew}
@@ -157,7 +271,7 @@ export default function AccountingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockJournalEntries.map((je) => (
+                {journalEntries.map((je) => (
                   <TableRow
                     key={je.id}
                     className="cursor-pointer hover:bg-muted/60"
@@ -364,6 +478,123 @@ export default function AccountingPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Add Journal Entry Modal Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Yangi buxgalteriya provodkasini kiritish
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Ikkiyoqlama yozuv (Double-Entry Ledger) boʻyicha Supabase bazasiga provodka saqlash.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateEntry} className="space-y-3 pt-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Hujjat raqami *</Label>
+                <Input
+                  value={newEntry.entryNumber}
+                  onChange={(e) => setNewEntry({ ...newEntry, entryNumber: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Sana *</Label>
+                <Input
+                  type="date"
+                  value={newEntry.date}
+                  onChange={(e) => setNewEntry({ ...newEntry, date: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Iqtisodiy mazmuni / Maqsad *</Label>
+              <Input
+                placeholder="Xom-ashyo xaridi uchun yetkazib beruvchiga toʻlov..."
+                value={newEntry.description}
+                onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
+                className="h-8 text-xs mt-1"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Debet schyoti (Dt) *</Label>
+                <select
+                  value={newEntry.debitAccountCode}
+                  onChange={(e) => setNewEntry({ ...newEntry, debitAccountCode: e.target.value })}
+                  className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2 font-mono"
+                >
+                  <option value="5110">5110 — Hisob-kitob schyoti</option>
+                  <option value="6010">6010 — Yetkazib beruvchilar</option>
+                  <option value="4010">4010 — Xaridorlar qarzi</option>
+                  <option value="1010">1010 — Xom-ashyo va materiallar</option>
+                  <option value="6710">6710 — Ish haqi hisob-kitobi</option>
+                  <option value="6410">6410 — Byudjetga toʻlovlar (QQS)</option>
+                  <option value="9420">9420 — Maʼmuriy xarajatlar</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Kredit schyoti (Kt) *</Label>
+                <select
+                  value={newEntry.creditAccountCode}
+                  onChange={(e) => setNewEntry({ ...newEntry, creditAccountCode: e.target.value })}
+                  className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2 font-mono"
+                >
+                  <option value="6010">6010 — Yetkazib beruvchilar</option>
+                  <option value="5110">5110 — Hisob-kitob schyoti</option>
+                  <option value="4010">4010 — Xaridorlar qarzi</option>
+                  <option value="1010">1010 — Xom-ashyo va materiallar</option>
+                  <option value="6710">6710 — Ish haqi hisob-kitobi</option>
+                  <option value="6410">6410 — Byudjetga toʻlovlar (QQS)</option>
+                  <option value="9420">9420 — Maʼmuriy xarajatlar</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Summa (UZS) *</Label>
+              <Input
+                type="number"
+                placeholder="10000000"
+                value={newEntry.amount}
+                onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value })}
+                className="h-8 text-xs font-mono mt-1"
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsAddOpen(false)}
+                disabled={isSubmitting}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Saqlanmoqda..." : "Provodkani saqlash"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

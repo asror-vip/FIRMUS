@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { mockTransactions } from "@/lib/mock/transactions";
 import { Transaction } from "@/lib/mock/types";
+import { fetchTransactions, createTransaction } from "@/lib/services/supabase-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Search,
   Filter,
@@ -31,13 +34,107 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 export default function TransactionsPage() {
   const { currentEntity, currentRole } = useAppState();
   const { t } = useTranslation();
+  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  // Modal form state
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newTx, setNewTx] = useState({
+    date: new Date().toISOString().split("T")[0],
+    amount: "",
+    type: "expense" as "income" | "expense",
+    counterparty: "",
+    counterpartyStir: "",
+    description: "",
+    accountCode: "6010",
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    fetchTransactions()
+      .then((data) => {
+        if (isMounted && data && data.length > 0) {
+          setTransactions(data);
+        }
+      })
+      .catch((err) => console.error("Error loading transactions:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleExport = () => {
+    const headers = ["ID", "Sana", "Kontragent", "STIR", "Turi", "Summa", "Tavsif", "Holat"];
+    const rows = transactions.map((tx) => [
+      tx.id,
+      tx.date,
+      `"${(tx.counterparty || "").replace(/"/g, '""')}"`,
+      tx.counterpartyStir || "",
+      tx.type,
+      tx.amount,
+      `"${(tx.description || "").replace(/"/g, '""')}"`,
+      tx.status,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `firmus_transactions_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Tranzaksiyalar CSV formatida yuklab olindi");
+  };
+
+  const handleCreateTx = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTx.counterparty || !newTx.amount || !newTx.description) {
+      toast.error("Iltimos, kontragent, summa va tavsif maydonlarini toʻldiring");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const created = await createTransaction({
+        date: newTx.date,
+        amount: Number(newTx.amount),
+        type: newTx.type,
+        counterparty: newTx.counterparty,
+        counterpartyStir: newTx.counterpartyStir || undefined,
+        description: newTx.description,
+        accountCode: newTx.accountCode,
+        accountName: newTx.type === "income" ? "Xaridorlar schyoti" : "Yetkazib beruvchilar schyoti",
+      });
+
+      setTransactions((prev) => [created as any, ...prev]);
+      toast.success("Tranzaksiya Supabase maʼlumotlar bazasiga muvaffaqiyatli saqlandi!");
+      setIsAddOpen(false);
+      setNewTx({
+        date: new Date().toISOString().split("T")[0],
+        amount: "",
+        type: "expense",
+        counterparty: "",
+        counterpartyStir: "",
+        description: "",
+        accountCode: "6010",
+      });
+    } catch (err: any) {
+      toast.error("Xatolik yuz berdi: " + (err.message || "Saqlash muvaffaqiyatsiz"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Filter transactions
-  const filtered = mockTransactions.filter((tx) => {
+  const filtered = transactions.filter((tx) => {
     // Tab filter
     if (activeTab === "income" && tx.type !== "income") return false;
     if (activeTab === "expense" && tx.type !== "expense") return false;
@@ -92,7 +189,7 @@ export default function TransactionsPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success("Excel XLSX")}
+            onClick={handleExport}
           >
             <Download className="h-3.5 w-3.5" />
             {t.common.export}
@@ -102,7 +199,7 @@ export default function TransactionsPage() {
             <Button
               size="sm"
               className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => toast.info(t.common.addNew)}
+              onClick={() => setIsAddOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
               {t.common.addNew}
@@ -115,7 +212,7 @@ export default function TransactionsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
           <TabsList className="h-8">
-            <TabsTrigger value="all">{t.pages.transactions.tabs.all} ({mockTransactions.length})</TabsTrigger>
+            <TabsTrigger value="all">{t.pages.transactions.tabs.all} ({transactions.length})</TabsTrigger>
             <TabsTrigger value="income">{t.pages.transactions.tabs.income}</TabsTrigger>
             <TabsTrigger value="expense">{t.pages.transactions.tabs.expense}</TabsTrigger>
             <TabsTrigger value="pending">{t.pages.transactions.tabs.pending}</TabsTrigger>
@@ -360,6 +457,139 @@ export default function TransactionsPage() {
           </div>
         </div>
       )}
+
+      {/* Add Transaction Dialog Modal */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Yangi bank tranzaksiyasini qoʻshish
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Supabase maʼlumotlar bazasiga yangi kirim yoki chiqim operatsiyasini kiriting.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateTx} className="space-y-3.5 pt-2 text-xs">
+            {/* Type selector */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setNewTx({ ...newTx, type: "income", accountCode: "4010" })}
+                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                  newTx.type === "income"
+                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold"
+                    : "border-border hover:bg-muted text-muted-foreground"
+                }`}
+              >
+                <ArrowUpRight className="h-3.5 w-3.5" />
+                Kirim (Daromad)
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewTx({ ...newTx, type: "expense", accountCode: "6010" })}
+                className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                  newTx.type === "expense"
+                    ? "border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-400 font-bold"
+                    : "border-border hover:bg-muted text-muted-foreground"
+                }`}
+              >
+                <ArrowUpRight className="h-3.5 w-3.5 rotate-90" />
+                Chiqim (Xarajat)
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Sana *</Label>
+                <Input
+                  type="date"
+                  value={newTx.date}
+                  onChange={(e) => setNewTx({ ...newTx, date: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Summa (UZS) *</Label>
+                <Input
+                  type="number"
+                  placeholder="Masalan: 15000000"
+                  value={newTx.amount}
+                  onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Kontragent nomi *</Label>
+                <Input
+                  placeholder="OOO / MChJ / YaTT nomi"
+                  value={newTx.counterparty}
+                  onChange={(e) => setNewTx({ ...newTx, counterparty: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Kontragent STIR (9 ta raqam)</Label>
+                <Input
+                  placeholder="309112233"
+                  maxLength={9}
+                  value={newTx.counterpartyStir}
+                  onChange={(e) => setNewTx({ ...newTx, counterpartyStir: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Buxgalteriya schyoti (BHMS)</Label>
+              <Input
+                placeholder="6010 yoki 4010"
+                value={newTx.accountCode}
+                onChange={(e) => setNewTx({ ...newTx, accountCode: e.target.value })}
+                className="h-8 text-xs font-mono mt-1"
+              />
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Toʻlov maqsadi / Tavsif *</Label>
+              <Input
+                placeholder="Shartnoma boʻyicha tovar/xizmat haqi..."
+                value={newTx.description}
+                onChange={(e) => setNewTx({ ...newTx, description: e.target.value })}
+                className="h-8 text-xs mt-1"
+                required
+              />
+            </div>
+
+            <DialogFooter className="pt-3 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsAddOpen(false)}
+                disabled={isSubmitting}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Saqlanmoqda..." : "Bazaga saqlash"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

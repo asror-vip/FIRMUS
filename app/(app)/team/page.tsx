@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { mockTeamMembers } from "@/lib/mock/team";
 import { mockBusinessEntities } from "@/lib/mock/entities";
+import { fetchTeamMembers, createTeamMember } from "@/lib/services/supabase-service";
 import { TeamMember, UserRole } from "@/lib/mock/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,10 +20,41 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 export default function TeamPage() {
   const { t } = useTranslation();
   const [members, setMembers] = useState<TeamMember[]>(mockTeamMembers);
+  const [isLoading, setIsLoading] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("accountant");
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    fetchTeamMembers()
+      .then((data) => {
+        if (isMounted && data && data.length > 0) {
+          const mapped: TeamMember[] = data.map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            email: d.email,
+            phone: "+998 90 123-45-67",
+            role: d.role,
+            assignedEntityIds: ["ent-alfa"],
+            status: d.status,
+            lastActive: "Faol",
+          }));
+          setMembers(mapped);
+        }
+      })
+      .catch((err) => console.error("Error loading team members:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const rolesCatalog = [
     { role: "Workspace Owner", desc: "Barcha korxonalar, obuna, jamoa va tizim sozlamalarini toʻliq boshqarish." },
@@ -32,26 +64,40 @@ export default function TeamPage() {
     { role: "Bosh direktor", desc: "Oʻz korxonasining moliyaviy koʻrsatkichlari (P&L, Balans) va yirik toʻlovlarni tasdiqlash." },
   ];
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
     if (!inviteName || !inviteEmail) {
       toast.error("Iltimos, ism va elektron pochtani kiriting");
       return;
     }
-    const newMember: TeamMember = {
-      id: `usr-${Date.now()}`,
-      name: inviteName,
-      email: inviteEmail,
-      phone: "+998 90 000-00-00",
-      role: inviteRole,
-      assignedEntityIds: ["ent-alfa"],
-      status: "invited",
-      lastActive: "Taklif yuborildi",
-    };
-    setMembers((prev) => [...prev, newMember]);
-    toast.success(`${inviteName} ga taklifnoma xati yuborildi!`);
-    setIsInviteOpen(false);
-    setInviteName("");
-    setInviteEmail("");
+    setIsSubmitting(true);
+    try {
+      const created = await createTeamMember({
+        name: inviteName,
+        email: inviteEmail,
+        role: inviteRole,
+      });
+
+      const newMember: TeamMember = {
+        id: created.id,
+        name: created.name,
+        email: created.email,
+        phone: "+998 90 000-00-00",
+        role: created.role as UserRole,
+        assignedEntityIds: ["ent-alfa"],
+        status: created.status as any,
+        lastActive: "Taklif yuborildi",
+      };
+
+      setMembers((prev) => [...prev, newMember]);
+      toast.success(`${inviteName} ga taklifnoma yuborildi va Supabase bazasiga saqlandi!`);
+      setIsInviteOpen(false);
+      setInviteName("");
+      setInviteEmail("");
+    } catch (err: any) {
+      toast.error("Xatolik yuz berdi: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleToggleAssignment = (memberId: string, entityId: string) => {

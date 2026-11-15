@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { mockInventoryItems, mockStockMovements } from "@/lib/mock/inventory";
+import { fetchInventoryItems, createInventoryItem } from "@/lib/services/supabase-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import { Package, AlertTriangle, Plus, Search, Download, ArrowDownUp } from "lucide-react";
@@ -14,15 +17,129 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function InventoryPage() {
   const { t } = useTranslation();
+  const [items, setItems] = useState<any[]>(mockInventoryItems);
+  const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredItems = mockInventoryItems.filter(
+  const [newItem, setNewItem] = useState({
+    sku: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+    name: "",
+    category: "Qadoqlash",
+    quantity: "",
+    unit: "dona",
+    unitPrice: "",
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    fetchInventoryItems()
+      .then((data) => {
+        if (isMounted && data && data.length > 0) {
+          const mapped = data.map((d: any) => ({
+            id: d.id,
+            sku: d.sku,
+            name: d.name,
+            category: d.category,
+            quantity: d.quantity,
+            unit: d.unit,
+            costPrice: d.unitPrice,
+            totalValue: d.totalValue,
+            status: d.status,
+          }));
+          setItems(mapped);
+        }
+      })
+      .catch((err) => console.error("Error loading inventory:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleExport = () => {
+    const headers = ["ID", "SKU", "Nomi", "Kategoriya", "Miqdor", "Birlik", "Tannarx", "Jami qiymat", "Holat"];
+    const rows = items.map((i) => [
+      i.id,
+      i.sku,
+      `"${(i.name || "").replace(/"/g, '""')}"`,
+      i.category,
+      i.quantity,
+      i.unit,
+      i.costPrice,
+      i.totalValue,
+      i.status,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `firmus_inventory_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Ombor qoldiqlari CSV formatida yuklab olindi");
+  };
+
+  const handleCreateItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItem.name || !newItem.quantity || !newItem.unitPrice) {
+      toast.error("Iltimos, tovar nomi, miqdori va narxini kiriting");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const created = await createInventoryItem({
+        sku: newItem.sku,
+        name: newItem.name,
+        category: newItem.category,
+        quantity: Number(newItem.quantity),
+        unit: newItem.unit,
+        unitPrice: Number(newItem.unitPrice),
+      });
+
+      const mapped = {
+        id: created.id,
+        sku: created.sku,
+        name: created.name,
+        category: created.category,
+        quantity: created.quantity,
+        unit: created.unit,
+        costPrice: created.unitPrice,
+        totalValue: created.totalValue,
+        status: created.status,
+      };
+
+      setItems((prev) => [mapped, ...prev]);
+      toast.success("Yangi tovar-moddiy boylik Supabase bazasiga muvaffaqiyatli saqlandi!");
+      setIsAddOpen(false);
+      setNewItem({
+        sku: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+        name: "",
+        category: "Qadoqlash",
+        quantity: "",
+        unit: "dona",
+        unitPrice: "",
+      });
+    } catch (err: any) {
+      toast.error("Tovar qoʻshishda xatolik: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredItems = items.filter(
     (item) =>
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.sku.toLowerCase().includes(search.toLowerCase())
   );
 
-  const lowStockCount = mockInventoryItems.filter((i) => i.status === "low_stock").length;
+  const lowStockCount = items.filter((i) => i.status === "low_stock").length;
 
   return (
     <div className="space-y-6">
@@ -42,7 +159,7 @@ export default function InventoryPage() {
             variant="outline"
             size="sm"
             className="text-xs h-8 gap-1.5"
-            onClick={() => toast.success(t.common.export)}
+            onClick={handleExport}
           >
             <Download className="h-3.5 w-3.5" />
             {t.common.export}
@@ -51,7 +168,7 @@ export default function InventoryPage() {
           <Button
             size="sm"
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => toast.info(t.pages.inventory.addItem)}
+            onClick={() => setIsAddOpen(true)}
           >
             <Plus className="h-3.5 w-3.5" />
             {t.pages.inventory.addItem}
@@ -183,6 +300,121 @@ export default function InventoryPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Add Inventory Item Modal Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              {t.pages.inventory.addItem}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Yangi tovar-moddiy zaxira yoki xom-ashyoni ombor roʻyxatiga qoʻshish.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateItem} className="space-y-3 pt-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">SKU / Kod *</Label>
+                <Input
+                  value={newItem.sku}
+                  onChange={(e) => setNewItem({ ...newItem, sku: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Kategoriya *</Label>
+                <select
+                  value={newItem.category}
+                  onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
+                  className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
+                >
+                  <option value="Qadoqlash">Qadoqlash</option>
+                  <option value="Xom-ashyo">Xom-ashyo</option>
+                  <option value="Tayyor mahsulot">Tayyor mahsulot</option>
+                  <option value="Ehtiyot qismlar">Ehtiyot qismlar</option>
+                  <option value="Kanselyariya">Kanselyariya</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Tovar / Mahsulot nomi *</Label>
+              <Input
+                placeholder="Gofrokarton qutilari 5 qatlamli (60x40x40)"
+                value={newItem.name}
+                onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                className="h-8 text-xs mt-1"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Miqdori *</Label>
+                <Input
+                  type="number"
+                  placeholder="1500"
+                  value={newItem.quantity}
+                  onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Oʻlchov birligi *</Label>
+                <select
+                  value={newItem.unit}
+                  onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                  className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
+                >
+                  <option value="dona">dona</option>
+                  <option value="kg">kg</option>
+                  <option value="tonna">tonna</option>
+                  <option value="metr">metr</option>
+                  <option value="litr">litr</option>
+                  <option value="quti">quti</option>
+                  <option value="rulon">rulon</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Birlik narxi (UZS) *</Label>
+                <Input
+                  type="number"
+                  placeholder="8500"
+                  value={newItem.unitPrice}
+                  onChange={(e) => setNewItem({ ...newItem, unitPrice: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsAddOpen(false)}
+                disabled={isSubmitting}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Saqlanmoqda..." : "Omborga kiritish"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

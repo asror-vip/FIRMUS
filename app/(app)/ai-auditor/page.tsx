@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { mockExceptions } from "@/lib/mock/exceptions";
+import { fetchExceptions, resolveExceptionInDb } from "@/lib/services/supabase-service";
 import { ExceptionItem } from "@/lib/mock/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   FileText,
   Building,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -29,8 +31,45 @@ export default function AiAuditorPage() {
   const { t } = useTranslation();
   const [exceptions, setExceptions] = useState<ExceptionItem[]>(mockExceptions);
   const [selectedExc, setSelectedExc] = useState<ExceptionItem>(mockExceptions[0]);
+  const [isLoading, setIsLoading] = useState(false);
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    fetchExceptions()
+      .then((data) => {
+        if (isMounted && data && data.length > 0) {
+          setExceptions(data);
+          setSelectedExc(data[0]);
+        }
+      })
+      .catch((err) => console.error("Error loading exceptions:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleRecheck = async () => {
+    setIsLoading(true);
+    toast.info("AI Auditor barcha operatsiyalarni qayta tekshirmoqda...");
+    try {
+      const data = await fetchExceptions();
+      if (data && data.length > 0) {
+        setExceptions(data);
+      }
+      toast.success("AI tahlili yangilandi! 0 ta yangi xatolik aniqlandi.");
+    } catch (err: any) {
+      toast.error("Tekshiruv xatosi: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filtered = exceptions.filter((exc) => {
     if (filterSeverity !== "all" && exc.severity !== filterSeverity) return false;
@@ -42,15 +81,23 @@ export default function AiAuditorPage() {
     return true;
   });
 
-  const handleResolve = (id: string, action: "approve" | "reject") => {
-    toast.success(
-      action === "approve"
-        ? "AI tavsiyasi maʼqullandi! Tuzatuvchi provodka 1C va Didox ga yuborildi."
-        : "Istisno rad etildi va qoʻlda qayta koʻrib chiqishga belgilandi."
-    );
-    setExceptions((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status: "resolved" } : e))
-    );
+  const handleResolve = async (id: string, action: "approve" | "reject") => {
+    try {
+      await resolveExceptionInDb(id, action);
+      toast.success(
+        action === "approve"
+          ? "AI tavsiyasi maʼqullandi! Tuzatuvchi provodka Supabase va Didox ga yuborildi."
+          : "Istisno rad etildi va qoʻlda qayta koʻrib chiqishga belgilandi."
+      );
+      setExceptions((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, status: action === "approve" ? "resolved" : "in_review" } : e))
+      );
+      if (selectedExc?.id === id) {
+        setSelectedExc((prev) => ({ ...prev, status: action === "approve" ? "resolved" : "in_review" }));
+      }
+    } catch (err: any) {
+      toast.error("Holatni yangilashda xatolik: " + err.message);
+    }
   };
 
   return (
@@ -75,9 +122,11 @@ export default function AiAuditorPage() {
           <Button
             size="sm"
             variant="outline"
-            className="text-xs h-8"
-            onClick={() => toast.info(t.pages.aiAuditor.recheck)}
+            className="text-xs h-8 gap-1.5"
+            onClick={handleRecheck}
+            disabled={isLoading}
           >
+            <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
             {t.pages.aiAuditor.recheck}
           </Button>
         </div>

@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAppState } from "@/lib/mock/store";
 import { mockBusinessEntities } from "@/lib/mock/entities";
+import { fetchBusinessEntities, createBusinessEntity } from "@/lib/services/supabase-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +26,7 @@ import {
   Lock,
   Smartphone,
   Save,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
@@ -37,10 +41,78 @@ export default function SettingsPage() {
     setLanguage,
   } = useAppState();
 
+  const [entities, setEntities] = useState<any[]>(mockBusinessEntities);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAddEntityOpen, setIsAddEntityOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [newEntity, setNewEntity] = useState({
+    legalName: "",
+    tradeName: "",
+    tinStir: "",
+    companyType: "MChJ",
+    taxRegime: "vat_profit_tax",
+    accountantName: "Bosh buxgalter",
+  });
+
   const [activeTab, setActiveTab] = useState("entities");
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    fetchBusinessEntities()
+      .then((data) => {
+        if (isMounted && data && data.length > 0) {
+          setEntities(data);
+        }
+      })
+      .catch((err) => console.error("Error loading entities:", err))
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleCreateEntity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEntity.legalName || !newEntity.tinStir) {
+      toast.error("Iltimos, yuridik nomi va STIR raqamini kiriting");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const created = await createBusinessEntity({
+        legalName: newEntity.legalName,
+        tradeName: newEntity.tradeName || undefined,
+        tinStir: newEntity.tinStir,
+        companyType: newEntity.companyType,
+        taxRegime: newEntity.taxRegime,
+        accountantName: newEntity.accountantName,
+      });
+
+      setEntities((prev) => [...prev, created]);
+      toast.success("Yangi yuridik korxona Supabase maʼlumotlar bazasiga muvaffaqiyatli saqlandi!");
+      setIsAddEntityOpen(false);
+      setNewEntity({
+        legalName: "",
+        tradeName: "",
+        tinStir: "",
+        companyType: "MChJ",
+        taxRegime: "vat_profit_tax",
+        accountantName: "Bosh buxgalter",
+      });
+    } catch (err: any) {
+      toast.error("Korxona qoʻshishda xatolik: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const roleLabels: Record<UserRole, string> = {
     workspace_owner: "Workspace Owner (Toʻliq ega)",
@@ -97,9 +169,10 @@ export default function SettingsPage() {
               </div>
               <Button
                 size="sm"
-                className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() => toast.info(`${t.pages.settings.addEntity}...`)}
+                className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                onClick={() => setIsAddEntityOpen(true)}
               >
+                <Plus className="h-3.5 w-3.5" />
                 {t.pages.settings.addEntity}
               </Button>
             </CardHeader>
@@ -117,7 +190,7 @@ export default function SettingsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockBusinessEntities.map((ent) => (
+                  {entities.map((ent) => (
                     <TableRow key={ent.id} className="hover:bg-muted/50">
                       <TableCell className="font-semibold text-xs text-foreground">
                         {ent.name}
@@ -289,6 +362,116 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Add Business Entity Modal Dialog */}
+      <Dialog open={isAddEntityOpen} onOpenChange={setIsAddEntityOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              {t.pages.settings.addEntity}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Yangi yuridik korxona rekvizitlarini kiritish va Supabase bazasiga saqlash.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateEntity} className="space-y-3 pt-2 text-xs">
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Yuridik nomi *</Label>
+              <Input
+                placeholder="ORIENT LOGISTICS GROUP MChJ"
+                value={newEntity.legalName}
+                onChange={(e) => setNewEntity({ ...newEntity, legalName: e.target.value })}
+                className="h-8 text-xs mt-1"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Savdo belgisi (Brend)</Label>
+                <Input
+                  placeholder="Orient Logistics"
+                  value={newEntity.tradeName}
+                  onChange={(e) => setNewEntity({ ...newEntity, tradeName: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">STIR (9 ta raqam) *</Label>
+                <Input
+                  placeholder="309112233"
+                  maxLength={9}
+                  value={newEntity.tinStir}
+                  onChange={(e) => setNewEntity({ ...newEntity, tinStir: e.target.value })}
+                  className="h-8 text-xs font-mono mt-1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Tashkiliy shakli *</Label>
+                <select
+                  value={newEntity.companyType}
+                  onChange={(e) => setNewEntity({ ...newEntity, companyType: e.target.value })}
+                  className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
+                >
+                  <option value="MChJ">MChJ (Masʼuliyati cheklangan jamiyat)</option>
+                  <option value="YaTT">YaTT (Yakka tartibdagi tadbirkor)</option>
+                  <option value="XK">XK (Xususiy korxona)</option>
+                  <option value="AJ">AJ (Aksiyadorlik jamiyati)</option>
+                  <option value="OK">OK (Oilaviy korxona)</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium text-foreground">Soliq rejimi *</Label>
+                <select
+                  value={newEntity.taxRegime}
+                  onChange={(e) => setNewEntity({ ...newEntity, taxRegime: e.target.value })}
+                  className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
+                >
+                  <option value="vat_profit_tax">QQS (12%) + Foyda soligʻi</option>
+                  <option value="turnover_tax">Aylanmadan olinadigan soliq (4%)</option>
+                  <option value="fixed_tax">Qatʼiy belgilangan soliq</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Masʼul bosh buxgalter F.I.O</Label>
+              <Input
+                placeholder="Azizbek Rahimov"
+                value={newEntity.accountantName}
+                onChange={(e) => setNewEntity({ ...newEntity, accountantName: e.target.value })}
+                className="h-8 text-xs mt-1"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsAddEntityOpen(false)}
+                disabled={isSubmitting}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Saqlanmoqda..." : "Korxonani qoʻshish"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
