@@ -18,11 +18,7 @@ import {
 import { Building2, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
-export function QuickEntityBanner({
-  contextNote = "Bosh kitobga yozish va bazada saqlash uchun korxonani 10 soniyada qoʻshing (Bank ↔ 1C Sverka korxona qoʻshmasdan ham ishlaydi).",
-}: {
-  contextNote?: string;
-}) {
+export function QuickEntityBanner() {
   const { user, currentWorkspace, currentEntity, refreshContext } = useAppState();
   const [open, setOpen] = useState(false);
   const [legalName, setLegalName] = useState("");
@@ -85,33 +81,28 @@ export function QuickEntityBanner({
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 text-xs">
-        <div className="flex items-start gap-2.5">
-          <Building2 className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
-          <div>
-            <div className="font-semibold text-foreground">
-              Korxona ulanmagan (Ixtiyoriy tezkor sozlash)
-            </div>
-            <p className="text-[11px] text-muted-foreground">{contextNote}</p>
-          </div>
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Building2 className="h-4 w-4 text-indigo-600 shrink-0" />
+          <span>Korxona ulanmagan</span>
         </div>
         <Button
           size="sm"
           variant="outline"
-          className="h-8 text-xs gap-1.5 border-indigo-500/40 shrink-0"
+          className="h-7 text-xs gap-1.5 shrink-0"
           onClick={() => setOpen(true)}
         >
           <Plus className="h-3.5 w-3.5" />
-          10 soniyada korxona qoʻshish
+          Korxona qoʻshish
         </Button>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md text-xs">
           <DialogHeader>
-            <DialogTitle className="text-base">Korxonani tezkor qoʻshish (Zero-PII)</DialogTitle>
+            <DialogTitle className="text-base">Korxona qoʻshish</DialogTitle>
             <DialogDescription className="text-xs">
-              Shaxsiy telefon yoki JShShIR talab qilinmaydi — faqat korxona yuridik nomi va STIR kiritiladi.
+              Korxona nomi va STIR
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleQuickCreate} className="space-y-3 py-1">

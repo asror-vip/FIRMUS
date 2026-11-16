@@ -28,7 +28,6 @@ import {
   Camera,
   Calculator,
   FileWarning,
-  ShieldCheck,
   ExternalLink,
   CheckCircle2,
   AlertTriangle,
@@ -399,14 +398,9 @@ export default function AssistantPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">
-            AI Hamkasb — Faktura, Soliq va Kalkulyator
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Soliq kodeksi javoblari (`lex.uz`), faktura/chek skaneri, brutto ↔ netto maosh va shartnoma tekshiruvi bitta soddalashtirilgan oynada.
-          </p>
-        </div>
+        <h1 className="text-xl font-bold tracking-tight text-foreground">
+          AI Yordamchi
+        </h1>
         <div className="flex items-center gap-2 flex-wrap">
           <a
             href={LEX_UZ_TAX_CODE_URL}
@@ -427,15 +421,7 @@ export default function AssistantPage() {
         </div>
       </div>
 
-      {/* Zero-PII badge */}
-      <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[11px] text-muted-foreground">
-        <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-        <span>
-          <strong className="text-foreground">OʻRQ-547 Zero-PII:</strong> Yuklangan chek, faktura rasmlari va shartnomalar serverda saqlanmaydi; shaxsiy karta va JShShIR avtomatik niqoblanadi.
-        </span>
-      </div>
-
-      <QuickEntityBanner contextNote="Faktura provodkasini Bosh kitobga 1 klikda saqlash uchun korxonani qoʻshing (maslahat, skaner va kalkulyator korxonasiz ham ishlaydi)." />
+      <QuickEntityBanner />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="h-9 text-xs flex-wrap">

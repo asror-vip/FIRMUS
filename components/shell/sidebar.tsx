@@ -16,7 +16,6 @@ import {
   Settings,
   Sparkles,
   PanelLeft,
-  ShieldCheck,
   Scale,
 } from "lucide-react";
 
@@ -187,10 +186,10 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Sidebar Footer: Security & Version */}
+      {/* Sidebar Footer: Status & Version */}
       <div className="border-t border-border mt-auto">
         {!isCollapsed ? (
-          <div className="p-3 space-y-2 bg-muted/10">
+          <div className="p-3 space-y-1.5 bg-muted/10">
             <div className="flex items-center justify-between text-[11px]">
               <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -200,23 +199,16 @@ export function Sidebar() {
                 v1.0.4
               </span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <ShieldCheck className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-              <span className="truncate">{t.sidebarFooter.security}</span>
-            </div>
             <p className="text-[9px] text-muted-foreground/60 leading-tight">
               {t.sidebarFooter.rights}
             </p>
           </div>
         ) : (
-          <div className="p-3 flex flex-col items-center justify-center gap-2.5">
+          <div className="p-3 flex flex-col items-center justify-center gap-2">
             <div
               className="h-2 w-2 rounded-full bg-emerald-500"
-              title="Barcha xizmatlar faol (99.9%)"
+              title="Faol"
             />
-            <span title="256-bit shifrlangan • Barcha huquqlar himoyalangan">
-              <ShieldCheck className="h-4 w-4 text-indigo-500 hover:scale-110 transition-transform cursor-help" />
-            </span>
           </div>
         )}
       </div>

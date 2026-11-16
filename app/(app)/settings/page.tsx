@@ -326,21 +326,8 @@ function SettingsContent() {
           </Card>
         </TabsContent>
 
-        {/* 1B. Modules Feature Flags Tab (Simple Zero-PII Mode vs Full ERP) */}
-        {/* 2. Security & Zero-PII Tab */}
+        {/* 2. Security Tab */}
         <TabsContent value="security" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Shield className="h-4 w-4 text-emerald-600" />
-                OʻRQ-547 «Zero-PII» Xavfsizlik Rejimi Faol
-              </CardTitle>
-              <CardDescription>
-                Shaxsiy telefon raqamlari va fuqarolarning JShShIR/pasport maʼlumotlari xorijiy bulut serverda saqlanmaydi. Bank ↔ 1C fayllari bevosita brauzeringizda qayta ishlanadi.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold">{t.pages.settings.securityTitle}</CardTitle>
@@ -364,20 +351,6 @@ function SettingsContent() {
                     toast.success(`2FA ${val ? t.statuses.active : t.common.reject}`);
                   }}
                 />
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
-                <div className="space-y-0.5">
-                  <span className="font-semibold text-foreground text-xs block">
-                    {t.pages.settings.zeroTrustTitle}
-                  </span>
-                  <p className="text-muted-foreground text-[11px]">
-                    {t.pages.settings.zeroTrustDesc}
-                  </p>
-                </div>
-                <Badge variant="success" className="text-[10px]">
-                  {t.pages.settings.guaranteed}
-                </Badge>
               </div>
 
               <div className="pt-2">

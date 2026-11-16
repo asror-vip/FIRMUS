@@ -137,72 +137,55 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 10-second Zero-PII quick entity setup for new Google accounts */}
       <QuickEntityBanner />
 
-      {/* 3-Card Simple Accountant Hub */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card className="border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60 transition-colors">
-          <CardContent className="p-4 flex flex-col justify-between h-full gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                <Scale className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>Bank ↔ 1C AI Sverka</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Excel `.xlsx`, Client-Bank `.txt`, `.csv`, `XML` yoki `Ctrl+V` — AI 5 soniyada farqlar va 1C eksportini chiqaradi.
-              </p>
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+              <Scale className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>Bank ↔ 1C Sverka</span>
             </div>
             <Button
               size="sm"
               onClick={() => router.push("/reconcile")}
-              className="w-full text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+              className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shrink-0"
             >
-              Sverkani ochish <ArrowRight className="h-3.5 w-3.5" />
+              Ochish <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardContent>
         </Card>
 
         <Card className="border-indigo-500/30 bg-indigo-500/5 hover:border-indigo-500/60 transition-colors">
-          <CardContent className="p-4 flex flex-col justify-between h-full gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                <Camera className="h-4 w-4 text-indigo-600 shrink-0" />
-                <span>Faktura / Chek / Shartnoma AI</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Rasm (JPG/PNG) yoki PDF yuklang — MXIK, QQS 12%, shartnoma xatari va 21-BHMS provodkasini oladi.
-              </p>
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+              <Camera className="h-4 w-4 text-indigo-600 shrink-0" />
+              <span>Faktura / Chek Skaner</span>
             </div>
             <Button
               size="sm"
               variant="outline"
               onClick={() => router.push("/assistant?tab=scan")}
-              className="w-full text-xs h-8 gap-1.5 border-indigo-500/40"
+              className="text-xs h-8 gap-1 border-indigo-500/40 shrink-0"
             >
-              Hujjat yuklash <ArrowRight className="h-3.5 w-3.5" />
+              Yuklash <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardContent>
         </Card>
 
         <Card className="border-border hover:border-primary/50 transition-colors">
-          <CardContent className="p-4 flex flex-col justify-between h-full gap-3">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                <Calculator className="h-4 w-4 text-primary shrink-0" />
-                <span>Ish haqi, QQS va Soliq AI</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Brutto ↔ Netto maosh (12% JShDS), QQS 12% ajratish va Soliq kodeksi (`lex.uz`) boʻyicha tezkor javob.
-              </p>
+          <CardContent className="p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+              <Calculator className="h-4 w-4 text-primary shrink-0" />
+              <span>Kalkulyator va Soliq AI</span>
             </div>
             <Button
               size="sm"
               variant="outline"
               onClick={() => router.push("/assistant?tab=calc")}
-              className="w-full text-xs h-8 gap-1.5"
+              className="text-xs h-8 gap-1 shrink-0"
             >
-              Kalkulyator va Chat <ArrowRight className="h-3.5 w-3.5" />
+              Ochish <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardContent>
         </Card>

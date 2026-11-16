@@ -90,10 +90,10 @@ export default function RegisterPage() {
             />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-            FIRMUS Hisobini Yaratish
+            Roʻyxatdan oʻtish
           </h1>
           <p className="text-xs text-muted-foreground">
-            Google bilan tezkor boshlang — shaxsiy telefon va pasport talab qilinmaydi
+            Google yoki email orqali
           </p>
         </div>
 

@@ -45,7 +45,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
-  ShieldCheck,
   Loader2,
   Database,
   RotateCcw,
@@ -423,11 +422,8 @@ export default function ReconcilePage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Bank ↔ 1C AI Solishtirish (Sverka)
+            Bank ↔ 1C Solishtirish
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Bank koʻchirmasi va 1C faylini yuklang yoki Excel jadvalidan nusxalab qoʻying — AI 5 soniyada farqlarni va 21-BHMS provodkalarini tayyorlab beradi.
-          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {rows.length > 0 && (
@@ -439,29 +435,15 @@ export default function ReconcilePage() {
         </div>
       </div>
 
-      {/* Zero-PII Privacy Banner */}
-      <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs">
-        <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-        <div className="space-y-0.5">
-          <div className="font-semibold text-foreground">
-            OʻRQ-547 «Zero-PII» xavfsiz solishtirish rejimi
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Yuklangan fayllar bevosita sizning brauzeringiz xotirasida oʻqiladi va serverga saqlanmaydi. AI ga yuborishdan oldin plastik karta (16 xonali), JShShIR va telefon raqamlari avtomatik niqoblanadi.
-          </p>
-        </div>
-      </div>
-
-      {/* 10-second Google-first Quick Entity Setup (renders only if logged in with 0 entities) */}
       <QuickEntityBanner />
 
       {/* Two Upload Zones */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="border-dashed">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">1. Bankdan kelgan koʻchirma</CardTitle>
+            <CardTitle className="text-sm font-semibold">1. Bank koʻchirmasi</CardTitle>
             <CardDescription className="text-xs">
-              Excel `.xlsx`/`.xls`, 1C Client-Bank `.txt`, `.csv`/`.tsv` yoki Ctrl+V nusxa
+              .xlsx, .txt, .csv, .xls
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 text-xs">
@@ -506,9 +488,9 @@ export default function ReconcilePage() {
 
         <Card className="border-dashed">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">2. 1C dan olingan fayl</CardTitle>
+            <CardTitle className="text-sm font-semibold">2. 1C fayli</CardTitle>
             <CardDescription className="text-xs">
-              1C `.xlsx` (Akt sverka/Vypiska), `.xml` EnterpriseData, `.txt`, `.csv` yoki Bosh kitob
+              .xlsx, .xml, .txt, .csv
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 text-xs">
@@ -563,22 +545,6 @@ export default function ReconcilePage() {
           </CardContent>
         </Card>
       </div>
-
-      {!summary && (
-        <Card className="bg-muted/20 border-dashed">
-          <CardContent className="py-6 text-xs text-muted-foreground space-y-2">
-            <div className="font-semibold text-foreground">
-              Haqiqiy ishchi fayllarni solishtirishga tayyor
-            </div>
-            <p>
-              1) Chap tomonga bankdan yuklangan <code className="font-mono text-foreground">.xlsx</code> (Excel), <code className="font-mono text-foreground">.txt</code> (1C Client-Bank), <code className="font-mono text-foreground">.csv</code>/<code className="font-mono text-foreground">.tsv</code> yoki <code className="font-mono text-foreground">.xls</code> koʻchirmangizni yuklang (yoki jadvaldan <code className="font-mono text-foreground">Ctrl+V</code> qiling).
-            </p>
-            <p>
-              2) Oʻng tomonga 1C dan chiqarilgan <code className="font-mono text-foreground">.xlsx</code> (Akt sverka/Vypiska), <code className="font-mono text-foreground">.xml</code>, <code className="font-mono text-foreground">.txt</code> yoki <code className="font-mono text-foreground">.csv</code> faylini yuklang — solishtirish natijasi va 21-BHMS schyot tavsiyalari darhol chiqadi.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Results & Actions */}
       {summary && (
