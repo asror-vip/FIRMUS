@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useRef } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Paperclip, Send, Loader2, X, Image as ImageIcon } from "lucide-react";
+import React, { useRef, useEffect } from "react";
+import { Paperclip, ArrowUp, Loader2, X, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   AI_IMAGE_FORMAT_ERROR,
   compressImageForAi,
@@ -35,6 +34,14 @@ export function ChatImageInputBar({
   compact = false,
 }: ChatImageInputBarProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, compact ? 100 : 140)}px`;
+  }, [value, compact]);
 
   const handleImageCandidate = async (file?: File | null) => {
     if (!file) return;
@@ -50,7 +57,7 @@ export function ChatImageInputBar({
     }
   };
 
-  const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const res = inspectClipboardPaste(e.clipboardData);
     if (res.kind === "image") {
       e.preventDefault();
@@ -61,46 +68,56 @@ export function ChatImageInputBar({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!isSending && (value.trim() || attachedImage)) {
+        onSubmit();
+      }
+    }
+  };
+
+  const canSend = !isSending && Boolean(value.trim() || attachedImage);
+
   return (
-    <div className="space-y-2">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (canSend) onSubmit();
+      }}
+      className={cn(
+        "rounded-2xl border border-border/80 bg-muted/35 focus-within:bg-background focus-within:border-indigo-500/60 focus-within:shadow-md transition-all",
+        compact ? "px-2.5 py-2" : "px-3.5 py-2.5"
+      )}
+    >
       {attachedImage && (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/5 px-2.5 py-1.5 text-xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <img
-              src={attachedImage.dataUrl}
-              alt="Biriktirilgan rasm"
-              className="h-9 w-9 rounded object-cover border border-border shrink-0"
-            />
-            <div className="min-w-0">
-              <div className="font-medium text-foreground truncate flex items-center gap-1">
-                <ImageIcon className="h-3 w-3 text-indigo-500 shrink-0" />
-                <span className="truncate">{attachedImage.fileName}</span>
-              </div>
-              <div className="text-[10px] text-muted-foreground font-mono">
-                {Math.round(attachedImage.compressedBytes / 1024)} KB • {attachedImage.width}×{attachedImage.height}
-              </div>
+        <div className="mb-2 inline-flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 pl-1.5 pr-2 py-1 text-xs animate-in fade-in zoom-in-95 duration-150">
+          <img
+            src={attachedImage.dataUrl}
+            alt="Biriktirilgan rasm"
+            className="h-9 w-9 rounded-lg object-cover border border-border shrink-0"
+          />
+          <div className="min-w-0 max-w-[190px]">
+            <div className="font-medium text-foreground truncate flex items-center gap-1 text-[11px]">
+              <ImageIcon className="h-3 w-3 text-indigo-500 shrink-0" />
+              <span className="truncate">{attachedImage.fileName}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground font-mono">
+              {Math.round(attachedImage.compressedBytes / 1024)} KB • {attachedImage.width}×{attachedImage.height}
             </div>
           </div>
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+            className="ml-1 flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             aria-label="Rasmni olib tashlash"
             onClick={() => onAttachImage(null)}
           >
-            <X className="h-3.5 w-3.5" />
-          </Button>
+            <X className="h-3 w-3" />
+          </button>
         </div>
       )}
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSubmit();
-        }}
-        className="flex items-center gap-1.5"
-      >
+      <div className="flex items-end gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -112,42 +129,50 @@ export function ChatImageInputBar({
             await handleImageCandidate(picked);
           }}
         />
-        <Button
+
+        <button
           type="button"
-          variant="outline"
-          size="icon"
-          className={compact ? "h-9 w-9 shrink-0" : "h-9 w-9 shrink-0"}
           disabled={isSending}
-          title="Faqat rasm biriktirish (PNG, JPG, WEBP)"
+          title="Rasm biriktirish (PNG, JPG, WEBP)"
           aria-label="Rasm biriktirish"
           onClick={() => fileInputRef.current?.click()}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
         >
           <Paperclip className="h-4 w-4" />
-        </Button>
+        </button>
 
-        <Input
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onPaste={handlePaste}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="h-9 text-xs"
           disabled={isSending}
+          className="flex-1 resize-none bg-transparent py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-60 leading-relaxed max-h-[140px]"
         />
 
-        <Button
+        <button
           type="submit"
-          size="sm"
-          disabled={isSending || (!value.trim() && !attachedImage)}
-          className={compact ? "h-9 px-3 shrink-0" : "h-9 px-4 shrink-0 gap-1.5"}
+          disabled={!canSend}
+          aria-label="Yuborish"
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-150",
+            isSending
+              ? "bg-indigo-600/90 text-white cursor-wait"
+              : canSend
+              ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm hover:scale-105 active:scale-95"
+              : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+          )}
         >
           {isSending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Send className="h-3.5 w-3.5" />
+            <ArrowUp className="h-4 w-4 stroke-[2.5]" />
           )}
-          {!compact && <span>Yuborish</span>}
-        </Button>
-      </form>
-    </div>
+        </button>
+      </div>
+    </form>
   );
 }

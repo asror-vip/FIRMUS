@@ -1,16 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, X, CheckCircle2, XCircle, Loader2, ShieldCheck } from "lucide-react";
+import { Sparkles, X, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ChatImageInputBar } from "@/components/shared/chat-image-input-bar";
 import { ChatScanCard } from "@/components/shared/chat-scan-card";
+import {
+  AiEmptyHero,
+  AiThinkingBubble,
+  AiStreamingMessage,
+} from "@/components/shared/ai-chat-visuals";
 import {
   AI_IMAGE_FORMAT_ERROR,
   compressImageForAi,
@@ -38,17 +43,30 @@ interface ChatMessage {
   scanBatchId?: string | null;
   scanDuplicate?: boolean;
   scanPosted?: boolean;
+  isFresh?: boolean;
 }
 
 export function AiDrawer() {
   const { isAiDrawerOpen, setIsAiDrawerOpen, currentEntity } = useAppState();
   const { t } = useTranslation();
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const [input, setInput] = useState("");
   const [attachedImage, setAttachedImage] = useState<CompressedImageResult | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [executingMsgId, setExecutingMsgId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollAreaRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length, isSending, scrollToBottom]);
 
   useEffect(() => {
     setMessages([]);
@@ -120,6 +138,7 @@ export function AiDrawer() {
             scanBatchId: savedBatchId,
             scanDuplicate: isDuplicate,
             scanPosted: false,
+            isFresh: true,
           },
         ]);
         return;
@@ -150,6 +169,7 @@ export function AiDrawer() {
         modelUsed: data.modelUsed,
         actionStatus: data.actionProposed ? "pending" : undefined,
         actionProposed: data.actionProposed,
+        isFresh: true,
       };
       setMessages((prev) => [...prev, aiReply]);
     } catch (err: any) {
@@ -282,67 +302,62 @@ export function AiDrawer() {
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4 text-xs">
+      <div
+        ref={scrollAreaRef}
+        className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4 text-xs"
+      >
         {messages.length === 0 && !isSending ? (
-          <div className="flex-1 flex items-center justify-center px-4 text-center">
-            <h3 className="text-lg font-semibold tracking-tight text-foreground">
-              {t.aiDrawer.greeting}
-            </h3>
-          </div>
+          <AiEmptyHero greeting={t.aiDrawer.greeting} compact />
         ) : (
           messages.map((msg) => (
           <div
             key={msg.id}
             className={cn(
-              "flex flex-col max-w-[94%]",
+              "flex flex-col max-w-[94%] animate-in fade-in slide-in-from-bottom-1 duration-200",
               msg.sender === "user" ? "ml-auto items-end" : "mr-auto items-start"
             )}
           >
-            <div
-              className={cn(
-                "rounded-xl p-3 leading-relaxed shadow-sm whitespace-pre-line",
-                msg.sender === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted/70 border border-border text-foreground"
-              )}
-            >
-              {msg.imagePreviewUrl && (
-                <img
-                  src={msg.imagePreviewUrl}
-                  alt="Yuborilgan chek"
-                  className="mb-2 max-h-40 rounded-lg border border-white/20 object-contain"
-                />
-              )}
-              <p>{msg.text}</p>
-
-              {/* Chat OCR Scan Result Card */}
-              {msg.scanResult && (
-                <ChatScanCard
-                  scan={msg.scanResult}
-                  isDuplicate={msg.scanDuplicate}
-                  posted={msg.scanPosted}
-                  canPost={Boolean(currentEntity?.id)}
-                  onPostToLedger={(edited) => handlePostScanMessage(msg, edited)}
-                />
-              )}
-
-              {/* Verified Mode & Tool Calls */}
-              {msg.toolCalls && msg.toolCalls.length > 0 && (
-                <div className="mt-2 pt-1.5 border-t border-border/40 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
-                  <span>
-                    {msg.mode === "gemini_agent"
-                      ? msg.modelUsed || "FIRMUS AI"
-                      : "FIRMUS AI"}
-                  </span>
-                  <span className="font-mono text-[9px] opacity-75">
-                    [{msg.toolCalls.slice(0, 3).join(", ")}]
-                  </span>
+            {msg.sender === "user" ? (
+              <div className="rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-white leading-relaxed shadow-sm whitespace-pre-line">
+                {msg.imagePreviewUrl && (
+                  <img
+                    src={msg.imagePreviewUrl}
+                    alt="Yuborilgan chek"
+                    className="mb-2 max-h-40 rounded-lg border border-white/20 object-contain"
+                  />
+                )}
+                <p>{msg.text}</p>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2.5 w-full">
+                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
+                  <Sparkles className="h-3 w-3" />
                 </div>
-              )}
+                <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-muted/50 border border-border/70 px-3.5 py-2.5 shadow-sm">
+                  <AiStreamingMessage
+                    text={msg.text}
+                    animate={Boolean(msg.isFresh)}
+                    onTickScroll={scrollToBottom}
+                    onStreamDone={() =>
+                      setMessages((prev) =>
+                        prev.map((m) => (m.id === msg.id ? { ...m, isFresh: false } : m))
+                      )
+                    }
+                  />
 
-              {/* Proposed Action Card (Human-in-the-Loop Execution via /api/ai-copilot/execute) */}
-              {msg.actionProposed && (
+                  {/* Chat OCR Scan Result Card */}
+                  {msg.scanResult && !msg.isFresh && (
+                    <ChatScanCard
+                      scan={msg.scanResult}
+                      isDuplicate={msg.scanDuplicate}
+                      posted={msg.scanPosted}
+                      canPost={Boolean(currentEntity?.id)}
+                      onPostToLedger={(edited) => handlePostScanMessage(msg, edited)}
+                    />
+                  )}
+
+                  {/* Proposed Action Card */}
+                  {msg.actionProposed && !msg.isFresh && (
                 <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="font-semibold text-foreground text-[11px]">
@@ -432,8 +447,10 @@ export function AiDrawer() {
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <span className="text-[10px] text-muted-foreground px-1 mt-1">
               {msg.time}
@@ -441,12 +458,7 @@ export function AiDrawer() {
           </div>
         )))}
 
-        {isSending && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
-            <span>Tekshirilmoqda...</span>
-          </div>
-        )}
+        {isSending && <AiThinkingBubble />}
       </div>
 
       {/* Input area */}

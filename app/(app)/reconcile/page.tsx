@@ -404,7 +404,7 @@ export default function ReconcilePage() {
       );
       setAiModeNote(
         data.mode === "gemini_reconcile"
-          ? `AI (${data.modelUsed}) tomonidan tekshirildi`
+          ? "AI tomonidan tekshirildi"
           : "Qatʼiy qoidalar bilan tekshirildi"
       );
       toast.success("AI farqlarni tekshirdi va schyotlarni tasdiqladi!");

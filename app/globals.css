@@ -103,3 +103,37 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.4);
 }
+
+@keyframes firmus-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes firmus-float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.ai-shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    rgba(99, 102, 241, 0.22) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: firmus-shimmer 1.5s infinite linear;
+}
+
+.ai-orb-float {
+  animation: firmus-float 3.6s ease-in-out infinite;
+}
