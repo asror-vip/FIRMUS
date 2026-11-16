@@ -344,13 +344,23 @@ export async function updateSubscriptionPreferredModel(userId: string, modelId: 
   return resolveEffectiveSubscription(userId);
 }
 
-export async function activateUserProTrial(userId: string) {
+export async function activateUserProTrial(params: {
+  userId: string;
+  canonicalEmailHash?: string;
+  deviceHash?: string;
+  ipHash?: string;
+}) {
   const svc = getServiceClient();
-  const { data, error } = await svc.rpc("activate_pro_trial", { p_user_id: userId });
+  const { data, error } = await svc.rpc("activate_pro_trial", {
+    p_user_id: params.userId,
+    p_canonical_email_hash: params.canonicalEmailHash || null,
+    p_device_hash: params.deviceHash || null,
+    p_ip_hash: params.ipHash || null,
+  });
   if (error) throw new Error(error.message || "Sinov muddatini yoqib boʻlmadi");
   return {
     activation: data,
-    snapshot: await resolveEffectiveSubscription(userId),
+    snapshot: await resolveEffectiveSubscription(params.userId),
   };
 }
 

@@ -212,8 +212,8 @@ function SoloToolsHome() {
           value={planName}
           subtitle={
             subscription.trialAvailable
-              ? `${subscription.remainingCredits} kredit • 7 kun bepul Pro sinov`
-              : `${subscription.remainingCredits} / ${subscription.monthlyLimit} AI kredit qoldi`
+              ? "7 kun bepul Pro sinov mavjud"
+              : "Obuna va limitlarni boshqarish"
           }
           icon={<CreditCard className="h-4 w-4 text-amber-500" />}
           onClick={() => router.push("/billing")}

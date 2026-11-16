@@ -286,9 +286,6 @@ function SettingsContent() {
                     <Badge variant="indigo" className="text-[10px]">
                       {subscription.isTrialActive ? "Pro (Sinov)" : subscription.planName}
                     </Badge>
-                    <span className="text-[11px] font-mono text-muted-foreground">
-                      {subscription.remainingCredits} / {subscription.monthlyLimit} kredit
-                    </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Tarif va oylik foydalanish limitlarini Obunalar sahifasida koʻring

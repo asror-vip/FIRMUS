@@ -6,10 +6,10 @@ import { FEATURES } from "@/lib/config/features";
 import {
   AI_MODELS,
   PLANS_LIST,
-  type AiModelId,
   type PlanSpec,
 } from "@/lib/config/plans";
 import { fetchWorkspaceUsageSummary } from "@/lib/services/supabase-service";
+import { getClientDeviceHash } from "@/lib/utils/device-fingerprint";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,15 +24,13 @@ import {
 import {
   CreditCard,
   Check,
-  Coins,
   FileStack,
-  HardDrive,
   ShieldCheck,
   Sparkles,
   Loader2,
-  Zap,
-  Lock,
   Clock,
+  Cpu,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -71,12 +69,10 @@ export default function BillingPage() {
     subscription,
     setSubscriptionSnapshot,
     refreshSubscription,
-    setPreferredAiModel,
   } = useAppState();
 
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const [isActivatingTrial, setIsActivatingTrial] = useState(false);
-  const [isSwitchingModel, setIsSwitchingModel] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPlanForInfo, setSelectedPlanForInfo] = useState<PlanSpec | null>(null);
   const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
@@ -105,7 +101,15 @@ export default function BillingPage() {
   const handleActivateTrial = async () => {
     setIsActivatingTrial(true);
     try {
-      const res = await fetch("/api/subscription/trial", { method: "POST" });
+      const deviceHash = await getClientDeviceHash();
+      const res = await fetch("/api/subscription/trial", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(deviceHash ? { "x-firmus-device": deviceHash } : {}),
+        },
+        body: JSON.stringify({ deviceHash }),
+      });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || "Sinovni yoqib boʻlmadi");
@@ -123,31 +127,29 @@ export default function BillingPage() {
     }
   };
 
-  const handleModelSwitch = async (modelId: AiModelId) => {
-    if (!subscription.limits.allowedModels.includes(modelId)) {
-      toast.info("Gemini 4 Hydrogen modeli Pro va Pro+ tariflarida mavjud.");
-      return;
+  const getMainPriceLabel = (plan: PlanSpec): { amount: string; unit: string; note?: string } => {
+    if (plan.monthlyPriceUzs === 0) {
+      return { amount: "0 soʻm", unit: "" };
     }
-    if (subscription.preferredModel === modelId) return;
-    setIsSwitchingModel(true);
-    try {
-      await setPreferredAiModel(modelId);
-      toast.success(`Standart AI modeli: ${AI_MODELS[modelId].label}`);
-    } catch (err: any) {
-      toast.error(err?.message || "Modelni almashtirib boʻlmadi");
-    } finally {
-      setIsSwitchingModel(false);
+    if (billingCycle === "annual") {
+      const savedPerYear = plan.monthlyPriceUzs * 12 - plan.annualTotalPriceUzs;
+      return {
+        amount: formatUzs(plan.annualTotalPriceUzs),
+        unit: "/ yiliga",
+        note: `Oyiga ${formatUzs(plan.annualMonthlyPriceUzs)} • Yillik ${formatUzs(savedPerYear)} tejaladi`,
+      };
     }
-  };
-
-  const getDisplayPrice = (plan: PlanSpec) => {
-    if (plan.monthlyPriceUzs === 0) return "0 soʻm";
-    const price =
-      billingCycle === "annual" ? plan.annualMonthlyPriceUzs : plan.monthlyPriceUzs;
-    return formatUzs(price);
+    return {
+      amount: formatUzs(plan.monthlyPriceUzs),
+      unit: "/ oyiga",
+    };
   };
 
   const trialDaysLeft = daysRemaining(subscription.trialEndsAt);
+  const aiUsagePercent =
+    subscription.monthlyLimit > 0
+      ? Math.min(100, Math.round((subscription.monthlyUsed / subscription.monthlyLimit) * 100))
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -158,7 +160,7 @@ export default function BillingPage() {
             Obuna va Tariflar
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            AI kredit balansi, model tanlash va oylik tizim limitlari
+            Tarif holati, AI imkoniyatlari va yillik yoki oylik rejalarni boshqarish
           </p>
         </div>
 
@@ -194,9 +196,9 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Active Subscription & Live Usage Card */}
+      {/* Active Subscription Summary (No raw developer telemetry) */}
       <Card>
-        <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-sm font-semibold">
@@ -217,72 +219,42 @@ export default function BillingPage() {
               )}
             </div>
             <CardDescription className="text-xs">
-              Asosiy AI modeli: <strong>{AI_MODELS[subscription.preferredModel].label}</strong>{" "}
-              ({AI_MODELS[subscription.preferredModel].creditCost} kredit / soʻrov)
+              AI modelini toʻgʻridan-toʻgʻri chat oynasidagi yozish qatori tepasidan almashtirishingiz mumkin
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Inline Model Selector */}
-            <div className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-[11px]">
-              {(["gemini-3.8-flash", "gemini-4-hydrogen"] as AiModelId[]).map((mId) => {
-                const meta = AI_MODELS[mId];
-                const isSelected = subscription.preferredModel === mId;
-                const isLocked = !subscription.limits.allowedModels.includes(mId);
-                return (
-                  <button
-                    key={mId}
-                    type="button"
-                    disabled={isSwitchingModel}
-                    onClick={() => handleModelSwitch(mId)}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-medium transition-colors",
-                      isSelected
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {isLocked && <Lock className="h-3 w-3 text-amber-500" />}
-                    <span>{meta.shortLabel}</span>
-                    <span className="text-[9px] text-muted-foreground font-mono">
-                      {meta.creditCost}kr
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {subscription.trialAvailable && (
-              <Button
-                type="button"
-                size="sm"
-                className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-                disabled={isActivatingTrial}
-                onClick={handleActivateTrial}
-              >
-                {isActivatingTrial ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5" />
-                )}
-                7 kun Pro sinov
-              </Button>
-            )}
-          </div>
+          {subscription.trialAvailable && (
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+              disabled={isActivatingTrial}
+              onClick={handleActivateTrial}
+            >
+              {isActivatingTrial ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              7 kun Pro sinov
+            </Button>
+          )}
         </CardHeader>
 
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Oylik AI kreditlar</span>
-                <Coins className="h-3.5 w-3.5 text-amber-500" />
+                <span>Oylik AI faolligi</span>
+                <Activity className="h-3.5 w-3.5 text-indigo-500" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {subscription.monthlyUsed} / {subscription.monthlyLimit}
+                {aiUsagePercent}% foydalanildi
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Qoldiq: {subscription.remainingCredits} kredit
+                {subscription.remainingCredits > 0
+                  ? "Asboblar faol ishlamoqda"
+                  : "Oylik chegara toʻldi"}
               </p>
               <UsageProgressBar
                 used={subscription.monthlyUsed}
@@ -292,58 +264,30 @@ export default function BillingPage() {
 
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Bugungi sarf</span>
-                <Zap className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Faol AI modeli</span>
+                <Cpu className="h-3.5 w-3.5 text-emerald-500" />
               </div>
-              <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {subscription.dailyUsed} / {subscription.dailyLimit}
+              <div className="mt-1.5 font-semibold text-sm text-foreground">
+                {AI_MODELS[subscription.preferredModel].label}
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Kunlik xavfsiz chegara (UTC+5)
+                {subscription.planId === "starter"
+                  ? "Pro tarifida Gemini 4 Hydrogen ochiladi"
+                  : "Chat oynasidan modellarni almashtirish mumkin"}
               </p>
-              <UsageProgressBar
-                used={subscription.dailyUsed}
-                max={subscription.dailyLimit}
-              />
             </div>
 
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>Saqlangan ishlar</span>
-                <FileStack className="h-3.5 w-3.5 text-emerald-500" />
+                <FileStack className="h-3.5 w-3.5 text-sky-500" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {isLoadingUsage ? "…" : usage.monthlyBatches} / {subscription.limits.maxSavedBatches}
+                {isLoadingUsage ? "…" : `${usage.monthlyBatches} ta ish`}
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Chatlar limiti: {usage.aiThreadsCount} / {subscription.limits.maxChatThreads}
+                {isLoadingUsage ? "…" : `${usage.aiThreadsCount} ta saqlangan chat`}
               </p>
-              <UsageProgressBar
-                used={usage.monthlyBatches}
-                max={subscription.limits.maxSavedBatches}
-              />
-            </div>
-
-            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Yuklash limitlari</span>
-                <HardDrive className="h-3.5 w-3.5" />
-              </div>
-              <div className="mt-1.5 text-xs font-medium text-foreground space-y-0.5">
-                <div>
-                  Rasm: {subscription.limits.imageMaxDimensionPx}px /{" "}
-                  {(subscription.limits.imageMaxBytes / (1024 * 1024)).toFixed(1)} MB
-                </div>
-                <div>
-                  PDF:{" "}
-                  {subscription.limits.pdfAllowed
-                    ? `${Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024))} MB`
-                    : "Yopiq (Pro da ochiq)"}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  Bank ↔ 1C: max {subscription.limits.reconcileMaxRows.toLocaleString("uz-UZ")} qator
-                </div>
-              </div>
             </div>
           </div>
         </CardContent>
@@ -355,6 +299,7 @@ export default function BillingPage() {
           const isCurrent = plan.id === subscription.planId;
           const featuresList = FEATURES.multiCompanyMode ? plan.b2bFeatures : plan.soloFeatures;
           const showTrialBtn = plan.id === "professional" && subscription.trialAvailable;
+          const priceInfo = getMainPriceLabel(plan);
 
           return (
             <Card
@@ -388,19 +333,24 @@ export default function BillingPage() {
                   </CardDescription>
 
                   <div className="pt-2">
-                    <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
-                      {getDisplayPrice(plan)}
-                    </span>
-                    {plan.monthlyPriceUzs > 0 && (
-                      <span className="text-xs text-muted-foreground ml-1.5">
-                        / oyiga
+                    <div className="flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
+                        {priceInfo.amount}
                       </span>
+                      {priceInfo.unit && (
+                        <span className="text-xs text-muted-foreground">{priceInfo.unit}</span>
+                      )}
+                    </div>
+                    {priceInfo.note && (
+                      <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                        {priceInfo.note}
+                      </p>
                     )}
                   </div>
                 </CardHeader>
 
                 <CardContent className="pt-0">
-                  <ul className="space-y-2 text-xs">
+                  <ul className="space-y-2.5 text-xs">
                     {featuresList.map((feat, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-foreground/90">
                         <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
@@ -411,7 +361,7 @@ export default function BillingPage() {
                 </CardContent>
               </div>
 
-              <div className="p-6 pt-2 space-y-2">
+              <div className="p-6 pt-3 space-y-2">
                 {showTrialBtn && (
                   <Button
                     type="button"
@@ -455,7 +405,7 @@ export default function BillingPage() {
         })}
       </div>
 
-      {/* Honest Payment & Activation Info Modal (Zero fake card inputs) */}
+      {/* Honest Payment & Activation Info Modal */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
         <DialogContent className="sm:max-w-md text-xs">
           <DialogHeader>
@@ -464,9 +414,9 @@ export default function BillingPage() {
             </DialogTitle>
             <DialogDescription className="text-xs">
               {selectedPlanForInfo && selectedPlanForInfo.monthlyPriceUzs > 0
-                ? `Tanlangan narx: ${getDisplayPrice(selectedPlanForInfo)} / oy (${
-                    billingCycle === "annual" ? "yillik -20%" : "oylik"
-                  })`
+                ? billingCycle === "annual"
+                  ? `Yillik toʻlov: ${formatUzs(selectedPlanForInfo.annualTotalPriceUzs)} (12 oy, -20%)`
+                  : `Oylik toʻlov: ${formatUzs(selectedPlanForInfo.monthlyPriceUzs)} / oy`
                 : "Bepul boshlangʻich tarif"}
             </DialogDescription>
           </DialogHeader>
@@ -477,7 +427,7 @@ export default function BillingPage() {
                 1. Click / Payme (tayyorlanmoqda)
               </div>
               <p className="text-muted-foreground leading-relaxed">
-                Avtomatik karta toʻlov shlyuzi hozir ulanish bosqichida. Toʻlov tasdiqlangach obuna serverda avtomatik faollashadi.
+                Avtomatik karta toʻlov shlyuzi keyingi bosqichda ulanadi. Toʻlov tasdiqlangach obuna serverda avtomatik faollashadi.
               </p>
             </div>
 

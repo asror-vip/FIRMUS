@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
-import { AI_MODELS, type AiModelId } from "@/lib/config/plans";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
 import { Money } from "@/components/shared/money";
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { ChatImageInputBar } from "@/components/shared/chat-image-input-bar";
 import { ChatScanCard } from "@/components/shared/chat-scan-card";
+import { AiModelSelector } from "@/components/shared/ai-model-selector";
 import {
   AiEmptyHero,
   AiThinkingBubble,
@@ -67,8 +67,6 @@ import {
   PanelLeft,
   SquarePen,
   Copy,
-  Lock,
-  Coins,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -105,7 +103,6 @@ function AssistantContent() {
     isContextReady,
     subscription,
     setSubscriptionSnapshot,
-    setPreferredAiModel,
   } = useAppState();
   const tabParam = searchParams.get("tab");
   const resolvedTab =
@@ -306,23 +303,6 @@ function AssistantContent() {
       setAttachedChatImage(compressed);
     } catch (err: any) {
       toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
-    }
-  };
-
-  const handleModelSwitch = async (nextModel: AiModelId) => {
-    if (!subscription.limits.allowedModels.includes(nextModel)) {
-      toast.info(
-        `${AI_MODELS[nextModel].label} modeli Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul sinovni yoqing.`
-      );
-      router.push("/billing");
-      return;
-    }
-    if (subscription.preferredModel === nextModel) return;
-    try {
-      await setPreferredAiModel(nextModel);
-      toast.success(`Model oʻzgartirildi: ${AI_MODELS[nextModel].label}`);
-    } catch (err: any) {
-      toast.error(err?.message || "Modelni almashtirib boʻlmadi");
     }
   };
 
@@ -832,15 +812,16 @@ function AssistantContent() {
 
         <Link
           href="/billing"
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 hover:bg-muted/70 px-3 py-1 text-xs transition-colors self-start sm:self-auto"
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 hover:bg-muted/70 px-3 py-1 text-xs transition-colors self-start sm:self-auto"
         >
-          <Coins className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-          <span className="font-mono font-semibold text-foreground">
-            {subscription.remainingCredits} / {subscription.monthlyLimit} kredit
+          <Sparkles className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+          <span className="font-medium text-foreground">
+            {subscription.isTrialActive
+              ? "Pro (Sinov)"
+              : subscription.trialAvailable
+              ? `${subscription.planName} • 7 kun bepul Pro`
+              : subscription.planName}
           </span>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-            {subscription.isTrialActive ? "Pro sinov" : subscription.planName}
-          </Badge>
         </Link>
       </div>
 
@@ -909,7 +890,7 @@ function AssistantContent() {
 
               {/* Active Conversation Area */}
               <div className="flex-1 flex flex-col min-w-0">
-                <div className="flex items-center justify-between gap-2 flex-wrap px-3.5 py-2 border-b border-border/60 bg-card/50">
+                <div className="flex items-center justify-between gap-2 px-3.5 py-2 border-b border-border/60 bg-card/50">
                   <div className="flex items-center gap-1.5">
                     <Button
                       type="button"
@@ -926,45 +907,16 @@ function AssistantContent() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <div className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-[11px]">
-                      {(["gemini-3.8-flash", "gemini-4-hydrogen"] as AiModelId[]).map((mId) => {
-                        const meta = AI_MODELS[mId];
-                        const isSelected = subscription.preferredModel === mId;
-                        const isLocked = !subscription.limits.allowedModels.includes(mId);
-                        return (
-                          <button
-                            key={mId}
-                            type="button"
-                            onClick={() => handleModelSwitch(mId)}
-                            title={meta.description}
-                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium transition-colors ${
-                              isSelected
-                                ? "bg-background text-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {isLocked && <Lock className="h-2.5 w-2.5 text-amber-500" />}
-                            <span>{meta.shortLabel}</span>
-                            <span className="text-[9px] text-muted-foreground font-mono">
-                              {meta.creditCost}kr
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-                      onClick={handleNewChat}
-                    >
-                      <SquarePen className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Yangi chat</span>
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                    onClick={handleNewChat}
+                  >
+                    <SquarePen className="h-3.5 w-3.5" />
+                    <span>Yangi chat</span>
+                  </Button>
                 </div>
 
                 <CardContent className="pt-4 space-y-3 flex-1 flex flex-col justify-between min-h-[420px]">
@@ -1068,6 +1020,7 @@ function AssistantContent() {
                   </div>
 
                   <div className="pt-2">
+                    <AiModelSelector />
                     <ChatImageInputBar
                       value={chatInput}
                       onChange={setChatInput}

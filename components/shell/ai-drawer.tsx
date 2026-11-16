@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { ChatImageInputBar } from "@/components/shared/chat-image-input-bar";
 import { ChatScanCard } from "@/components/shared/chat-scan-card";
 import { AiThreadHistoryPanel } from "@/components/shared/ai-thread-history-panel";
+import { AiModelSelector } from "@/components/shared/ai-model-selector";
 import {
   AiEmptyHero,
   AiThinkingBubble,
@@ -409,7 +410,7 @@ export function AiDrawer() {
               <span className="truncate">
                 {FEATURES.multiCompanyMode
                   ? currentEntity?.tradeName || currentEntity?.name || "Shaxsiy"
-                  : `${AI_MODELS[subscription.preferredModel].shortLabel} • ${subscription.remainingCredits} kredit`}
+                  : AI_MODELS[subscription.preferredModel].label}
               </span>
             </span>
           </div>
@@ -632,6 +633,7 @@ export function AiDrawer() {
 
           {/* Input area */}
           <div className="border-t border-border p-3 bg-card shrink-0">
+            <AiModelSelector compact />
             <ChatImageInputBar
               value={input}
               onChange={setInput}
