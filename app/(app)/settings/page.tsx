@@ -471,7 +471,7 @@ function SettingsContent() {
             <div>
               <Label className="text-[11px] font-medium text-foreground">Yuridik nomi *</Label>
               <Input
-                placeholder='Masalan: MChJ "Korxona nomi"'
+                placeholder="Korxona yuridik nomi"
                 value={newEntity.legalName}
                 onChange={(e) => setNewEntity({ ...newEntity, legalName: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -481,9 +481,9 @@ function SettingsContent() {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Savdo belgisi (Brend)</Label>
+                <Label className="text-[11px] font-medium text-foreground">Savdo belgisi</Label>
                 <Input
-                  placeholder="Qisqa nomi (ixtiyoriy)"
+                  placeholder="Qisqa nomi"
                   value={newEntity.tradeName}
                   onChange={(e) => setNewEntity({ ...newEntity, tradeName: e.target.value })}
                   className="h-8 text-xs mt-1"
@@ -492,7 +492,7 @@ function SettingsContent() {
               <div>
                 <Label className="text-[11px] font-medium text-foreground">STIR (9 ta raqam) *</Label>
                 <Input
-                  placeholder="9 xonali STIR"
+                  placeholder="STIR"
                   maxLength={9}
                   value={newEntity.tinStir}
                   onChange={(e) => setNewEntity({ ...newEntity, tinStir: e.target.value })}
@@ -534,7 +534,7 @@ function SettingsContent() {
             <div>
               <Label className="text-[11px] font-medium text-foreground">Masʼul lavozimi (ixtiyoriy)</Label>
               <Input
-                placeholder="Bosh buxgalter"
+                placeholder="Lavozimi"
                 value={newEntity.accountantName}
                 onChange={(e) => setNewEntity({ ...newEntity, accountantName: e.target.value })}
                 className="h-8 text-xs mt-1"

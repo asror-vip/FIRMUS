@@ -149,7 +149,7 @@ export default function RegisterPage() {
                   <Input
                     value={workspaceAlias}
                     onChange={(e) => setWorkspaceAlias(e.target.value)}
-                    placeholder="Masalan: Buxgalteriya #1"
+                    placeholder="Kompaniya nomi"
                     className="pl-8 text-xs h-9"
                   />
                 </div>
@@ -165,7 +165,7 @@ export default function RegisterPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
-                    placeholder="office@kompaniya.uz"
+                    placeholder="Email"
                     className="pl-8 text-xs h-9"
                     required
                   />

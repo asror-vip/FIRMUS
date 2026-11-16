@@ -93,9 +93,6 @@ export function Topbar() {
         >
           <Sparkles className="h-3.5 w-3.5 text-indigo-100" />
           <span className="hidden sm:inline">FIRMUS AI</span>
-          <span className="inline-flex items-center h-4.5 px-2 rounded-full text-[10px] font-black bg-white text-indigo-900 shadow-sm tracking-tight">
-            21-BHMS
-          </span>
         </Button>
 
         {/* Enhanced Multi-Category Notifications Popover */}

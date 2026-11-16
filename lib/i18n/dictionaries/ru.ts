@@ -136,14 +136,14 @@ export const ruTranslations: Translations = {
   aiDrawer: {
     title: "FIRMUS Copilot",
     online: "Онлайн помощник",
-    greeting: "Здравствуйте! Задайте вопрос по бухгалтерии, налогам или проводкам.",
+    greeting: "Добро пожаловать. Задайте вопрос или загрузите фото.",
     suggestedTitle: "Быстрые команды:",
     prompts: {
       exceptions: "Показать текущие исключения",
       bank: "Классифицировать банковские операции",
       tax: "Подготовить налоговую отчетность",
     },
-    inputPlaceholder: "Введите вопрос или команду...",
+    inputPlaceholder: "Напишите сообщение...",
     verified: "Проверено на основе данных Didox и банка",
     approvalRequired: "Для завершения операции требуется утверждение бухгалтера.",
     approveAction: "Утвердить",
@@ -167,7 +167,7 @@ export const ruTranslations: Translations = {
     askAi: "Спросить у AI",
   },
   footer: {
-    standards: "НСБУ 21 и налоговый учет",
+    standards: "Бухгалтерия и налоговый учет",
     rights: "© 2026 FIRMUS",
     status: "Активна",
     sync: "Синхрон",

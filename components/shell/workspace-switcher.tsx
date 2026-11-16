@@ -130,7 +130,7 @@ export function WorkspaceSwitcher() {
               <Input
                 value={wsName}
                 onChange={(e) => setWsName(e.target.value)}
-                placeholder="Masalan: Samarqand Audit MChJ"
+                placeholder="Ishchi maydon nomi"
                 className="h-8 text-xs mt-1"
                 required
               />

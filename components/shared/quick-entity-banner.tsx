@@ -71,7 +71,7 @@ export function QuickEntityBanner() {
       setOpen(false);
       setLegalName("");
       setTinStir("");
-      toast.success("Korxona va 21-BHMS schyotlar rejasi yaratildi!");
+      toast.success("Korxona yaratildi!");
     } catch (err: any) {
       toast.error("Korxona qoʻshishda xatolik: " + (err?.message || "Nomaʼlum xato"));
     } finally {
@@ -110,7 +110,7 @@ export function QuickEntityBanner() {
               <Label htmlFor="quick-entity-name" className="text-xs">Korxona nomi</Label>
               <Input
                 id="quick-entity-name"
-                placeholder='Masalan: MChJ "BARAKA SAVDO"'
+                placeholder="Korxona nomi"
                 value={legalName}
                 onChange={(e) => setLegalName(e.target.value)}
                 required
@@ -118,10 +118,10 @@ export function QuickEntityBanner() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="quick-entity-stir" className="text-xs">Korxona STIR (9 raqam)</Label>
+              <Label htmlFor="quick-entity-stir" className="text-xs">Korxona STIR</Label>
               <Input
                 id="quick-entity-stir"
-                placeholder="9 xonali STIR"
+                placeholder="STIR"
                 value={tinStir}
                 onChange={(e) => setTinStir(e.target.value.replace(/\D/g, "").slice(0, 9))}
                 maxLength={9}
@@ -156,7 +156,7 @@ export function QuickEntityBanner() {
               </Button>
               <Button type="submit" size="sm" disabled={isSaving} className="gap-1.5">
                 {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Saqlash va 21-BHMS ulash
+                Saqlash
               </Button>
             </DialogFooter>
           </form>

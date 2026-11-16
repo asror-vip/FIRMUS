@@ -436,7 +436,7 @@ function TransactionsContent() {
             <Label className="text-[11px] text-muted-foreground">Minimal summa (UZS)</Label>
             <Input
               type="number"
-              placeholder="Masalan: 1000000"
+              placeholder="Minimal summa"
               value={minAmount}
               onChange={(e) => setMinAmount(e.target.value)}
               className="h-8 text-xs font-mono mt-1 bg-background"
@@ -774,7 +774,7 @@ function TransactionsContent() {
                 <Label className="text-[11px] font-medium text-foreground">Summa (UZS) *</Label>
                 <Input
                   type="number"
-                  placeholder="Masalan: 15000000"
+                  placeholder="Summa"
                   value={newTx.amount}
                   onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
                   className="h-8 text-xs font-mono mt-1"
@@ -787,7 +787,7 @@ function TransactionsContent() {
               <div>
                 <Label className="text-[11px] font-medium text-foreground">Kontragent nomi *</Label>
                 <Input
-                  placeholder="OOO / MChJ / YaTT nomi"
+                  placeholder="Kontragent nomi"
                   value={newTx.counterparty}
                   onChange={(e) => setNewTx({ ...newTx, counterparty: e.target.value })}
                   className="h-8 text-xs mt-1"
@@ -795,9 +795,9 @@ function TransactionsContent() {
                 />
               </div>
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Kontragent STIR (9 ta raqam)</Label>
+                <Label className="text-[11px] font-medium text-foreground">Kontragent STIR</Label>
                 <Input
-                  placeholder="309112233"
+                  placeholder="STIR"
                   maxLength={9}
                   value={newTx.counterpartyStir}
                   onChange={(e) => setNewTx({ ...newTx, counterpartyStir: e.target.value })}
@@ -807,9 +807,9 @@ function TransactionsContent() {
             </div>
 
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Buxgalteriya schyoti (BHMS)</Label>
+              <Label className="text-[11px] font-medium text-foreground">Buxgalteriya schyoti</Label>
               <Input
-                placeholder="6010 yoki 4010"
+                placeholder="Schyot kodi"
                 value={newTx.accountCode}
                 onChange={(e) => setNewTx({ ...newTx, accountCode: e.target.value })}
                 className="h-8 text-xs font-mono mt-1"
@@ -819,7 +819,7 @@ function TransactionsContent() {
             <div>
               <Label className="text-[11px] font-medium text-foreground">Toʻlov maqsadi / Tavsif *</Label>
               <Input
-                placeholder="Shartnoma boʻyicha tovar/xizmat haqi..."
+                placeholder="Toʻlov maqsadi"
                 value={newTx.description}
                 onChange={(e) => setNewTx({ ...newTx, description: e.target.value })}
                 className="h-8 text-xs mt-1"

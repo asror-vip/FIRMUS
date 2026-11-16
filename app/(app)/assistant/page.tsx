@@ -15,8 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  LEX_UZ_TAX_CODE_URL,
-  LEX_UZ_BHMS21_URL,
   calculatePayrollUz,
   calculateVatUz,
   calculateTurnoverTaxUz,
@@ -48,7 +46,6 @@ import {
   Camera,
   Calculator,
   FileWarning,
-  ExternalLink,
   CheckCircle2,
   AlertTriangle,
   Upload,
@@ -71,13 +68,6 @@ interface ChatTurn {
   scanDuplicate?: boolean;
   scanPosted?: boolean;
 }
-
-const QUICK_PROMPTS = [
-  "Bu oy yuklangan barcha fayllar va tarix boʻyicha hisobot ber",
-  "4 500 000 so'm oylikdan xodim qo'liga qancha tegadi? Provodkasini yoz",
-  "11 200 000 so'm QQS 12% bilan tovar sotilganda 21-BHMS provodkasi qanday?",
-  "Aylanmadan soliq 4% qachon va qaysi schyotda hisoblanadi?",
-];
 
 const HISTORY_PAGE_SIZE = 10;
 
@@ -105,7 +95,7 @@ export default function AssistantPage() {
     {
       id: "welcome",
       sender: "ai",
-      text: "Assalomu alaykum! Men FIRMUS AI Hamkasbman. Oʻzbekiston Soliq kodeksi, 21-son BHMS provodkalari va saqlangan fayllaringiz boʻyicha savol bering yoki skrepkadan / Ctrl+V bilan chek-faktura rasmini tashlang.",
+      text: "Xush kelibsiz. Savol yozing yoki rasm yuklang.",
     },
   ]);
 
@@ -295,7 +285,7 @@ export default function AssistantPage() {
             sender: "ai",
             text:
               `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
-              (scan.provodkaExplanation || "21-BHMS boʻyicha provodka tayyorlandi."),
+              (scan.provodkaExplanation || "Provodka tayyorlandi."),
             modelUsed: scan.modelUsed,
             scanResult: scan,
             scanBatchId: savedBatchId,
@@ -482,7 +472,7 @@ export default function AssistantPage() {
         }
       }
 
-      toast.success("Hujjat oʻqildi va 21-BHMS provodkasi tayyorlandi!");
+      toast.success("Hujjat oʻqildi!");
     } catch (err: any) {
       toast.error("Skaner xatosi: " + err.message);
     } finally {
@@ -639,24 +629,6 @@ export default function AssistantPage() {
         <h1 className="text-xl font-bold tracking-tight text-foreground">
           AI Yordamchi
         </h1>
-        <div className="flex items-center gap-2 flex-wrap">
-          <a
-            href={LEX_UZ_TAX_CODE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] hover:bg-accent"
-          >
-            Soliq kodeksi <ExternalLink className="h-3 w-3" />
-          </a>
-          <a
-            href={LEX_UZ_BHMS21_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] hover:bg-accent"
-          >
-            21-son BHMS <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
       </div>
 
       <QuickEntityBanner />
@@ -665,7 +637,7 @@ export default function AssistantPage() {
         <TabsList className="h-9 text-xs flex-wrap">
           <TabsTrigger value="chat" className="gap-1.5 text-xs">
             <Sparkles className="h-3.5 w-3.5" />
-            AI Soliq & Provodka Chat
+            AI Chat
           </TabsTrigger>
           <TabsTrigger value="scan" className="gap-1.5 text-xs">
             <Camera className="h-3.5 w-3.5" />
@@ -673,11 +645,11 @@ export default function AssistantPage() {
           </TabsTrigger>
           <TabsTrigger value="calc" className="gap-1.5 text-xs">
             <Calculator className="h-3.5 w-3.5" />
-            Maosh & QQS Kalkulyatori
+            Kalkulyator
           </TabsTrigger>
           <TabsTrigger value="contract" className="gap-1.5 text-xs">
             <FileWarning className="h-3.5 w-3.5" />
-            Shartnoma Xavf Tekshiruvi
+            Shartnoma tahlili
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-1.5 text-xs">
             <History className="h-3.5 w-3.5" />
@@ -687,19 +659,6 @@ export default function AssistantPage() {
 
         {/* TAB 1: AI CHAT */}
         <TabsContent value="chat" className="space-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {QUICK_PROMPTS.map((qp) => (
-              <button
-                key={qp}
-                type="button"
-                onClick={() => handleSendChat(qp)}
-                className="text-[11px] rounded-full border border-border bg-muted/40 px-3 py-1 hover:bg-accent text-left transition-colors"
-              >
-                {qp}
-              </button>
-            ))}
-          </div>
-
           <Card
             onDragOver={(e) => {
               e.preventDefault();
@@ -715,8 +674,8 @@ export default function AssistantPage() {
             }}
             className={isDraggingOverChat ? "border-indigo-500 ring-2 ring-indigo-500/30" : undefined}
           >
-            <CardContent className="pt-4 space-y-3">
-              <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+            <CardContent className="pt-4 space-y-3 flex flex-col justify-between min-h-[380px]">
+              <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
                 {messages.map((m) => (
                   <div
                     key={m.id}
@@ -814,7 +773,7 @@ export default function AssistantPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">Faktura, TTN yoki Chek yuklash</CardTitle>
                 <CardDescription className="text-xs">
-                  JPG, PNG, WebP rasm yoki PDF fayl — AI summa, QQS 12%, MXIK va 21-BHMS provodkasini oʻqib beradi.
+                  PNG, JPG, WEBP yoki PDF
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
@@ -832,7 +791,7 @@ export default function AssistantPage() {
                   onClick={() => scanFileRef.current?.click()}
                 >
                   <Upload className="h-5 w-5 text-indigo-600" />
-                  <span>{scanFileName || "Rasm (PNG/JPG/WEBP, 25 MB gacha — avtomatik siqiladi) yoki PDF"}</span>
+                  <span>{scanFileName || "Rasm yoki PDF tanlash"}</span>
                 </Button>
                 {scanPreviewUrl && (
                   <div className="rounded-md border border-border overflow-hidden max-h-48 flex justify-center bg-muted/30">
@@ -846,22 +805,19 @@ export default function AssistantPage() {
                   onClick={handleRunScan}
                 >
                   {isScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  AI bilan oʻqish va provodka chiqarish
+                  Tahlil qilish
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">AI Tahlil Natijasi</CardTitle>
-                <CardDescription className="text-xs">
-                  Oʻqilgan rekvizitlar, MXIK kod taxmini va tayyor 21-BHMS provodkasi
-                </CardDescription>
+                <CardTitle className="text-sm font-semibold">Natija</CardTitle>
               </CardHeader>
               <CardContent className="text-xs space-y-3">
                 {!scanResult ? (
                   <p className="text-muted-foreground py-8 text-center">
-                    Chap tomondan faktura yoki chek rasmini yuklab «AI bilan oʻqish» tugmasini bosing.
+                    Hujjat tanlanmagan
                   </p>
                 ) : (
                   <>
@@ -898,7 +854,7 @@ export default function AssistantPage() {
 
                     <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 space-y-1">
                       <div className="font-semibold text-foreground">
-                        21-BHMS Provodka: Dt {scanResult.suggestedDebitCode} / Kt {scanResult.suggestedCreditCode}
+                        Provodka: Dt {scanResult.suggestedDebitCode} / Kt {scanResult.suggestedCreditCode}
                         {scanResult.vatAmount > 0 ? ` (+ QQS ${scanResult.vatAccountCode})` : ""}
                       </div>
                       <p className="text-[11px] text-muted-foreground">{scanResult.provodkaExplanation}</p>
@@ -1071,7 +1027,7 @@ export default function AssistantPage() {
                   value={calcSalaryAmount}
                   onChange={(e) => setCalcSalaryAmount(e.target.value)}
                   className="h-9 font-mono text-xs"
-                  placeholder="Summani so'mda kiriting"
+                  placeholder="Summa"
                 />
 
                 <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
@@ -1098,7 +1054,7 @@ export default function AssistantPage() {
                 </div>
 
                 <div className="space-y-1 pt-1">
-                  <div className="text-[11px] font-semibold text-foreground">21-BHMS Provodkalari:</div>
+                  <div className="text-[11px] font-semibold text-foreground">Provodkalar:</div>
                   {payrollCalc.provodka.map((p, i) => (
                     <div key={i} className="flex justify-between text-[11px] font-mono text-muted-foreground">
                       <span>Dt {p.debitCode} / Kt {p.creditCode} ({p.description})</span>
@@ -1207,10 +1163,7 @@ export default function AssistantPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Shartnoma matni yoki PDF/rasm yuklash</CardTitle>
-                <CardDescription className="text-xs">
-                  AI katta jarima (penya), 100% oldindan toʻlov, QQS bandi va STIR xatoliklarini tekshiradi.
-                </CardDescription>
+                <CardTitle className="text-sm font-semibold">Shartnoma yuklash</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
                 <input
@@ -1228,13 +1181,13 @@ export default function AssistantPage() {
                   onClick={() => contractFileRef.current?.click()}
                 >
                   <Upload className="h-3.5 w-3.5" />
-                  {contractFileInfo ? `Tanlangan: ${contractFileInfo.name}` : "PDF yoki rasm shartnoma biriktirish (ixtiyoriy)"}
+                  {contractFileInfo ? contractFileInfo.name : "PDF yoki rasm biriktirish"}
                 </Button>
                 <textarea
                   rows={7}
                   value={contractText}
                   onChange={(e) => setContractText(e.target.value)}
-                  placeholder="Shartnomaning muhim bandlarini (toʻlov tartibi, jarima/penya, QQS qismi) bu yerga nusxalab qoʻying..."
+                  placeholder="Shartnoma matni"
                   className="w-full rounded-md border border-input bg-background p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                 />
                 <Button
@@ -1244,19 +1197,19 @@ export default function AssistantPage() {
                   onClick={handleAnalyzeContract}
                 >
                   {isCheckingContract ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileWarning className="h-3.5 w-3.5" />}
-                  Shartnoma xatarlarini tekshirish
+                  Tekshirish
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Aniqlangan xatarlar va tavsiyalar</CardTitle>
+                <CardTitle className="text-sm font-semibold">Natija</CardTitle>
               </CardHeader>
               <CardContent className="text-xs space-y-3">
                 {!contractResult ? (
                   <p className="text-muted-foreground py-8 text-center">
-                    Shartnoma matnini kiriting yoki fayl yuklab tahlilni boshlang.
+                    Hujjat kiritilmagan
                   </p>
                 ) : (
                   <>

@@ -12,7 +12,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -405,10 +404,10 @@ export default function ReconcilePage() {
       );
       setAiModeNote(
         data.mode === "gemini_reconcile"
-          ? `Gemini (${data.modelUsed}) tomonidan tekshirildi`
-          : "21-BHMS qatʼiy qoidalari bilan tekshirildi"
+          ? `AI (${data.modelUsed}) tomonidan tekshirildi`
+          : "Qatʼiy qoidalar bilan tekshirildi"
       );
-      toast.success("AI farqlarni tekshirdi va 21-BHMS schyotlarini tasdiqladi!");
+      toast.success("AI farqlarni tekshirdi va schyotlarni tasdiqladi!");
     } catch (err: any) {
       toast.error("AI tahlilida xatolik: " + err.message);
     } finally {
@@ -929,7 +928,7 @@ export default function ReconcilePage() {
                     <TableHead>Kontragent</TableHead>
                     <TableHead className="text-right">Bank summasi</TableHead>
                     <TableHead className="text-right">1C summasi</TableHead>
-                    <TableHead>21-BHMS Schyot</TableHead>
+                    <TableHead>Schyot</TableHead>
                     <TableHead>QQS 12%</TableHead>
                     <TableHead>AI Izoh va Tavsiya</TableHead>
                   </TableRow>
@@ -983,7 +982,7 @@ export default function ReconcilePage() {
                         </TableCell>
                         <TableCell>
                           <select
-                            aria-label={`${row.counterparty} 21-BHMS schyoti`}
+                            aria-label={`${row.counterparty} schyoti`}
                             value={row.suggestedAccountCode}
                             onChange={(e) => handleChangeRowAccount(row.id, e.target.value)}
                             className="h-7 rounded border border-input bg-background px-1.5 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
@@ -1171,15 +1170,12 @@ export default function ReconcilePage() {
             <DialogTitle className="text-base">
               {pasteTarget === "bank" ? "Bank koʻchirmasini joylashtirish" : "1C jadvalini joylashtirish"}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              Excel jadvalidan yoki Bank kabinetidan qatorlarni belgilab nusxalang (`Ctrl+C`) va quyiga joylashtiring (`Ctrl+V`).
-            </DialogDescription>
           </DialogHeader>
           <textarea
             rows={8}
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
-            placeholder={"Sana\tKontragent\tSTIR\tПриход\tРасход\tНазначение\n15.11.2026\tOOO BARAKA\t305112233\t25 000 000,00\t0\tTovar uchun"}
+            placeholder="Jadval qatorlarini joylashtiring"
             className="w-full rounded-md border border-input bg-background p-2.5 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <DialogFooter>

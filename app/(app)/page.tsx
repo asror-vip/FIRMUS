@@ -369,7 +369,7 @@ export default function DashboardPage() {
             >
               <div>
                 <div className="font-semibold text-foreground">Oborot-saldovaya vedomost</div>
-                <div className="text-[10px] text-muted-foreground">21-BHMS qoldiqlar va davr yopish</div>
+                <div className="text-[10px] text-muted-foreground">Qoldiqlar va davr yopish</div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>

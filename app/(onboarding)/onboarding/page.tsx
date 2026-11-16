@@ -76,7 +76,7 @@ export default function OnboardingPage() {
       }
 
       await refreshContext();
-      toast.success("Ishchi maydon, korxona va 21-BHMS schyotlar rejasi yaratildi!");
+      toast.success("Ishchi maydon va korxona yaratildi!");
       router.push("/");
     } catch (err: any) {
       toast.error("Sozlashni saqlashda xatolik: " + (err.message || "Nomaʼlum xatolik"));
@@ -157,7 +157,7 @@ export default function OnboardingPage() {
                     <div>
                       <h3 className="font-bold text-sm text-foreground">Yagona Korxona (Kompaniya)</h3>
                       <p className="text-muted-foreground text-xs mt-0.5">
-                        Oʻz korxonangizning bank koʻchirmalari va 21-BHMS hisobini yuritish.
+                        Korxona bank koʻchirmalari va soliq hisobini yuritish.
                       </p>
                     </div>
                   </div>
@@ -182,7 +182,7 @@ export default function OnboardingPage() {
                   <Input
                     value={workspaceName}
                     onChange={(e) => setWorkspaceName(e.target.value)}
-                    placeholder="Masalan: Toshkent Buxgalteriya Xizmatlari"
+                    placeholder="Ishchi maydon nomi"
                     className="text-xs h-9"
                   />
                 </div>
@@ -205,7 +205,7 @@ export default function OnboardingPage() {
                     value={stir}
                     maxLength={9}
                     onChange={(e) => setStir(e.target.value)}
-                    placeholder="309118742"
+                    placeholder="STIR"
                     className="font-mono text-xs h-9"
                   />
                 </div>
@@ -215,7 +215,7 @@ export default function OnboardingPage() {
                   <Input
                     value={entityName}
                     onChange={(e) => setEntityName(e.target.value)}
-                    placeholder="MCHJ Yangi Davr Savdo"
+                    placeholder="Korxona yuridik nomi"
                     className="text-xs h-9"
                   />
                 </div>

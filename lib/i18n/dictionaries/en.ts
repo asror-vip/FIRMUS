@@ -136,14 +136,14 @@ export const enTranslations: Translations = {
   aiDrawer: {
     title: "FIRMUS Copilot",
     online: "Online Assistant",
-    greeting: "Hello! Ask a question about Uzbekistan accounting, taxes, or journal entries.",
+    greeting: "Welcome. Ask a question or attach an image.",
     suggestedTitle: "Quick Actions:",
     prompts: {
       exceptions: "Show today's exceptions",
       bank: "Classify bank transactions",
       tax: "Prepare tax declaration",
     },
-    inputPlaceholder: "Type your query or instruction...",
+    inputPlaceholder: "Write a message...",
     verified: "Verified based on Didox and bank records",
     approvalRequired: "Accountant confirmation required to finalize this operation.",
     approveAction: "Approve",
@@ -167,7 +167,7 @@ export const enTranslations: Translations = {
     askAi: "Ask AI Assistant",
   },
   footer: {
-    standards: "21-BHMS & Tax Accounting",
+    standards: "Accounting & Tax Platform",
     rights: "© 2026 FIRMUS",
     status: "Active",
     sync: "Sync",

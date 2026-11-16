@@ -296,7 +296,7 @@ export default function AccountingPage() {
   const handleCreateCoa = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{4,8}$/.test(newCoa.code.trim())) {
-      toast.error("Schyot kodi 4–8 xonali raqam boʻlishi shart (masalan: 5120)");
+      toast.error("Schyot kodi 4–8 xonali raqam boʻlishi shart");
       return;
     }
     if (newCoa.name.trim().length < 3) {
@@ -899,7 +899,7 @@ export default function AccountingPage() {
             <div>
               <Label className="text-[11px] font-medium text-foreground">Iqtisodiy mazmuni / Maqsad *</Label>
               <Input
-                placeholder="Xom-ashyo xaridi uchun yetkazib beruvchiga toʻlov..."
+                placeholder="Tavsif"
                 value={newEntry.description}
                 onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -942,7 +942,7 @@ export default function AccountingPage() {
               <Label className="text-[11px] font-medium text-foreground">Summa (UZS) *</Label>
               <Input
                 type="number"
-                placeholder="10000000"
+                placeholder="Summa"
                 value={newEntry.amount}
                 onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value })}
                 className="h-8 text-xs font-mono mt-1"
@@ -993,7 +993,7 @@ export default function AccountingPage() {
               <Input
                 value={reversalReason}
                 onChange={(e) => setReversalReason(e.target.value)}
-                placeholder="Masalan: Buxgalter kiritishda xato qilgan"
+                placeholder="Storno sababi"
                 className="h-8 text-xs mt-1"
                 required
               />
@@ -1032,14 +1032,14 @@ export default function AccountingPage() {
               Yangi schyot / subschyot qoʻshish
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Korxona uchun individual BHMS subschyotini (masalan, 5120, 4011) bazaga kiritish.
+              Korxona uchun individual schyot / subschyot qoʻshish.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateCoa} className="space-y-3 pt-2 text-xs">
             <div>
-              <Label className="text-[11px] font-medium">Schyot kodi (4–8 ta raqam) *</Label>
+              <Label className="text-[11px] font-medium">Schyot kodi *</Label>
               <Input
-                placeholder="5120"
+                placeholder="Schyot kodi"
                 value={newCoa.code}
                 onChange={(e) => setNewCoa({ ...newCoa, code: e.target.value })}
                 className="h-8 text-xs font-mono mt-1"
@@ -1049,7 +1049,7 @@ export default function AccountingPage() {
             <div>
               <Label className="text-[11px] font-medium">Schyot nomi *</Label>
               <Input
-                placeholder="Valyuta hisobvaragʻi (USD)"
+                placeholder="Schyot nomi"
                 value={newCoa.name}
                 onChange={(e) => setNewCoa({ ...newCoa, name: e.target.value })}
                 className="h-8 text-xs mt-1"

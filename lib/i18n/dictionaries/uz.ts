@@ -136,14 +136,14 @@ export const uzTranslations: Translations = {
   aiDrawer: {
     title: "FIRMUS Copilot",
     online: "Onlayn yordamchi",
-    greeting: "Assalomu alaykum! Buxgalteriya, soliq yoki provodkalar boʻyicha savolingizni yozing.",
+    greeting: "Xush kelibsiz. Savol yozing yoki rasm yuklang.",
     suggestedTitle: "Tezkor amallar:",
     prompts: {
       exceptions: "Bugungi istisnolarni ko‘rsat",
       bank: "Bank tranzaksiyalarini tasnifla",
       tax: "Soliq hisobotini tayyorla",
     },
-    inputPlaceholder: "Savolingizni yoki buyruqni yozing...",
+    inputPlaceholder: "Xabar yozing...",
     verified: "Didox va bank maʼlumotlari asosida tekshirildi",
     approvalRequired: "Operatsiyani yakunlash uchun buxgalter tasdigʻi zarur.",
     approveAction: "Tasdiqlash",
@@ -167,7 +167,7 @@ export const uzTranslations: Translations = {
     askAi: "AI Yordamchidan soʻrash",
   },
   footer: {
-    standards: "21-BHMS va Soliq hisobi",
+    standards: "Buxgalteriya va Soliq hisobi",
     rights: "© 2026 FIRMUS",
     status: "Faol",
     sync: "Sinxron",

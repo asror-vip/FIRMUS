@@ -31,7 +31,7 @@ export function ChatImageInputBar({
   onAttachImage,
   isSending,
   onSubmit,
-  placeholder = "Savol yozing, Ctrl+V qiling yoki skrepkadan rasm biriktiring...",
+  placeholder = "Xabar yozing...",
   compact = false,
 }: ChatImageInputBarProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);

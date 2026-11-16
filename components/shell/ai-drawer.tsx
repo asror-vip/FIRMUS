@@ -126,7 +126,7 @@ export function AiDrawer() {
             sender: "ai",
             text:
               `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
-              (scan.provodkaExplanation || "21-BHMS boʻyicha provodka tayyorlandi."),
+              (scan.provodkaExplanation || "Provodka tayyorlandi."),
             time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
             mode: scan.mode,
             modelUsed: scan.modelUsed,
@@ -277,9 +277,6 @@ export function AiDrawer() {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-foreground">{t.aiDrawer.title}</span>
-              <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
-                21-BHMS AGENT
-              </span>
             </div>
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -296,30 +293,6 @@ export function AiDrawer() {
         >
           <X className="h-4 w-4" />
         </Button>
-      </div>
-
-      {/* Suggested Prompts */}
-      <div className="border-b border-border bg-muted/40 p-2.5">
-        <div className="text-[10px] font-medium text-muted-foreground mb-1.5 px-1">
-          {t.aiDrawer.suggestedTitle}
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            t.aiDrawer.prompts.exceptions,
-            t.aiDrawer.prompts.bank,
-            t.aiDrawer.prompts.tax,
-            "Yuklangan fayllar va tarix hisoboti",
-          ].map((prompt, i) => (
-            <button
-              key={i}
-              disabled={isSending}
-              onClick={() => sendMessageText(prompt)}
-              className="rounded-md border border-border/80 bg-background px-2 py-1 text-[11px] text-foreground hover:bg-accent transition-colors text-left disabled:opacity-50"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Messages area */}
@@ -366,8 +339,8 @@ export function AiDrawer() {
                   <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
                   <span>
                     {msg.mode === "gemini_agent"
-                      ? `Gemini (${msg.modelUsed || "gemini-3.8-flash"}) + RLS`
-                      : "Qatʼiy 21-BHMS + Supabase RLS"}
+                      ? msg.modelUsed || "FIRMUS AI"
+                      : "FIRMUS AI"}
                   </span>
                   <span className="font-mono text-[9px] opacity-75">
                     [{msg.toolCalls.slice(0, 3).join(", ")}]
@@ -478,7 +451,7 @@ export function AiDrawer() {
         {isSending && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
-            <span>Supabase bazasi va 21-BHMS qoidalari tekshirilmoqda...</span>
+            <span>Tekshirilmoqda...</span>
           </div>
         )}
       </div>
@@ -492,7 +465,7 @@ export function AiDrawer() {
           onAttachImage={setAttachedImage}
           isSending={isSending}
           compact
-          placeholder="Savol yozing, Ctrl+V yoki skrepka (faqat rasm)..."
+          placeholder="Xabar yozing..."
           onSubmit={() => sendMessageText(input)}
         />
       </div>
