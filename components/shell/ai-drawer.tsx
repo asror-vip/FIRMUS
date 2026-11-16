@@ -226,7 +226,7 @@ export function AiDrawer() {
                   <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
                   <span>
                     {msg.mode === "gemini_agent"
-                      ? `Gemini (${msg.modelUsed || "gemini-2.5-flash"}) + RLS`
+                      ? `Gemini (${msg.modelUsed || "gemini-3.8-flash"}) + RLS`
                       : "Qatʼiy 21-BHMS + Supabase RLS"}
                   </span>
                   <span className="font-mono text-[9px] opacity-75">

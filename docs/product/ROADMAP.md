@@ -49,7 +49,7 @@ flowchart LR
 ## Phase 5: Strict FIRMUS AI Agent (Gemini + Human-in-the-Loop) — [DONE]
 - **Deliverables**:
   - `lib/ai/firmus-agent.ts` with comprehensive 21-BHMS + Tax Code system instructions and live active COA injection.
-  - Configurable `GEMINI_MODEL` (free-tier default `gemini-2.5-flash` + fallback `gemini-2.5-flash-lite`) + offline deterministic guard (`deterministic_guard`) + conversation memory (`history`).
+  - Configurable `GEMINI_MODEL` (free-tier default `gemini-3.8-flash` + fallback `gemini-3.5-flash-lite`) + offline deterministic guard (`deterministic_guard`) + conversation memory (`history`).
   - 13 typed tools (5 read-only tools + 8 schema-validated Human-in-the-Loop `propose_*` tools).
   - Dedicated `/api/ai-copilot/execute` endpoint with RBAC checks, Zod re-validation, atomic ledger execution, and immutable `ai_action_logs`.
 

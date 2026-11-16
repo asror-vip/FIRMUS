@@ -33,6 +33,7 @@ describe("Privacy, Eskiz Phone Normalization & Depersonalization", () => {
       account: "20208000905412340001",
       directorPinfl: "31502941234567",
       phone: "+998 90 123-45-67",
+      balance: 325000000, // 9-digit monetary figure starting with 3 must stay numeric!
       vatPayable: 12000000,
     };
     const sanitized = depersonalizeForAi(raw);
@@ -40,6 +41,7 @@ describe("Privacy, Eskiz Phone Normalization & Depersonalization", () => {
     expect(sanitized.account).toBe("[BANK_HISOB_MASKED]");
     expect(sanitized.directorPinfl).toBe("[PINFL_MASKED]");
     expect(sanitized.phone).toBe("[TELEFON_MASKED]");
+    expect(sanitized.balance).toBe(325000000);
     expect(sanitized.vatPayable).toBe(12000000);
   });
 });

@@ -8,7 +8,7 @@ FIRMUS is an enterprise-grade business automation and accounting SaaS platform e
 
 - **Full-Stack Web & API**: TypeScript, Next.js App Router (Route Handlers + Server Components), React, Tailwind CSS, shadcn/ui, Zod.
 - **Database, Auth, RLS & Ledger RPCs**: Supabase PostgreSQL (`NUMERIC(19, 4)`, Row-Level Security, atomic PL/pgSQL RPCs), Supabase Auth (Email, Google OAuth, Eskiz.uz SMS OTP), private Supabase Storage.
-- **AI Agent Orchestration**: Configurable Gemini model (`GEMINI_MODEL`, defaulting to free-tier `gemini-2.5-flash` with fallback to `gemini-2.5-flash-lite` and deterministic 21-BHMS guard when no API key is configured), strict Function Calling (`propose_*`), Human-in-the-Loop approval execution (`/api/ai-copilot/execute`), PII depersonalization, and immutable `ai_action_logs`.
+- **AI Agent Orchestration**: Configurable Gemini model (`GEMINI_MODEL`, defaulting to free-tier `gemini-3.8-flash` with fallback to `gemini-3.5-flash-lite` and deterministic 21-BHMS guard when no API key is configured), strict Function Calling (`propose_*`), Human-in-the-Loop approval execution (`/api/ai-copilot/execute`), PII depersonalization, and immutable `ai_action_logs`.
 - **Financial Core**: Deterministic double-entry ledger with `NUMERIC(19, 4)` exact precision, idempotency keys, storno reversals (`reverse_journal_entry`), atomic period closing (`close_accounting_period`), and immutable posted history.
 
 ---

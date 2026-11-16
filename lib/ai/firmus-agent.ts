@@ -897,8 +897,10 @@ export async function runFirmusAgent(params: {
     return runDeterministicAgent({ message, ctx });
   }
 
-  const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
-  const modelChain = Array.from(new Set([primaryModel, "gemini-2.5-flash", "gemini-2.5-flash-lite"]));
+  const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
+  const modelChain = Array.from(
+    new Set([primaryModel, "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"])
+  );
   const systemInstruction = buildFirmusSystemInstruction({ entity, coaRows, userRole });
 
   const baseContents: any[] = history.slice(-8).map((h) => ({
@@ -920,6 +922,7 @@ export async function runFirmusAgent(params: {
           `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
           {
             method: "POST",
+            signal: AbortSignal.timeout(15_000),
             headers: {
               "Content-Type": "application/json",
               "x-goog-api-key": apiKey,
@@ -932,7 +935,7 @@ export async function runFirmusAgent(params: {
               generationConfig: {
                 temperature: 0.0,
                 topP: 0.9,
-                maxOutputTokens: 1500,
+                maxOutputTokens: 2048,
               },
             }),
           }
@@ -982,6 +985,7 @@ export async function runFirmusAgent(params: {
           }
           fnResponses.push({
             functionResponse: {
+              ...(callPart.functionCall.id ? { id: callPart.functionCall.id } : {}),
               name,
               response: exec.result,
             },

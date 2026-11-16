@@ -4,7 +4,7 @@
 FIRMUS integrates an AI assistant as an operational co-pilot/agent across accounting, banking, tax, contracts, HR, and warehouse workflows. Because LLMs can hallucinate, the AI must be strictly grounded in 21-BHMS rules and live database state, and must never execute unvetted writes.
 
 ## Decision
-1. **Configurable Gemini Free-Tier-First Model**: Orchestrated via `GEMINI_MODEL` environment configuration (defaulting to free-tier `gemini-2.5-flash` with fallback to `gemini-2.5-flash-lite`), `temperature: 0.0`, and an automatic offline deterministic 21-BHMS analyzer (`deterministic_guard`) when no API key is present. Future upgrades to stronger models require only changing `GEMINI_MODEL`.
+1. **Configurable Gemini Free-Tier-First Model**: Orchestrated via `GEMINI_MODEL` environment configuration (defaulting to free-tier `gemini-3.8-flash` with fallback to `gemini-3.5-flash-lite` and `gemini-flash-lite-latest`), `temperature: 0.0`, and an automatic offline deterministic 21-BHMS analyzer (`deterministic_guard`) when no API key is present. Future upgrades to stronger models require only changing `GEMINI_MODEL`.
 2. **Comprehensive 21-BHMS Grounding & Tool Loop**:
    - System instructions inject the entity's live active `chart_of_accounts`, tax regime, Uzbekistan tax formulas (12% QQS, 12% JShODS, 12% Social tax), and anti-hallucination constraints.
    - Five read tools query live RLS-protected Supabase state (`get_financial_overview`, `get_trial_balance`, `get_general_ledger`, `list_recent_journal_entries`, `search_business_records`) with `depersonalizeForAi` PII masking.
