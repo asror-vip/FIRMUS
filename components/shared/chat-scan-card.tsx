@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Loader2, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import type { ScannedDocResult } from "@/lib/services/doc-scan-client";
 
 interface ChatScanCardProps {
@@ -35,6 +36,26 @@ export function ChatScanCard({
   const [creditCode, setCreditCode] = useState(scan.suggestedCreditCode || "5110");
   const [totalAmount, setTotalAmount] = useState(String(scan.totalAmount || 0));
   const [isPosting, setIsPosting] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopySummary = async () => {
+    const text = [
+      `${scan.documentType}${scan.documentNumber ? ` №${scan.documentNumber}` : ""} (${scan.date})`,
+      `Kontragent: ${scan.counterparty}${scan.counterpartyStir ? ` (STIR: ${scan.counterpartyStir})` : ""}`,
+      `Summa: ${(Number(totalAmount) || scan.totalAmount).toLocaleString("uz-UZ")} soʻm${
+        scan.vatAmount > 0 ? ` | QQS 12%: ${scan.vatAmount.toLocaleString("uz-UZ")} soʻm` : ""
+      }`,
+      `Provodka: Dt ${debitCode} / Kt ${creditCode}${scan.vatAmount > 0 ? ` (+ QQS ${scan.vatAccountCode})` : ""}`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Natija nusxalandi");
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error("Nusxalab boʻlmadi");
+    }
+  };
 
   const handleConfirm = async () => {
     setIsPosting(true);
@@ -127,8 +148,18 @@ export function ChatScanCard({
         </div>
       )}
 
-      {!posted && canPost && (
-        <div className="pt-1 flex items-center gap-2">
+      <div className="pt-1 flex items-center gap-2 flex-wrap">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px] gap-1.5"
+          onClick={handleCopySummary}
+        >
+          {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+          {copied ? "Nusxalandi" : "Provodkani nusxalash"}
+        </Button>
+        {!posted && canPost && (
           <Button
             type="button"
             size="sm"
@@ -144,8 +175,8 @@ export function ChatScanCard({
             )}
             Tasdiqlab Bosh kitobga yozish
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

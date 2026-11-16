@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import {
   updateWorkspacePlanInDb,
   fetchWorkspaceUsageSummary,
@@ -47,7 +48,7 @@ interface PlanDefinition {
   features: string[];
 }
 
-const PLANS: PlanDefinition[] = [
+const B2B_PLANS: PlanDefinition[] = [
   {
     id: "starter",
     name: "Starter",
@@ -106,6 +107,64 @@ const PLANS: PlanDefinition[] = [
   },
 ];
 
+const SOLO_PLANS: PlanDefinition[] = [
+  {
+    id: "starter",
+    name: "Starter",
+    subtitle: "Shaxsiy foydalanuvchilar va sinov uchun",
+    monthlyPriceUzs: 0,
+    limits: {
+      entities: 1,
+      members: 1,
+      monthlyBatches: 20,
+    },
+    features: [
+      "Bank ↔ 1C solishtirish",
+      "Oyiga 20 tagacha chek skan va fayl paketi",
+      "AI Chat va soʻnggi tarix",
+      "Soliq va maosh kalkulyatori",
+    ],
+  },
+  {
+    id: "professional",
+    name: "Professional",
+    subtitle: "Faol buxgalterlar va mutaxassislar uchun",
+    monthlyPriceUzs: 290_000,
+    badge: "Tavsiya etiladi",
+    limits: {
+      entities: 1,
+      members: 1,
+      monthlyBatches: 300,
+    },
+    features: [
+      "Bank ↔ 1C + 1C XML / TXT eksport",
+      "Oyiga 300 tagacha chek skan va fayl paketi",
+      "Cheksiz AI Chat tarixi",
+      "Shartnoma xavf tahlili (PDF / rasm)",
+      "Oylar boʻyicha toʻliq saqlangan tarix",
+    ],
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    subtitle: "Katta hajm va individual shartlar uchun",
+    monthlyPriceUzs: null,
+    limits: {
+      entities: null,
+      members: null,
+      monthlyBatches: null,
+    },
+    features: [
+      "Cheksiz fayl paketlari va tezkor ustuvor AI",
+      "Kengaytirilgan 1C / CSV eksport",
+      "Ajratilgan ustuvor qoʻllab-quvvatlash",
+      "Maxsus talablar boʻyicha sozlash",
+    ],
+  },
+];
+
+const PLANS: PlanDefinition[] = FEATURES.multiCompanyMode ? B2B_PLANS : SOLO_PLANS;
+
 function formatUzs(amount: number): string {
   return `${new Intl.NumberFormat("uz-UZ").format(amount)} soʻm`;
 }
@@ -139,7 +198,9 @@ export default function BillingPage() {
   const activePlanId = (currentWorkspace?.currentPlan || "professional") as PlanId;
   const activePlan = PLANS.find((p) => p.id === activePlanId) || PLANS[1];
   const canManagePlan =
-    currentRole === "workspace_owner" || currentRole === "company_director";
+    !FEATURES.teamMode ||
+    currentRole === "workspace_owner" ||
+    currentRole === "company_director";
 
   const loadUsage = useCallback(async () => {
     setIsLoadingUsage(true);
@@ -166,7 +227,7 @@ export default function BillingPage() {
     }
 
     if (!currentWorkspace?.id) {
-      toast.error("Avval ishchi maydon (Workspace) tanlang");
+      toast.error(FEATURES.multiCompanyMode ? "Avval ishchi maydon (Workspace) tanlang" : "Shaxsiy hisob tayyorlanmoqda, biroz kuting");
       return;
     }
 
@@ -210,7 +271,9 @@ export default function BillingPage() {
             Obuna va Tariflar
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Ishchi maydon tarifi va joriy oydagi resurslardan foydalanish holati
+            {FEATURES.multiCompanyMode
+              ? "Ishchi maydon tarifi va joriy oydagi resurslardan foydalanish holati"
+              : "Joriy tarif va oylik asboblardan foydalanish holati"}
           </p>
         </div>
 
@@ -246,13 +309,13 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Active Workspace Status + Live Quotas */}
+      {/* Active Plan Status + Live Quotas */}
       <Card>
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-sm font-semibold">
-                {currentWorkspace?.name || "Ishchi maydon"}
+                {FEATURES.multiCompanyMode ? currentWorkspace?.name || "Ishchi maydon" : "Shaxsiy hisob"}
               </CardTitle>
               <Badge variant="indigo" className="text-[10px]">
                 {activePlan.name}
@@ -282,36 +345,47 @@ export default function BillingPage() {
         </CardHeader>
 
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Korxonalar</span>
-                <Building2 className="h-3.5 w-3.5" />
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-4 text-xs",
+              FEATURES.multiCompanyMode || FEATURES.teamMode
+                ? "sm:grid-cols-2 lg:grid-cols-4"
+                : "sm:grid-cols-2"
+            )}
+          >
+            {FEATURES.multiCompanyMode && (
+              <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Korxonalar</span>
+                  <Building2 className="h-3.5 w-3.5" />
+                </div>
+                <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
+                  {currentWorkspace?.entitiesCount ?? 0} /{" "}
+                  {activePlan.limits.entities ?? "∞"}
+                </div>
+                <UsageProgressBar
+                  used={currentWorkspace?.entitiesCount ?? 0}
+                  max={activePlan.limits.entities}
+                />
               </div>
-              <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {currentWorkspace?.entitiesCount ?? 0} /{" "}
-                {activePlan.limits.entities ?? "∞"}
-              </div>
-              <UsageProgressBar
-                used={currentWorkspace?.entitiesCount ?? 0}
-                max={activePlan.limits.entities}
-              />
-            </div>
+            )}
 
-            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Jamoa aʼzolari</span>
-                <Users className="h-3.5 w-3.5" />
+            {FEATURES.teamMode && (
+              <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Jamoa aʼzolari</span>
+                  <Users className="h-3.5 w-3.5" />
+                </div>
+                <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
+                  {currentWorkspace?.membersCount ?? 1} /{" "}
+                  {activePlan.limits.members ?? "∞"}
+                </div>
+                <UsageProgressBar
+                  used={currentWorkspace?.membersCount ?? 1}
+                  max={activePlan.limits.members}
+                />
               </div>
-              <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {currentWorkspace?.membersCount ?? 1} /{" "}
-                {activePlan.limits.members ?? "∞"}
-              </div>
-              <UsageProgressBar
-                used={currentWorkspace?.membersCount ?? 1}
-                max={activePlan.limits.members}
-              />
-            </div>
+            )}
 
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
@@ -432,17 +506,17 @@ export default function BillingPage() {
               {pendingInfoPlan ? `${pendingInfoPlan.name} — Toʻlov tartibi` : "Toʻlov tartibi"}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Ishchi maydon tarifi saqlandi. Toʻlov usullari:
+              Tanlangan tarif saqlandi. Toʻlov usullari:
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-1">
             <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2">
               <div className="font-semibold text-foreground">
-                1. Yuridik shaxslar uchun (Hisob-faktura / Didox E-SF)
+                1. Bank oʻtkazmasi (Hisob-faktura / Didox E-SF)
               </div>
               <p className="text-muted-foreground leading-relaxed">
-                Korxona rekvizitlari (STIR) asosida shartnoma va E-SF rasmiylashtirilib, hisob raqamdan koʻchirish yoʻli bilan toʻlov qabul qilinadi.
+                Rekvizitlar asosida shartnoma va E-SF rasmiylashtirilib, hisob raqamdan koʻchirish yoʻli bilan toʻlov qabul qilinadi.
               </p>
             </div>
 
@@ -451,7 +525,7 @@ export default function BillingPage() {
                 2. Payme / Click / Uzum Business
               </div>
               <p className="text-muted-foreground leading-relaxed">
-                Avtomatik karta orqali toʻlov shlyuzi hozir ulanish bosqichida. Hozirgi sinov davrida tanlangan tarif ishchi maydoningizda cheklovlarsiz faol turadi.
+                Avtomatik karta orqali toʻlov shlyuzi hozir ulanish bosqichida. Hozirgi sinov davrida tanlangan tarif hisobingizda cheklovlarsiz faol turadi.
               </p>
             </div>
           </div>

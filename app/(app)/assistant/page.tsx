@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
 import { Money } from "@/components/shared/money";
 import { PaginationBar } from "@/components/shared/pagination-bar";
@@ -62,6 +63,7 @@ import {
   Trash2,
   PanelLeft,
   SquarePen,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -82,23 +84,31 @@ interface ChatTurn {
 
 const HISTORY_PAGE_SIZE = 10;
 
-export default function AssistantPage() {
+function AssistantContent() {
   const router = useRouter();
-  const { currentEntity } = useAppState();
-  const [activeTab, setActiveTab] = useState("chat");
+  const searchParams = useSearchParams();
+  const { currentEntity, isContextReady } = useAppState();
+  const tabParam = searchParams.get("tab");
+  const resolvedTab =
+    tabParam && ["chat", "scan", "calc", "contract", "history"].includes(tabParam)
+      ? tabParam
+      : "chat";
+  const [activeTab, setActiveTab] = useState(resolvedTab);
 
   useEffect(() => {
-    try {
-      const tabParam = new URLSearchParams(window.location.search).get("tab");
-      if (tabParam && ["chat", "scan", "calc", "contract", "history"].includes(tabParam)) {
-        setActiveTab(tabParam);
-      }
-    } catch {}
-  }, []);
+    setActiveTab(resolvedTab);
+  }, [resolvedTab]);
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    const nextUrl = val === "chat" ? "/assistant" : `/assistant?tab=${encodeURIComponent(val)}`;
+    router.replace(nextUrl, { scroll: false });
+  };
 
   // 1. AI Chat state
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatAbortRef = useRef<AbortController | null>(null);
+  const prevEntityIdRef = useRef<string | undefined>(currentEntity?.id);
   const [chatInput, setChatInput] = useState("");
   const [attachedChatImage, setAttachedChatImage] = useState<CompressedImageResult | null>(null);
   const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
@@ -121,9 +131,14 @@ export default function AssistantPage() {
   }, [messages.length, isSending, scrollChatToBottom]);
 
   useEffect(() => {
-    chatAbortRef.current?.abort();
-    setMessages([]);
-    setActiveThreadId(null);
+    const prev = prevEntityIdRef.current;
+    const next = currentEntity?.id;
+    prevEntityIdRef.current = next;
+    if (prev && next && prev !== next) {
+      chatAbortRef.current?.abort();
+      setMessages([]);
+      setActiveThreadId(null);
+    }
   }, [currentEntity?.id]);
 
   // 2. Document / Invoice Vision Scanner state (paginated 10 per page from DB)
@@ -702,11 +717,11 @@ export default function AssistantPage() {
         setScanFileName(full.bankFileName || full.title);
         setScanPreviewUrl(null);
         setActiveScanBatchId(full.id);
-        setActiveTab("scan");
+        handleTabChange("scan");
         toast.success("Saqlangan hujjat ochildi");
       } else {
         setContractResult(full.sanitizedPayload as ScannedDocResult);
-        setActiveTab("contract");
+        handleTabChange("contract");
         toast.success("Saqlangan shartnoma tahlili ochildi");
       }
     } catch (err: any) {
@@ -727,7 +742,7 @@ export default function AssistantPage() {
 
       <QuickEntityBanner />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="h-9 text-xs flex-wrap">
           <TabsTrigger value="chat" className="gap-1.5 text-xs">
             <Sparkles className="h-3.5 w-3.5" />
@@ -870,7 +885,7 @@ export default function AssistantPage() {
                                     scan={m.scanResult}
                                     isDuplicate={m.scanDuplicate}
                                     posted={m.scanPosted}
-                                    canPost={Boolean(currentEntity?.id)}
+                                    canPost={FEATURES.fullAccountingErp && Boolean(currentEntity?.id)}
                                     onPostToLedger={(edited) => handlePostChatScan(m, edited)}
                                   />
                                 )}
@@ -878,7 +893,7 @@ export default function AssistantPage() {
                                   <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 text-xs space-y-2 animate-in fade-in duration-200">
                                     <div className="font-semibold text-foreground">{m.actionProposed.title}</div>
                                     <p className="text-[11px] text-muted-foreground">{m.actionProposed.summary}</p>
-                                    {m.actionStatus === "pending" ? (
+                                    {FEATURES.fullAccountingErp && m.actionStatus === "pending" ? (
                                       <div className="flex items-center gap-2">
                                         <Button
                                           size="sm"
@@ -1051,16 +1066,47 @@ export default function AssistantPage() {
                       </div>
                     )}
 
-                    <Button
-                      size="sm"
-                      variant="success"
-                      className="w-full h-8 text-xs gap-1.5"
-                      disabled={isPostingDoc || scanResult.totalAmount <= 0}
-                      onClick={handlePostScannedToLedger}
-                    >
-                      {isPostingDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                      Bosh kitobga atomik yozish
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-8 text-xs gap-1.5"
+                        onClick={async () => {
+                          const text = [
+                            `${scanResult.documentType}${scanResult.documentNumber ? ` №${scanResult.documentNumber}` : ""} (${scanResult.date})`,
+                            `Kontragent: ${scanResult.counterparty}${scanResult.counterpartyStir ? ` (STIR: ${scanResult.counterpartyStir})` : ""}`,
+                            `Jami summa: ${scanResult.totalAmount.toLocaleString("uz-UZ")} soʻm${
+                              scanResult.vatAmount > 0 ? ` | QQS 12%: ${scanResult.vatAmount.toLocaleString("uz-UZ")} soʻm` : ""
+                            }`,
+                            `Provodka: Dt ${scanResult.suggestedDebitCode} / Kt ${scanResult.suggestedCreditCode}${
+                              scanResult.vatAmount > 0 ? ` (+ QQS ${scanResult.vatAccountCode})` : ""
+                            }`,
+                          ].join("\n");
+                          try {
+                            await navigator.clipboard.writeText(text);
+                            toast.success("Natija va provodka nusxalandi");
+                          } catch {
+                            toast.error("Nusxalab boʻlmadi");
+                          }
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Natijani nusxalash
+                      </Button>
+                      {FEATURES.fullAccountingErp && (
+                        <Button
+                          size="sm"
+                          variant="success"
+                          className="flex-1 h-8 text-xs gap-1.5"
+                          disabled={isPostingDoc || scanResult.totalAmount <= 0}
+                          onClick={handlePostScannedToLedger}
+                        >
+                          {isPostingDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                          Bosh kitobga atomik yozish
+                        </Button>
+                      )}
+                    </div>
                   </>
                 )}
               </CardContent>
@@ -1216,7 +1262,7 @@ export default function AssistantPage() {
                     <span className="font-mono"><Money amount={payrollCalc.socialTax12} /></span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Jami korxona xarajati:</span>
+                    <span className="text-muted-foreground">Ish beruvchining jami xarajati:</span>
                     <span className="font-mono font-semibold"><Money amount={payrollCalc.totalEmployerCost} /></span>
                   </div>
                 </div>
@@ -1418,7 +1464,9 @@ export default function AssistantPage() {
                     Saqlangan ishlar tarixi ({allHistoryCount})
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Korxona va oy kesimida barcha yuklangan bank/1C fayllari, chek skanerlari va shartnomalar (sahifada 10 tadan bazadan yuklanadi).
+                    {FEATURES.multiCompanyMode
+                      ? "Korxona va oy kesimida barcha yuklangan bank/1C fayllari, chek skanerlari va shartnomalar (sahifada 10 tadan bazadan yuklanadi)."
+                      : "Oy kesimida barcha bank/1C solishtirishlari, chek skanerlari va shartnomalar (sahifada 10 tadan bazadan yuklanadi)."}
                   </CardDescription>
                 </div>
 
@@ -1481,18 +1529,16 @@ export default function AssistantPage() {
             </CardHeader>
 
             <CardContent className="p-0 overflow-x-auto">
-              {!currentEntity?.id ? (
-                <div className="py-8 text-center text-xs text-muted-foreground">
-                  Tarixni koʻrish uchun yuqoridan korxona tanlang.
-                </div>
-              ) : isLoadingHistory ? (
+              {!isContextReady || isLoadingHistory ? (
                 <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
                   Tarix yuklanmoqda...
                 </div>
-              ) : allHistory.length === 0 ? (
+              ) : !currentEntity?.id || allHistory.length === 0 ? (
                 <div className="py-8 text-center text-xs text-muted-foreground">
-                  Hozircha saqlangan ishlar tarixi yoʻq. Chek rasmini yuboring yoki Bank ↔ 1C fayl yuklang.
+                  {FEATURES.multiCompanyMode && !currentEntity?.id
+                    ? "Tarixni koʻrish uchun yuqoridan korxona tanlang."
+                    : "Hozircha saqlangan ishlar tarixi yoʻq. Chek rasmini yuboring yoki Bank ↔ 1C fayl yuklang."}
                 </div>
               ) : (
                 <Table>
@@ -1594,5 +1640,13 @@ export default function AssistantPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function AssistantPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+      <AssistantContent />
+    </Suspense>
   );
 }

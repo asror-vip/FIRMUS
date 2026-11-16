@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,11 @@ import {
   Settings,
   Scale,
   Sparkles,
+  Camera,
+  Calculator,
+  FileWarning,
+  History,
+  CreditCard,
   X,
 } from "lucide-react";
 
@@ -26,17 +32,30 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const router = useRouter();
 
-  const navigationItems = [
-    { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
-    { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
-    { name: "AI Hamkasb & Skaner", href: "/assistant", icon: Sparkles },
-    { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
-    { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
-    { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
-    { name: t.nav.tax, href: "/tax", icon: Percent },
-    { name: t.nav.finance, href: "/finance", icon: TrendingUp },
-    { name: t.nav.settings, href: "/settings", icon: Settings },
-  ];
+  const navigationItems = FEATURES.fullAccountingErp
+    ? [
+        { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
+        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
+        { name: "AI Hamkasb & Skaner", href: "/assistant", icon: Sparkles },
+        { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
+        { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
+        { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
+        { name: t.nav.tax, href: "/tax", icon: Percent },
+        { name: t.nav.finance, href: "/finance", icon: TrendingUp },
+        { name: "Obunalar", href: "/billing", icon: CreditCard },
+        { name: t.nav.settings, href: "/settings", icon: Settings },
+      ]
+    : [
+        { name: "Bosh sahifa", href: "/", icon: LayoutDashboard },
+        { name: "AI Chat", href: "/assistant", icon: Sparkles },
+        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
+        { name: "Faktura / Chek Skaner", href: "/assistant?tab=scan", icon: Camera },
+        { name: "Kalkulyator", href: "/assistant?tab=calc", icon: Calculator },
+        { name: "Shartnoma tahlili", href: "/assistant?tab=contract", icon: FileWarning },
+        { name: "Saqlangan tarix", href: "/assistant?tab=history", icon: History },
+        { name: "Obunalar", href: "/billing", icon: CreditCard },
+        { name: t.nav.settings, href: "/settings", icon: Settings },
+      ];
 
   const filtered = navigationItems.filter((item) =>
     item.name.toLowerCase().includes(query.toLowerCase())

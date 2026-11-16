@@ -4,7 +4,15 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useRouter } from "next/navigation";
 import { BusinessEntity, UserRole, Workspace } from "@/lib/types/accounting";
 import { supabase } from "@/lib/supabase/client";
-import { fetchBusinessEntities, fetchWorkspaces } from "@/lib/services/supabase-service";
+import { FEATURES } from "@/lib/config/features";
+import {
+  createBusinessEntity,
+  createWorkspaceRecord,
+  fetchBusinessEntities,
+  fetchWorkspaces,
+} from "@/lib/services/supabase-service";
+
+const provisionLocks = new Map<string, Promise<void>>();
 
 const EMPTY_WORKSPACE: Workspace = {
   id: "",
@@ -39,6 +47,8 @@ interface AppStateContextType {
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
 
+  isContextReady: boolean;
+
   refreshContext: () => Promise<void>;
   handleSignOut: () => Promise<void>;
 }
@@ -58,6 +68,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<"uz" | "ru" | "en">("uz");
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [isContextReady, setIsContextReady] = useState<boolean>(false);
 
   const syncRoleForWorkspace = useCallback(async (authUser: any, wsId: string) => {
     if (!authUser || !wsId) return;
@@ -75,13 +86,82 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const ensureSoloContext = useCallback(async (authUser: any) => {
+    const existingLock = provisionLocks.get(authUser.id);
+    if (existingLock) {
+      await existingLock;
+      return;
+    }
+
+    const promise = (async () => {
+      try {
+        let wsList = await fetchWorkspaces();
+        if (!wsList || wsList.length === 0) {
+          const createdWs = await createWorkspaceRecord("Shaxsiy maydon", "individual_company");
+          wsList = [createdWs];
+          try {
+            localStorage.setItem("firmus_workspace", createdWs.id);
+          } catch {}
+        }
+
+        const savedWs = typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
+        const activeWs = wsList.find((w: any) => w.id === savedWs) || wsList[0];
+
+        if (activeWs?.id) {
+          const entList = await fetchBusinessEntities();
+          const scopedEnts = (entList || []).filter(
+            (e: any) => !e.workspaceId || e.workspaceId === activeWs.id
+          );
+          if (scopedEnts.length === 0) {
+            const displayName =
+              authUser.user_metadata?.full_name ||
+              authUser.user_metadata?.name ||
+              (authUser.email ? authUser.email.split("@")[0] : "Shaxsiy profil");
+            const createdEnt = await createBusinessEntity({
+              workspaceId: activeWs.id,
+              legalName: String(displayName).slice(0, 120) || "Shaxsiy profil",
+              tinStir: "000000000",
+              companyType: "YaTT",
+              taxRegime: "vat_profit_tax",
+              accountantName: String(displayName).slice(0, 120) || "Foydalanuvchi",
+            });
+            try {
+              localStorage.setItem("firmus_entity", createdEnt.id);
+            } catch {}
+          }
+        }
+      } finally {
+        provisionLocks.delete(authUser.id);
+      }
+    })();
+
+    provisionLocks.set(authUser.id, promise);
+    await promise;
+  }, []);
+
   const loadWorkspaceAndEntities = useCallback(
     async (authUser: any) => {
       try {
-        const [realWorkspaces, realEntities] = await Promise.all([
+        let [realWorkspaces, realEntities] = await Promise.all([
           fetchWorkspaces(),
           fetchBusinessEntities(),
         ]);
+
+        if (!FEATURES.multiCompanyMode) {
+          const savedWsId = typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
+          const candidateWs = (realWorkspaces || []).find((w: any) => w.id === savedWsId) || realWorkspaces?.[0];
+          const hasScopedEntity = candidateWs
+            ? (realEntities || []).some((e: any) => !e.workspaceId || e.workspaceId === candidateWs.id)
+            : false;
+
+          if (!candidateWs || !hasScopedEntity) {
+            await ensureSoloContext(authUser);
+            [realWorkspaces, realEntities] = await Promise.all([
+              fetchWorkspaces(),
+              fetchBusinessEntities(),
+            ]);
+          }
+        }
 
         const safeWorkspaces = (realWorkspaces || []) as Workspace[];
         setWorkspaces(safeWorkspaces);
@@ -116,9 +196,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.error("Error loading workspace/entities in AppStateProvider:", err);
+      } finally {
+        setIsContextReady(true);
       }
     },
-    [syncRoleForWorkspace]
+    [ensureSoloContext, syncRoleForWorkspace]
   );
 
   const refreshContext = useCallback(async () => {
@@ -144,9 +226,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (isMounted && authUser) {
           setUser(authUser);
           await loadWorkspaceAndEntities(authUser);
+        } else if (isMounted) {
+          setIsContextReady(true);
         }
       } catch (err) {
         console.error("Error initializing session in AppStateProvider:", err);
+        if (isMounted) setIsContextReady(true);
       }
     }
 
@@ -270,6 +355,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         isSearchOpen,
         setIsSearchOpen,
+
+        isContextReady,
 
         refreshContext,
         handleSignOut,

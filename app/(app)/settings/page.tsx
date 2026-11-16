@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import {
   fetchBusinessEntities,
   createBusinessEntity,
@@ -26,6 +28,8 @@ import {
   Globe,
   CheckCircle2,
   Plus,
+  User,
+  CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
@@ -57,7 +61,7 @@ function SettingsContent() {
     accountantName: "Bosh buxgalter",
   });
 
-  const [activeTab, setActiveTab] = useState("entities");
+  const [activeTab, setActiveTab] = useState(FEATURES.multiCompanyMode ? "entities" : "profile");
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
@@ -66,10 +70,16 @@ function SettingsContent() {
   useEffect(() => {
     const action = searchParams.get("action");
     const tabParam = searchParams.get("tab");
-    if (action === "add-entity") {
+    if (action === "add-entity" && FEATURES.multiCompanyMode) {
       setActiveTab("entities");
       setIsAddEntityOpen(true);
-    } else if (tabParam && ["entities", "security", "notifications", "language"].includes(tabParam)) {
+    } else if (
+      tabParam &&
+      (FEATURES.multiCompanyMode
+        ? ["entities", "profile", "security", "notifications", "language"]
+        : ["profile", "security", "notifications", "language"]
+      ).includes(tabParam)
+    ) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -98,6 +108,10 @@ function SettingsContent() {
   };
 
   const loadEntities = useCallback(async () => {
+    if (!FEATURES.multiCompanyMode) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const data = await fetchBusinessEntities();
@@ -206,15 +220,23 @@ function SettingsContent() {
           {t.pages.settings.title}
         </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {t.pages.settings.subtitle}
+          {FEATURES.multiCompanyMode
+            ? t.pages.settings.subtitle
+            : "Shaxsiy profil, xavfsizlik, bildirishnomalar va interfeys tili"}
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="h-9 flex-wrap">
-          <TabsTrigger value="entities" className="text-xs gap-1.5">
-            <Building className="h-3.5 w-3.5" />
-            {t.pages.settings.tabs.entities}
+          {FEATURES.multiCompanyMode && (
+            <TabsTrigger value="entities" className="text-xs gap-1.5">
+              <Building className="h-3.5 w-3.5" />
+              {t.pages.settings.tabs.entities}
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="profile" className="text-xs gap-1.5">
+            <User className="h-3.5 w-3.5" />
+            Profil
           </TabsTrigger>
           <TabsTrigger value="security" className="text-xs gap-1.5">
             <Shield className="h-3.5 w-3.5" />
@@ -230,7 +252,57 @@ function SettingsContent() {
           </TabsTrigger>
         </TabsList>
 
-        {/* 1. Entities Management Tab */}
+        <TabsContent value="profile" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Shaxsiy hisob maʼlumotlari</CardTitle>
+              <CardDescription className="text-xs">
+                Akkauntingiz va joriy obuna holati
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <span className="text-[11px] text-muted-foreground block">Ism / Profil</span>
+                  <span className="font-semibold text-foreground mt-0.5 block">
+                    {user?.user_metadata?.full_name ||
+                      user?.user_metadata?.name ||
+                      (user?.email ? user.email.split("@")[0] : "Foydalanuvchi")}
+                  </span>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <span className="text-[11px] text-muted-foreground block">Elektron pochta</span>
+                  <span className="font-mono font-medium text-foreground mt-0.5 block truncate">
+                    {user?.email || "—"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border p-3.5">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">Joriy tarif</span>
+                    <Badge variant="indigo" className="text-[10px] capitalize">
+                      {currentWorkspace?.currentPlan || "professional"}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Tarif va oylik foydalanish limitlarini Obunalar sahifasida koʻring
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline" className="h-8 text-xs gap-1.5 shrink-0">
+                  <Link href="/billing">
+                    <CreditCard className="h-3.5 w-3.5" />
+                    Obunalarni ochish
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 1. Entities Management Tab (Multi-Company B2B mode only) */}
+        {FEATURES.multiCompanyMode && (
         <TabsContent value="entities" className="space-y-4 mt-4">
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
@@ -325,6 +397,7 @@ function SettingsContent() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
         {/* 2. Security Tab */}
         <TabsContent value="security" className="space-y-4 mt-4">

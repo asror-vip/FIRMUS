@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ export function AiDrawer() {
   const { t } = useTranslation();
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const abortCtrlRef = useRef<AbortController | null>(null);
+  const prevEntityIdRef = useRef<string | undefined>(currentEntity?.id);
 
   const [input, setInput] = useState("");
   const [attachedImage, setAttachedImage] = useState<CompressedImageResult | null>(null);
@@ -81,12 +83,17 @@ export function AiDrawer() {
   }, [messages.length, isSending, scrollToBottom]);
 
   useEffect(() => {
-    abortCtrlRef.current?.abort();
-    setMessages([]);
-    setActiveThreadId(null);
-    setInput("");
-    setAttachedImage(null);
-    setIsHistoryView(false);
+    const prev = prevEntityIdRef.current;
+    const next = currentEntity?.id;
+    prevEntityIdRef.current = next;
+    if (prev && next && prev !== next) {
+      abortCtrlRef.current?.abort();
+      setMessages([]);
+      setActiveThreadId(null);
+      setInput("");
+      setAttachedImage(null);
+      setIsHistoryView(false);
+    }
   }, [currentEntity?.id]);
 
   const persistThread = async (
@@ -494,7 +501,7 @@ export function AiDrawer() {
                             scan={msg.scanResult}
                             isDuplicate={msg.scanDuplicate}
                             posted={msg.scanPosted}
-                            canPost={Boolean(currentEntity?.id)}
+                            canPost={FEATURES.fullAccountingErp && Boolean(currentEntity?.id)}
                             onPostToLedger={(edited) => handlePostScanMessage(msg, edited)}
                           />
                         )}
@@ -559,7 +566,7 @@ export function AiDrawer() {
                               </div>
                             )}
 
-                            {msg.actionStatus === "pending" && (
+                            {FEATURES.fullAccountingErp && msg.actionStatus === "pending" && (
                               <div className="mt-2.5 flex items-center gap-1.5 pt-1">
                                 <Button
                                   size="sm"

@@ -4,11 +4,12 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { FEATURES } from "@/lib/config/features";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Mail, Lock, ArrowRight, Loader2, Building2 } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2, Building2, User } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -140,16 +141,20 @@ export default function RegisterPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="font-semibold text-foreground">
-                    Kompaniya / Taxallus:
+                    {FEATURES.multiCompanyMode ? "Kompaniya / Taxallus:" : "Ismingiz:"}
                   </label>
                   <span className="text-[10px] text-muted-foreground">ixtiyoriy</span>
                 </div>
                 <div className="relative">
-                  <Building2 className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  {FEATURES.multiCompanyMode ? (
+                    <Building2 className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  )}
                   <Input
                     value={workspaceAlias}
                     onChange={(e) => setWorkspaceAlias(e.target.value)}
-                    placeholder="Kompaniya nomi"
+                    placeholder={FEATURES.multiCompanyMode ? "Kompaniya nomi" : "Ism familiya"}
                     className="pl-8 text-xs h-9"
                   />
                 </div>

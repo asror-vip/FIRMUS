@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { createBusinessEntity, createWorkspaceRecord } from "@/lib/services/supabase-service";
 import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ export function QuickEntityBanner() {
   const [taxRegime, setTaxRegime] = useState<"vat_profit_tax" | "turnover_tax">("vat_profit_tax");
   const [isSaving, setIsSaving] = useState(false);
 
-  if (!user?.id || currentEntity?.id) {
+  if (!FEATURES.multiCompanyMode || !user?.id || currentEntity?.id) {
     return null;
   }
 

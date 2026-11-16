@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { createWorkspaceRecord, createBusinessEntity } from "@/lib/services/supabase-service";
 import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,6 +29,20 @@ export default function OnboardingPage() {
   const [entityName, setEntityName] = useState("");
   const [stir, setStir] = useState("");
   const [taxRegime, setTaxRegime] = useState("vat_profit_tax");
+
+  useEffect(() => {
+    if (!FEATURES.multiCompanyMode) {
+      router.replace("/");
+    }
+  }, [router]);
+
+  if (!FEATURES.multiCompanyMode) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 text-xs text-muted-foreground">
+        Asboblar paneliga yoʻnaltirilmoqda...
+      </div>
+    );
+  }
 
   const nextStep = () => {
     if (step === 2 && workspaceName.trim().length < 3) {

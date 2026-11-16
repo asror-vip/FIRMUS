@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -299,7 +300,7 @@ export default function ReconcilePage() {
 
   const handleSaveBatchToHistory = async (markPosted = false): Promise<string | null> => {
     if (!currentEntity?.id) {
-      toast.error("Saqlash uchun avval korxona qoʻshing");
+      toast.error(FEATURES.multiCompanyMode ? "Saqlash uchun avval korxona qoʻshing" : "Shaxsiy hisob tayyorlanmoqda, biroz kuting");
       return null;
     }
     if (!summary || rows.length === 0) return null;
@@ -713,16 +714,18 @@ export default function ReconcilePage() {
                   <ClipboardPaste className="h-3 w-3" />
                   Nusxa qoʻyish
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
-                  onClick={handleLoadDbAs1C}
-                >
-                  <Database className="h-3 w-3" />
-                  Saytdagi baza
-                </Button>
+                {FEATURES.fullAccountingErp && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={handleLoadDbAs1C}
+                  >
+                    <Database className="h-3 w-3" />
+                    Saytdagi baza
+                  </Button>
+                )}
               </div>
               {oneCItems.length > 0 && (
                 <Badge variant="outline" className="text-[10px]">
@@ -881,7 +884,7 @@ export default function ReconcilePage() {
                   {activeBatchId ? "Saqlangan" : "Tarixga saqlash"}
                 </Button>
               )}
-              {selectedIds.length > 0 && (
+              {FEATURES.fullAccountingErp && selectedIds.length > 0 && (
                 <Button
                   size="sm"
                   variant="success"

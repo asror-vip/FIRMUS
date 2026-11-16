@@ -6,6 +6,7 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 import { EntitySwitcher } from "./entity-switcher";
 import { NotificationsPopover } from "./notifications-popover";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -60,16 +61,24 @@ export function Topbar() {
     .toUpperCase() || "FM";
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 flex h-16 w-full items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      {/* Left side: Workspace & Entity switchers */}
-      <div className="flex items-center gap-2">
-        <WorkspaceSwitcher />
-        <span className="text-muted-foreground/40 hidden sm:inline">/</span>
-        <EntitySwitcher />
-      </div>
+    <header className="sticky top-0 z-30 shrink-0 flex h-16 w-full items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      {/* Left side: Workspace & Entity switchers (B2B mode only) */}
+      {FEATURES.multiCompanyMode && (
+        <div className="flex items-center gap-2">
+          <WorkspaceSwitcher />
+          <span className="text-muted-foreground/40 hidden sm:inline">/</span>
+          <EntitySwitcher />
+        </div>
+      )}
 
-      {/* Middle: Command Palette Search */}
-      <div className="hidden md:flex flex-1 max-w-sm mx-4">
+      {/* Command Palette Search */}
+      <div
+        className={
+          FEATURES.multiCompanyMode
+            ? "hidden md:flex flex-1 max-w-sm mx-4"
+            : "flex flex-1 max-w-md"
+        }
+      >
         <button
           onClick={() => setIsSearchOpen(true)}
           className="flex h-9 w-full items-center justify-between rounded-lg border border-border bg-muted/40 px-3 text-xs text-muted-foreground hover:bg-muted/70 transition-colors"
@@ -78,7 +87,7 @@ export function Topbar() {
             <Search className="h-3.5 w-3.5" />
             <span>{t.common.search}</span>
           </div>
-          <kbd className="pointer-events-none flex h-5 select-none items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+          <kbd className="pointer-events-none hidden sm:flex h-5 select-none items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
             ⌘K
           </kbd>
         </button>
@@ -96,8 +105,8 @@ export function Topbar() {
           <span className="hidden sm:inline">FIRMUS AI</span>
         </Button>
 
-        {/* Enhanced Multi-Category Notifications Popover */}
-        <NotificationsPopover />
+        {/* Enhanced Multi-Category Notifications Popover (Full ERP mode) */}
+        {FEATURES.fullAccountingErp && <NotificationsPopover />}
 
         {/* Theme Toggle */}
         <Button
@@ -160,11 +169,13 @@ export function Topbar() {
               <p className="text-[11px] leading-none text-muted-foreground font-mono truncate">
                 {displayEmail}
               </p>
-              <div className="pt-1.5 flex items-center gap-1.5">
-                <Badge variant="indigo" className="text-[10px] px-1.5 py-0 h-4 font-normal">
-                  {t.roles[currentRole] || currentRole}
-                </Badge>
-              </div>
+              {FEATURES.teamMode && (
+                <div className="pt-1.5 flex items-center gap-1.5">
+                  <Badge variant="indigo" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+                    {t.roles[currentRole] || currentRole}
+                  </Badge>
+                </div>
+              )}
             </div>
 
             <DropdownMenuSeparator />

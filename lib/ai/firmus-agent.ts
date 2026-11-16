@@ -99,9 +99,14 @@ function buildFirmusSystemInstruction(params: {
       ? "Aylanmadan olinadigan soliq (4%)"
       : "Qat'iy belgilangan soliq";
 
+  const entityContextLine =
+    entity.tin_stir && entity.tin_stir !== "000000000"
+      ? `Faol korxona: «${entity.legal_name}» (STIR: ${entity.tin_stir}, Valyuta: ${entity.currency || "UZS"}, Soliq rejimi: ${taxLabel}).`
+      : `Rejim: Shaxsiy buxgalteriya va soliq asboblari (Valyuta: ${entity.currency || "UZS"}, Soliq rejimi: ${taxLabel}).`;
+
   return [
     "Siz FIRMUS — O'zbekiston buxgalteriyasi (21-son BHMS va O'zR Soliq kodeksi) bo'yicha QAT'IY, XATOSIZ rasmiy AI Agentsiz.",
-    `Faol korxona: «${entity.legal_name}» (STIR: ${entity.tin_stir}, Valyuta: ${entity.currency || "UZS"}, Soliq rejimi: ${taxLabel}).`,
+    entityContextLine,
     `Joriy foydalanuvchi roli: ${userRole}. Bugungi sana: ${todayIso()}.`,
     "",
     "KORXONANING FAOL SCHYOTLAR REJASI (21-BHMS):",

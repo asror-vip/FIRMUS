@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
 import {
@@ -18,6 +19,10 @@ import {
   PanelLeft,
   Scale,
   CreditCard,
+  Camera,
+  Calculator,
+  FileWarning,
+  History,
 } from "lucide-react";
 
 interface NavigationItem {
@@ -31,13 +36,101 @@ interface NavigationGroup {
   items: NavigationItem[];
 }
 
+function SidebarNavigation({
+  pathname,
+  isCollapsed,
+  groups,
+}: {
+  pathname: string;
+  isCollapsed: boolean;
+  groups: NavigationGroup[];
+}) {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+
+  return (
+    <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-5">
+      {groups.map((group, groupIdx) => (
+        <div key={groupIdx} className="space-y-0.5">
+          {!isCollapsed && (
+            <div className="px-2 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider mb-1">
+              {group.label}
+            </div>
+          )}
+
+          {group.items.map((item) => {
+            const Icon = item.icon;
+            const [basePath, queryStr] = item.href.split("?");
+            const itemTab = queryStr ? new URLSearchParams(queryStr).get("tab") : null;
+            const isActive =
+              item.href === "/"
+                ? pathname === "/"
+                : itemTab
+                ? pathname.startsWith(basePath) && tabParam === itemTab
+                : basePath === "/assistant"
+                ? pathname.startsWith("/assistant") && (!tabParam || tabParam === "chat")
+                : pathname.startsWith(basePath);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                title={isCollapsed ? item.name : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors relative group",
+                  isActive
+                    ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
+                    isActive ? "text-primary-foreground" : "text-muted-foreground"
+                  )}
+                />
+
+                {!isCollapsed && (
+                  <span className="truncate flex-1">{item.name}</span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { toggleAiDrawer } = useAppState();
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const navigationGroups: NavigationGroup[] = [
+  const soloToolsGroups: NavigationGroup[] = [
+    {
+      label: "Asboblar",
+      items: [
+        { name: "Bosh sahifa", href: "/", icon: LayoutDashboard },
+        { name: "AI Chat", href: "/assistant", icon: Sparkles },
+        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
+        { name: "Faktura / Chek Skaner", href: "/assistant?tab=scan", icon: Camera },
+        { name: "Kalkulyator", href: "/assistant?tab=calc", icon: Calculator },
+        { name: "Shartnoma tahlili", href: "/assistant?tab=contract", icon: FileWarning },
+        { name: "Saqlangan tarix", href: "/assistant?tab=history", icon: History },
+      ],
+    },
+    {
+      label: t.nav.groups.system,
+      items: [
+        { name: "Obunalar", href: "/billing", icon: CreditCard },
+        { name: t.nav.settings, href: "/settings", icon: Settings },
+      ],
+    },
+  ];
+
+  const fullErpGroups: NavigationGroup[] = [
     {
       label: t.nav.groups.overview,
       items: [
@@ -69,6 +162,8 @@ export function Sidebar() {
       ],
     },
   ];
+
+  const navigationGroups = FEATURES.fullAccountingErp ? fullErpGroups : soloToolsGroups;
 
   return (
     <aside
@@ -107,7 +202,7 @@ export function Sidebar() {
                   FIRMUS
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono leading-none">
-                  AI SaaS • Oʻzbekiston
+                  {FEATURES.multiCompanyMode ? "AI SaaS • Oʻzbekiston" : "AI Tools • Buxgalteriya"}
                 </span>
               </div>
             </Link>
@@ -123,53 +218,13 @@ export function Sidebar() {
       </div>
 
       {/* Navigation Groups */}
-      <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-5">
-        {navigationGroups.map((group, groupIdx) => (
-          <div key={groupIdx} className="space-y-0.5">
-            {!isCollapsed && (
-              <div className="px-2 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider mb-1">
-                {group.label}
-              </div>
-            )}
-
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const cleanHref = item.href.split("?")[0];
-              const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : item.href.includes("?")
-                  ? false
-                  : pathname.startsWith(cleanHref);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={isCollapsed ? item.name : undefined}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors relative group",
-                    isActive
-                      ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
-                      isActive ? "text-primary-foreground" : "text-muted-foreground"
-                    )}
-                  />
-
-                  {!isCollapsed && (
-                    <span className="truncate flex-1">{item.name}</span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
-      </div>
+      <Suspense fallback={<div className="flex-1 px-2.5 py-3" />}>
+        <SidebarNavigation
+          pathname={pathname}
+          isCollapsed={isCollapsed}
+          groups={navigationGroups}
+        />
+      </Suspense>
 
       {/* AI Quick Trigger Box (when expanded) */}
       {!isCollapsed && (
