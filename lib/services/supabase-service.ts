@@ -107,11 +107,11 @@ export async function fetchBusinessEntities() {
       companyType: ent.company_type || "MChJ",
       taxRegime: ent.tax_regime || "vat_profit_tax",
       currency: ent.currency || "UZS",
-      accountantName: ent.accountant_name || "Azizbek Rahimov",
+      accountantName: ent.accountant_name || "Bosh buxgalter",
       isActive: ent.is_active,
-      directorName: "Masʼul rahbar",
-      bankAccount: "20208000700543210001",
-      bankName: "ATB Kapitalbank",
+      directorName: "",
+      bankAccount: "",
+      bankName: "",
     }));
   } catch (err) {
     console.error("fetchBusinessEntities exception:", err);

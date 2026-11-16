@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

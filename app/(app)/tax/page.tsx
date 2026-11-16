@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { TaxRecord } from "@/lib/mock/types";
+import { TaxRecord } from "@/lib/types/accounting";
 import {
   fetchTrialBalance,
   createJournalEntryRecord,
@@ -10,7 +10,7 @@ import {
   fetchTaxDeadlines,
   payTaxRecordInDb,
 } from "@/lib/services/supabase-service";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

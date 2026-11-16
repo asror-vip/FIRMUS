@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { createWorkspaceRecord } from "@/lib/services/supabase-service";
 import {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { fetchTrialBalance, fetchTransactions } from "@/lib/services/supabase-service";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";

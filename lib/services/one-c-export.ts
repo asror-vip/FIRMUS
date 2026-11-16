@@ -24,10 +24,10 @@ export function generate1CClientBankText(
     bank: string;
     openingBalance?: number;
   } = {
-    name: 'OOO "FIRMUS PARTNER"',
-    inn: "300000000",
-    account: "20208000000000000000",
-    bank: "Tijorat banki",
+    name: "Kompaniya",
+    inn: "",
+    account: "",
+    bank: "",
     openingBalance: 0,
   }
 ): string {
@@ -65,8 +65,8 @@ export function generate1CClientBankText(
     if (tx.type === "income") {
       // Payer is Counterparty, Receiver is Us
       txt += `Плательщик=${tx.counterparty}\r\n`;
-      txt += `ПлательщикИНН=${tx.counterpartyStir || "300000000"}\r\n`;
-      txt += `ПлательщикРасчСчет=20208000000000000000\r\n`;
+      txt += `ПлательщикИНН=${tx.counterpartyStir || ""}\r\n`;
+      txt += `ПлательщикРасчСчет=\r\n`;
       txt += `Получатель=${entityInfo.name}\r\n`;
       txt += `ПолучательИНН=${entityInfo.inn}\r\n`;
       txt += `ПолучательРасчСчет=${entityInfo.account}\r\n`;
@@ -76,8 +76,8 @@ export function generate1CClientBankText(
       txt += `ПлательщикИНН=${entityInfo.inn}\r\n`;
       txt += `ПлательщикРасчСчет=${entityInfo.account}\r\n`;
       txt += `Получатель=${tx.counterparty}\r\n`;
-      txt += `ПолучательИНН=${tx.counterpartyStir || "300000000"}\r\n`;
-      txt += `ПолучательРасчСчет=20208000000000000000\r\n`;
+      txt += `ПолучательИНН=${tx.counterpartyStir || ""}\r\n`;
+      txt += `ПолучательРасчСчет=\r\n`;
     }
 
     txt += `НазначениеПлатежа=${tx.description}\r\n`;

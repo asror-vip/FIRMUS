@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import {
   fetchBusinessEntities,
   createBusinessEntity,
@@ -498,7 +498,7 @@ function SettingsContent() {
             <div>
               <Label className="text-[11px] font-medium text-foreground">Yuridik nomi *</Label>
               <Input
-                placeholder="ORIENT LOGISTICS GROUP MChJ"
+                placeholder='Masalan: MChJ "Korxona nomi"'
                 value={newEntity.legalName}
                 onChange={(e) => setNewEntity({ ...newEntity, legalName: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -510,7 +510,7 @@ function SettingsContent() {
               <div>
                 <Label className="text-[11px] font-medium text-foreground">Savdo belgisi (Brend)</Label>
                 <Input
-                  placeholder="Orient Logistics"
+                  placeholder="Qisqa nomi (ixtiyoriy)"
                   value={newEntity.tradeName}
                   onChange={(e) => setNewEntity({ ...newEntity, tradeName: e.target.value })}
                   className="h-8 text-xs mt-1"
@@ -519,7 +519,7 @@ function SettingsContent() {
               <div>
                 <Label className="text-[11px] font-medium text-foreground">STIR (9 ta raqam) *</Label>
                 <Input
-                  placeholder="309112233"
+                  placeholder="9 xonali STIR"
                   maxLength={9}
                   value={newEntity.tinStir}
                   onChange={(e) => setNewEntity({ ...newEntity, tinStir: e.target.value })}
@@ -559,9 +559,9 @@ function SettingsContent() {
             </div>
 
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Masʼul bosh buxgalter F.I.O</Label>
+              <Label className="text-[11px] font-medium text-foreground">Masʼul lavozimi (ixtiyoriy)</Label>
               <Input
-                placeholder="Azizbek Rahimov"
+                placeholder="Bosh buxgalter"
                 value={newEntity.accountantName}
                 onChange={(e) => setNewEntity({ ...newEntity, accountantName: e.target.value })}
                 className="h-8 text-xs mt-1"

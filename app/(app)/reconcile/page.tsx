@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useMemo } from "react";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,95 +48,11 @@ import {
   ShieldCheck,
   Loader2,
   Database,
-  Play,
   RotateCcw,
   ClipboardPaste,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
-
-const DEMO_BANK_TEXT = [
-  "1CClientBankExchange",
-  "СекцияДокумент=Платежное поручение",
-  "Номер=201",
-  "Дата=15.11.2026",
-  "Сумма=25000000.00",
-  "Плательщик1=OOO BARAKA SAVDO",
-  "ПлательщикИНН=305112233",
-  "Получатель1=OOO FIRMUS PARTNER",
-  "ПолучательИНН=308554433",
-  "НазначениеПлатежа=Shartnoma 12 bo'yicha tovar uchun to'lov QQS 12% bilan",
-  "КонецДокумента",
-  "СекцияДокумент=Платежное поручение",
-  "Номер=202",
-  "Дата=15.11.2026",
-  "Сумма=11200000.00",
-  "Плательщик1=OOO FIRMUS PARTNER",
-  "ПлательщикИНН=308554433",
-  "Получатель1=OOO TEXNO TA'MINOT",
-  "ПолучательИНН=307445566",
-  "НазначениеПлатежа=Uskunalar uchun to'lov QQS 12% bilan",
-  "КонецДокумента",
-  "СекцияДокумент=Платежное поручение",
-  "Номер=203",
-  "Дата=15.11.2026",
-  "Сумма=380000.00",
-  "Плательщик1=OOO FIRMUS PARTNER",
-  "ПлательщикИНН=308554433",
-  "Получатель1=ATB Kapitalbank",
-  "ПолучательИНН=201020304",
-  "НазначениеПлатежа=Oylik RKO va bank komissiyasi",
-  "КонецДокумента",
-  "СекцияДокумент=Платежное поручение",
-  "Номер=204",
-  "Дата=15.11.2026",
-  "Сумма=4500000.00",
-  "Плательщик1=OOO SHARQ BIZNES",
-  "ПлательщикИНН=303889900",
-  "Получатель1=OOO FIRMUS PARTNER",
-  "ПолучательИНН=308554433",
-  "НазначениеПлатежа=Yangi shartnoma bo'yicha oldindan bo'nak (avans)",
-  "КонецДокумента",
-].join("\r\n");
-
-const DEMO_1C_XML = `<?xml version="1.0" encoding="UTF-8"?>
-<EnterpriseData formatVersion="1.8">
-  <Body>
-    <Operation id="OP-1">
-      <Number>201</Number>
-      <Date>2026-11-15</Date>
-      <Counterparty>OOO BARAKA SAVDO</Counterparty>
-      <STIR>305112233</STIR>
-      <Comment>Shartnoma 12 tushum</Comment>
-      <Lines>
-        <Line num="1"><AccountCode>5110</AccountCode><Debit>25000000</Debit><Credit>0</Credit></Line>
-        <Line num="2"><AccountCode>4010</AccountCode><Debit>0</Debit><Credit>25000000</Credit></Line>
-      </Lines>
-    </Operation>
-    <Operation id="OP-2">
-      <Number>202</Number>
-      <Date>2026-11-15</Date>
-      <Counterparty>OOO TEXNO TA'MINOT</Counterparty>
-      <STIR>307445566</STIR>
-      <Comment>Uskunalar uchun to'lov (QQSsiz kiritilgan)</Comment>
-      <Lines>
-        <Line num="1"><AccountCode>6010</AccountCode><Debit>10000000</Debit><Credit>0</Credit></Line>
-        <Line num="2"><AccountCode>5110</AccountCode><Debit>0</Debit><Credit>10000000</Credit></Line>
-      </Lines>
-    </Operation>
-    <Operation id="OP-3">
-      <Number>205</Number>
-      <Date>2026-11-14</Date>
-      <Counterparty>OOO MILLIY LOGISTIKA</Counterparty>
-      <STIR>309991122</STIR>
-      <Comment>1C da kiritilgan, bankdan hali o'tmagan</Comment>
-      <Lines>
-        <Line num="1"><AccountCode>6010</AccountCode><Debit>6200000</Debit><Credit>0</Credit></Line>
-        <Line num="2"><AccountCode>5110</AccountCode><Debit>0</Debit><Credit>6200000</Credit></Line>
-      </Lines>
-    </Operation>
-  </Body>
-</EnterpriseData>`;
 
 function downloadFileBlob(content: string, fileName: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -264,17 +180,6 @@ export default function ReconcilePage() {
     }
   };
 
-  const handleRunDemo = () => {
-    const demoBank = parseStatementFile(DEMO_BANK_TEXT, "kapitalbank_demo.txt", "308554433");
-    const demo1C = parseStatementFile(DEMO_1C_XML, "1c_demo.xml", "308554433");
-    setBankFileName("kapitalbank_demo.txt (Namuna)");
-    setOneCFileName("1c_export_demo.xml (Namuna)");
-    setBankItems(demoBank);
-    setOneCItems(demo1C);
-    runComparison(demoBank, demo1C);
-    toast.success("Namuna Bank va 1C fayllari brauzer xotirasida solishtirildi!");
-  };
-
   const handleReset = () => {
     setBankFileName("");
     setOneCFileName("");
@@ -385,10 +290,10 @@ export default function ReconcilePage() {
     }
 
     const txt = generate1CClientBankText(itemsToExport, {
-      name: currentEntity?.name || "FIRMUS KORXONA",
-      inn: currentEntity?.tinStir || "300000000",
-      account: "20208000000000000000",
-      bank: "Tijorat banki",
+      name: currentEntity?.name || "Kompaniya",
+      inn: currentEntity?.tinStir || "",
+      account: currentEntity?.bankAccount || "",
+      bank: currentEntity?.bankName || "",
       openingBalance: 0,
     });
 
@@ -526,10 +431,6 @@ export default function ReconcilePage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={handleRunDemo}>
-            <Play className="h-3.5 w-3.5 text-emerald-600" />
-            Namuna bilan sinash
-          </Button>
           {rows.length > 0 && (
             <Button variant="ghost" size="sm" className="text-xs h-8 gap-1.5" onClick={handleReset}>
               <RotateCcw className="h-3.5 w-3.5" />
@@ -663,6 +564,22 @@ export default function ReconcilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {!summary && (
+        <Card className="bg-muted/20 border-dashed">
+          <CardContent className="py-6 text-xs text-muted-foreground space-y-2">
+            <div className="font-semibold text-foreground">
+              Haqiqiy ishchi fayllarni solishtirishga tayyor
+            </div>
+            <p>
+              1) Chap tomonga bankdan yuklangan <code className="font-mono text-foreground">.txt</code> (1C Client-Bank), <code className="font-mono text-foreground">.csv</code>/<code className="font-mono text-foreground">.tsv</code> yoki Excel HTML <code className="font-mono text-foreground">.xls</code> koʻchirmangizni yuklang (yoki jadvaldan <code className="font-mono text-foreground">Ctrl+V</code> qiling).
+            </p>
+            <p>
+              2) Oʻng tomonga 1C dan chiqarilgan <code className="font-mono text-foreground">.xml</code> / <code className="font-mono text-foreground">.txt</code> / <code className="font-mono text-foreground">.csv</code> faylini yuklang — bitta fayl yuklanishi bilanoq solishtirish natijasi va 21-BHMS schyot tavsiyalari chiqadi.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results & Actions */}
       {summary && (

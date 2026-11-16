@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { BusinessEntity, UserRole, Workspace } from "./types";
+import { BusinessEntity, UserRole, Workspace } from "@/lib/types/accounting";
 import { supabase } from "@/lib/supabase/client";
 import { fetchBusinessEntities, fetchWorkspaces } from "@/lib/services/supabase-service";
 

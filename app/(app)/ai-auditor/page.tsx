@@ -9,8 +9,8 @@ import {
   isValidUuid,
 } from "@/lib/services/supabase-service";
 import { createClient } from "@/lib/supabase/client";
-import { useAppState } from "@/lib/mock/store";
-import { ExceptionItem } from "@/lib/mock/types";
+import { useAppState } from "@/lib/context/app-state";
+import { ExceptionItem } from "@/lib/types/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";

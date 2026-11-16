@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { createBusinessEntity, createWorkspaceRecord } from "@/lib/services/supabase-service";
 import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Button } from "@/components/ui/button";
@@ -130,7 +130,7 @@ export function QuickEntityBanner({
               <Label htmlFor="quick-entity-stir" className="text-xs">Korxona STIR (9 raqam)</Label>
               <Input
                 id="quick-entity-stir"
-                placeholder="308554433"
+                placeholder="9 xonali STIR"
                 value={tinStir}
                 onChange={(e) => setTinStir(e.target.value.replace(/\D/g, "").slice(0, 9))}
                 maxLength={9}

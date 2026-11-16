@@ -151,7 +151,7 @@ function LoginForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
                     className="pl-8 text-xs h-9"
-                    placeholder="foydalanuvchi@firmus.uz"
+                    placeholder="ism@kompaniya.uz"
                     required
                   />
                 </div>

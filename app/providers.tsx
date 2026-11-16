@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { ThemeProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AppStateProvider } from "@/lib/mock/store";
+import { AppStateProvider } from "@/lib/context/app-state";
 import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { AiDrawer } from "@/components/shell/ai-drawer";

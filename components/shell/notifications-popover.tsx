@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchExceptions, fetchTaxDeadlines } from "@/lib/services/supabase-service";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 
 export interface NotificationItem {
   id: string;

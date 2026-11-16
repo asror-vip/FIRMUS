@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { uzTranslations } from "./dictionaries/uz";
 import { ruTranslations } from "./dictionaries/ru";
 import { enTranslations } from "./dictionaries/en";

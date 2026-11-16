@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { EntitySwitcher } from "./entity-switcher";
 import { NotificationsPopover } from "./notifications-popover";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";

@@ -12,7 +12,7 @@ import {
   createChartOfAccount,
 } from "@/lib/services/supabase-service";
 import { journalEntrySchema, getFirstZodError } from "@/lib/validations/accounting";
-import { useAppState } from "@/lib/mock/store";
+import { useAppState } from "@/lib/context/app-state";
 import { generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -25,7 +25,7 @@ import { Money } from "@/components/shared/money";
 import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet, FileCode, RotateCcw, AlertTriangle, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { JournalEntry } from "@/lib/mock/types";
+import { JournalEntry } from "@/lib/types/accounting";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function AccountingPage() {
