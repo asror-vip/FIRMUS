@@ -4,7 +4,7 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 export const metadata = {
   title: "Maxfiylik siyosati — FIRMUS",
-  description: "FIRMUS platformasida shaxsga doir va moliyaviy maʼlumotlarni himoya qilish siyosati.",
+  description: "FIRMUS platformasida Zero-PII tamoyili va moliyaviy maʼlumotlarni himoya qilish siyosati.",
 };
 
 export default function PrivacyPolicyPage() {
@@ -25,7 +25,7 @@ export default function PrivacyPolicyPage() {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-foreground">Maxfiylik siyosati (Privacy Policy)</h1>
+              <h1 className="text-xl font-bold text-foreground">Maxfiylik siyosati (Zero-PII Standarti)</h1>
               <p className="text-xs text-muted-foreground">
                 Oxirgi yangilanish: 2026-yil 16-noyabr • OʻRQ-547 talablariga muvofiq
               </p>
@@ -34,46 +34,38 @@ export default function PrivacyPolicyPage() {
 
           <div className="space-y-4 text-xs leading-relaxed text-foreground/90">
             <section className="space-y-1.5">
-              <h2 className="text-sm font-bold text-foreground">1. Umumiy qoidalar</h2>
+              <h2 className="text-sm font-bold text-foreground">1. «Zero-PII» asosiy tamoyil</h2>
               <p>
-                Ushbu Maxfiylik siyosati FIRMUS avtomatlashtirilgan buxgalteriya va biznes boshqaruvi tizimidan foydalanish
-                jarayonida foydalanuvchilar hamda yuridik shaxslarning maʼlumotlarini yigʻish, saqlash va himoya qilish
-                tartibini belgilaydi.
+                FIRMUS platformasi Oʻzbekiston Respublikasining «Shaxsga doir maʼlumotlar toʻgʻrisida»gi OʻRQ-547
+                qonuni talablariga hurmat bilan yondashadi va fuqarolarning shaxsiy maʼlumotlarini (JShShIR/PINFL,
+                pasport maʼlumotlari, shaxsiy telefon raqamlari) talab qilmaydi hamda yigʻmaydi.
               </p>
             </section>
 
             <section className="space-y-1.5">
-              <h2 className="text-sm font-bold text-foreground">2. Qayta ishlanadigan maʼlumotlar</h2>
+              <h2 className="text-sm font-bold text-foreground">2. Qayta ishlanadigan korporativ maʼlumotlar</h2>
               <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                <li>Foydalanuvchi profil maʼlumotlari: F.I.O, elektron pochta, Eskiz.uz orqali tasdiqlangan telefon raqami.</li>
-                <li>Korxona rekvizitlari: yuridik nomi, STIR (INN), bank hisobvaraqlari (MFO/20 xonali raqam), soliq rejimi.</li>
-                <li>Xodimlarning JShShIR (PINFL) va ish haqi maʼlumotlari — interfeysda maskalangan holda aks ettiriladi.</li>
-                <li>Buxgalteriya provodkalari, elektron hisob-fakturalar (Didox E-SF) va yuklangan hujjat fayllari.</li>
+                <li>Kirish sessiyasi: Google OAuth yoki elektron pochta orqali autentifikatsiya sessiyasi.</li>
+                <li>Yuridik shaxs rekvizitlari: korxona nomi, STIR (INN) va soliq rejimi.</li>
+                <li>Bank ↔ 1C Solishtirish (Sverka): yuklangan `.txt` / `.xml` / `.csv` fayllar foydalanuvchi brauzeri xotirasida oʻqiladi va server bazasida saqlanmaydi.</li>
+                <li>21-BHMS Bosh kitob provodkalari: faqat korporativ schyotlar (`4010`, `5110`, `6010`, `6410`, `9010`, `9420`) kesimida yuritiladi.</li>
               </ul>
             </section>
 
             <section className="space-y-1.5">
-              <h2 className="text-sm font-bold text-foreground">3. Multi-Tenant izolyatsiya va xavfsizlik</h2>
+              <h2 className="text-sm font-bold text-foreground">3. AI Agent va avtomatik maskalash</h2>
               <p>
-                Har bir korxona maʼlumotlari PostgreSQL Row-Level Security (RLS) darajasida qatʼiy ajratilgan. Bir
-                ishchi maydon (Workspace) aʼzolari boshqa tashkilotning moliyaviy yozuvlarini, hujjatlarini yoki
-                Storage fayllarini koʻra olmaydi. Barcha moliyaviy provodkalar oʻzgarmas (immutable) audit izi bilan saqlanadi.
+                Tashqi AI modellariga (Gemini API) tahlil uchun soʻrov yuborishdan avval 16 xonali plastik karta
+                raqamlari, 20 xonali bank hisobvaraqlari, JShShIR, telefon va STIR belgilari avtomatik tarzda
+                shaxssizlantiriladi (`[KARTA_MASKED]`, `[PINFL_MASKED]`, `[TELEFON_MASKED]`).
               </p>
             </section>
 
             <section className="space-y-1.5">
-              <h2 className="text-sm font-bold text-foreground">4. AI Copilot va tashqi servislar</h2>
+              <h2 className="text-sm font-bold text-foreground">4. Multi-Tenant izolyatsiya va Cookie fayllar</h2>
               <p>
-                Tashqi AI modellariga (Gemini API) soʻrov yuborishdan avval korxona STIRi, xodim JShShIRi, 20 xonali bank
-                hisobvaragʻi va telefon raqamlari avtomatik tarzda shaxssizlantiriladi (maskalanadi).
-              </p>
-            </section>
-
-            <section className="space-y-1.5">
-              <h2 className="text-sm font-bold text-foreground">5. Cookie fayllar va aloqa</h2>
-              <p>
-                Tizim faqat autentifikatsiya sessiyasi va interfeys tili/korxona tanlovini saqlash uchun zarur boʻlgan
-                texnik cookieʼlardan foydalanadi. Reklama kuzatuvchilari (trackers) ishlatilmaydi.
+                Har bir korxona maʼlumotlari PostgreSQL Row-Level Security (RLS) darajasida qatʼiy ajratilgan. Tizim
+                faqat kirish sessiyasi va interfeys sozlamalari (til va mavzu) uchun texnik cookieʼlardan foydalanadi.
               </p>
             </section>
           </div>

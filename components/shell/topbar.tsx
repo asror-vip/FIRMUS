@@ -47,9 +47,9 @@ export function Topbar() {
   const displayName =
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
-    (user?.email ? user.email.split("@")[0] : "Dilnoza Karimova");
+    (user?.email ? user.email.split("@")[0] : "Bosh buxgalter");
 
-  const displayEmail = user?.email || "dilnoza@firmus.uz";
+  const displayEmail = user?.email || "FIRMUS";
 
   const initials = displayName
     .split(" ")
@@ -92,9 +92,9 @@ export function Topbar() {
           className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm px-2.5 text-xs transition-colors"
         >
           <Sparkles className="h-3.5 w-3.5 text-indigo-100" />
-          <span className="hidden sm:inline">AI Copilot</span>
+          <span className="hidden sm:inline">FIRMUS AI</span>
           <span className="inline-flex items-center h-4.5 px-2 rounded-full text-[10px] font-black bg-white text-indigo-900 shadow-sm tracking-tight">
-            GPT-6
+            21-BHMS
           </span>
         </Button>
 

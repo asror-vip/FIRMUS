@@ -2,15 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { depersonalizeForAi } from "@/lib/utils/privacy";
-import { roundMoney, splitVatInclusive, calculatePayrollContributions } from "@/lib/utils/finance";
+import { roundMoney, splitVatInclusive } from "@/lib/utils/finance";
 import {
   type AgentActionProposal,
   type AgentHistoryItem,
   journalProposalPayloadSchema,
   reverseEntryPayloadSchema,
-  contractPayloadSchema,
-  inventoryPayloadSchema,
-  employeePayloadSchema,
   closePeriodPayloadSchema,
   UUID_REGEX,
   DATE_REGEX,
@@ -114,7 +111,7 @@ function buildFirmusSystemInstruction(params: {
     "   - Sotuv (tushum): Xaridor 4010 (Dt), Sotish tushumi 9010/9020/9030 (Kt), QQS 6410 (Kt).",
     "   - Bank to'lovi: Kirim 5110 Dt / 4010 Kt; Chiqim 6010 Dt / 5110 Kt.",
     "   - Davr yopish: 90xx/91xx/94xx schyotlarini 9910 orqali 8710 ga yopish uchun propose_close_period chaqiring.",
-    "5. HUMAN-IN-THE-LOOP QAT'IY CHEKLOVI: Siz bazaga o'zboshimchalik bilan yozmaysiz. Har qanday o'zgarish (provodka, storno, istisno, bank operatsiyasi, shartnoma, ombor, xodim, davr yopish) uchun faqat propose_* tool chaqiring. Foydalanuvchi interfeysda 'Tasdiqlash' tugmasini bosgandagina amal serverda bajariladi.",
+    "5. HUMAN-IN-THE-LOOP QAT'IY CHEKLOVI: Siz bazaga o'zboshimchalik bilan yozmaysiz. Har qanday o'zgarish (provodka, storno, istisno, bank operatsiyasi, davr yopish) so'ralganda ALBATTA propose_journal_entry yoki mos propose_* functionCall ni chaqiring! Hech qachon functionCall chaqirmasdan matnda 'taklif tayyorlandi, tasdiqlang' deb yozmang — aks holda tasdiqlash tugmasi chiqmaydi.",
     "6. Agar foydalanuvchi roli 'viewer' yoki 'auditor' bo'lsa, hech qanday propose_* o'zgartirish tool'ini chaqirmang, faqat tahlil bering va ruxsat yo'qligini tushuntiring.",
     "7. Javoblarni O'zbek tilida, aniq, qisqa, rasmiy va tushunarli buxgalteriya tilida bering.",
   ].join("\n");
@@ -124,7 +121,7 @@ const GEMINI_TOOL_DECLARATIONS = [
   {
     name: "get_financial_overview",
     description:
-      "Korxonaning joriy moliyaviy umumiy holatini oladi: bank hisobvaraqlari jami qoldig'i, kutilayotgan tranzaksiyalar, imzolanmagan Didox hujjatlar, ochiq audit istisnolari va sof QQS (6410 - 4410).",
+      "Korxonaning joriy moliyaviy umumiy holatini oladi: bank hisobvaraqlari jami qoldig'i, kutilayotgan tranzaksiyalar, ochiq audit istisnolari va sof QQS (6410 - 4410).",
     parameters: { type: "OBJECT", properties: {} },
   },
   {
@@ -167,23 +164,19 @@ const GEMINI_TOOL_DECLARATIONS = [
   {
     name: "search_business_records",
     description:
-      "Korxonaning muayyan bo'limidagi haqiqiy yozuvlarni qidiradi (contracts, employees, inventory_items, tax_records, documents, transactions, exceptions, chart_of_accounts).",
+      "Korxonaning faol jadvallaridan haqiqiy yozuvlarni qidiradi (tax_records, transactions, exceptions, chart_of_accounts).",
     parameters: {
       type: "OBJECT",
       properties: {
         record_type: {
           type: "STRING",
           enum: [
-            "contracts",
-            "employees",
-            "inventory_items",
             "tax_records",
-            "documents",
             "transactions",
             "exceptions",
             "chart_of_accounts",
           ],
-          description: "Qidiriladigan jadval turi",
+          description: "Qidirililadigan jadval turi",
         },
         query: { type: "STRING", description: "Ixtiyoriy qidiruv matni" },
       },
@@ -206,7 +199,7 @@ const GEMINI_TOOL_DECLARATIONS = [
           items: {
             type: "OBJECT",
             properties: {
-              account_code: { type: "STRING", description: "Faol schyot kodi (masalan 4010, 9030, 6410)" },
+              account_code: { type: "STRING", description: "Faol schyot kodi (masalan 4010, 9010, 6410)" },
               debit_amount: { type: "NUMBER", description: "Debet summasi (>= 0)" },
               credit_amount: { type: "NUMBER", description: "Kredit summasi (>= 0)" },
               memo: { type: "STRING", description: "Qator izohi" },
@@ -252,56 +245,6 @@ const GEMINI_TOOL_DECLARATIONS = [
         status: { type: "STRING", enum: ["posted", "rejected"], description: "posted yoki rejected" },
       },
       required: ["transaction_id", "status"],
-    },
-  },
-  {
-    name: "propose_contract",
-    description: "Yangi shartnoma qo'shishni TAKLIF qiladi.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        number: { type: "STRING", description: "Shartnoma raqami" },
-        type: { type: "STRING", enum: ["Xizmat ko'rsatish", "Yetkazib berish", "Ijara", "Boshqa"] },
-        counterparty: { type: "STRING", description: "Kontragent nomi" },
-        counterparty_stir: { type: "STRING", description: "Kontragent 9 xonali STIR" },
-        amount: { type: "NUMBER", description: "Shartnoma summasi UZS" },
-        start_date: { type: "STRING", description: "YYYY-MM-DD" },
-        end_date: { type: "STRING", description: "YYYY-MM-DD" },
-        description: { type: "STRING", description: "Qisqacha izoh" },
-      },
-      required: ["number", "type", "counterparty", "counterparty_stir", "amount", "start_date", "end_date"],
-    },
-  },
-  {
-    name: "propose_inventory_item",
-    description: "Ombor bazasiga yangi tovar/material qo'shishni TAKLIF qiladi.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        sku: { type: "STRING", description: "SKU / Artikul" },
-        name: { type: "STRING", description: "Tovar nomi" },
-        category: { type: "STRING", description: "Kategoriya" },
-        quantity: { type: "NUMBER", description: "Miqdori" },
-        unit: { type: "STRING", description: "O'lchov birligi (dona, kg, litr...)" },
-        unit_price: { type: "NUMBER", description: "Birlik narxi UZS" },
-      },
-      required: ["sku", "name", "category", "quantity", "unit", "unit_price"],
-    },
-  },
-  {
-    name: "propose_employee",
-    description: "Kadrlar ro'yxatiga yangi xodim qo'shishni TAKLIF qiladi.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        full_name: { type: "STRING", description: "F.I.Sh." },
-        position: { type: "STRING", description: "Lavozim" },
-        department: { type: "STRING", description: "Bo'lim" },
-        salary: { type: "NUMBER", description: "Oylik maosh UZS" },
-        pinfl: { type: "STRING", description: "14 xonali JShShIR" },
-        hire_date: { type: "STRING", description: "Ishga kirish sanasi YYYY-MM-DD" },
-      },
-      required: ["full_name", "position", "department", "salary", "pinfl", "hire_date"],
     },
   },
   {
@@ -414,11 +357,7 @@ async function runToolCall(
   if (name === "search_business_records") {
     const table = String(args.record_type || "");
     const allowed = new Set([
-      "contracts",
-      "employees",
-      "inventory_items",
       "tax_records",
-      "documents",
       "transactions",
       "exceptions",
       "chart_of_accounts",
@@ -586,76 +525,6 @@ async function runToolCall(
     return { result: { ok: true, status: "proposed_for_user_approval" }, proposal };
   }
 
-  if (name === "propose_contract") {
-    const parsed = contractPayloadSchema.safeParse({
-      number: args.number,
-      type: args.type,
-      counterparty: args.counterparty,
-      counterparty_stir: args.counterparty_stir,
-      amount: Number(args.amount),
-      start_date: args.start_date,
-      end_date: args.end_date,
-      description: args.description,
-    });
-    if (!parsed.success) {
-      return { result: { ok: false, error: parsed.error.issues[0]?.message || "Shartnoma xato" } };
-    }
-    const proposal: AgentActionProposal = {
-      type: "contract",
-      title: `Shartnoma № ${parsed.data.number} — ${parsed.data.counterparty}`,
-      summary: `${parsed.data.type} (${parsed.data.start_date} – ${parsed.data.end_date})`,
-      amount: formatUzs(parsed.data.amount),
-      payload: parsed.data,
-    };
-    return { result: { ok: true, status: "proposed_for_user_approval" }, proposal };
-  }
-
-  if (name === "propose_inventory_item") {
-    const parsed = inventoryPayloadSchema.safeParse({
-      sku: args.sku,
-      name: args.name,
-      category: args.category,
-      quantity: Number(args.quantity),
-      unit: args.unit,
-      unit_price: Number(args.unit_price),
-    });
-    if (!parsed.success) {
-      return { result: { ok: false, error: parsed.error.issues[0]?.message || "Tovar ma'lumoti xato" } };
-    }
-    const total = roundMoney(parsed.data.quantity * parsed.data.unit_price);
-    const proposal: AgentActionProposal = {
-      type: "inventory_item",
-      title: `Ombor: ${parsed.data.name} (${parsed.data.quantity} ${parsed.data.unit})`,
-      summary: `SKU: ${parsed.data.sku} | Kategoriya: ${parsed.data.category}`,
-      amount: formatUzs(total),
-      payload: parsed.data,
-    };
-    return { result: { ok: true, status: "proposed_for_user_approval" }, proposal };
-  }
-
-  if (name === "propose_employee") {
-    const parsed = employeePayloadSchema.safeParse({
-      full_name: args.full_name,
-      position: args.position,
-      department: args.department,
-      salary: Number(args.salary),
-      pinfl: args.pinfl,
-      hire_date: args.hire_date,
-    });
-    if (!parsed.success) {
-      return { result: { ok: false, error: parsed.error.issues[0]?.message || "Xodim ma'lumoti xato" } };
-    }
-    const contrib = calculatePayrollContributions(parsed.data.salary);
-    const proposal: AgentActionProposal = {
-      type: "employee",
-      title: `Yangi xodim: ${parsed.data.full_name}`,
-      summary: `${parsed.data.position} (${parsed.data.department}) | Qo'lga: ${formatUzs(contrib.netPay)}`,
-      amount: formatUzs(parsed.data.salary),
-      payload: parsed.data,
-    };
-    return { result: { ok: true, status: "proposed_for_user_approval" }, proposal };
-  }
-
   if (name === "propose_close_period") {
     const parsed = closePeriodPayloadSchema.safeParse({
       from_date: args.from_date,
@@ -677,40 +546,104 @@ async function runToolCall(
   return { result: { ok: false, error: `Noma'lum tool: ${name}` } };
 }
 
+function tryBuildExplicitActionProposal(
+  message: string,
+  ctx: ToolContext
+): { proposal?: AgentActionProposal; replyText?: string; errorText?: string } {
+  if (!isMutatingRole(ctx.userRole)) return {};
+  const q = message.toLowerCase();
+
+  const provodkaMatch = q.match(/provodka\s+(\d+(?:[.,]\d+)?)\s+(\d{4})\s+(\d{4})/);
+  if (provodkaMatch) {
+    const amount = roundMoney(Number(provodkaMatch[1].replace(",", ".")));
+    const dt = provodkaMatch[2];
+    const kt = provodkaMatch[3];
+    if (!ctx.coaMap.has(dt) || !ctx.coaMap.has(kt) || amount <= 0) {
+      return { errorText: `Schyot kodlari (${dt}, ${kt}) faol 21-BHMS schyotlar rejasida topilmadi yoki summa noto'g'ri.` };
+    }
+    if (dt === kt) {
+      return { errorText: `Debet (${dt}) va Kredit (${kt}) bir xil schyot bo'lishi mumkin emas.` };
+    }
+    const withVat = q.includes("qqs");
+    const lines =
+      withVat && (kt === "9010" || kt === "9020" || kt === "9030") && ctx.coaMap.has("6410")
+        ? (() => {
+            const split = splitVatInclusive(amount, 12);
+            return [
+              { account_code: dt, account_name: ctx.coaMap.get(dt)!.name, debit_amount: amount, credit_amount: 0, memo: "QQS bilan jami summa" },
+              { account_code: kt, account_name: ctx.coaMap.get(kt)!.name, debit_amount: 0, credit_amount: split.net, memo: "QQSsiz tushum" },
+              { account_code: "6410", account_name: ctx.coaMap.get("6410")!.name, debit_amount: 0, credit_amount: split.vat, memo: "12% QQS" },
+            ];
+          })()
+        : [
+            { account_code: dt, account_name: ctx.coaMap.get(dt)!.name, debit_amount: amount, credit_amount: 0, memo: `AI Agent taklifi: ${dt} -> ${kt}` },
+            { account_code: kt, account_name: ctx.coaMap.get(kt)!.name, debit_amount: 0, credit_amount: amount, memo: `AI Agent taklifi: ${dt} -> ${kt}` },
+          ];
+
+    const proposal: AgentActionProposal = {
+      type: "journal_entry",
+      title: `21-BHMS Provodka: Dt ${dt} / Kt ${kt}`,
+      summary: withVat ? "QQS 12% ajratilgan provodka loyihasi" : "Ikkiyoqlama standart provodka loyihasi",
+      amount: formatUzs(amount),
+      accounts: lines.map((l) => `${l.debit_amount > 0 ? "Dt" : "Kt"} ${l.account_code}`).join(" / "),
+      payload: {
+        entry_date: todayIso(),
+        description: `AI Agent orqali tuzilgan provodka (${dt} / ${kt})`,
+        lines,
+      },
+    };
+    return {
+      proposal,
+      replyText: `«${ctx.entity.legal_name}» uchun balanslangan 21-BHMS provodka loyihasi tayyorlandi (${formatUzs(amount)}). Bazaga yozish uchun quyidagi «Tasdiqlash» tugmasini bosing.`,
+    };
+  }
+
+  if (q.includes("davr") && q.includes("yop")) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+    const fromDate = `${y}-${m}-01`;
+    const toDate = `${y}-${m}-${String(lastDay).padStart(2, "0")}`;
+    return {
+      proposal: {
+        type: "close_period",
+        title: `Davrni yopish (${fromDate} — ${toDate})`,
+        summary: "90xx/91xx/94xx schyotlari 9910 orqali 8710 ga yopiladi",
+        payload: { from_date: fromDate, to_date: toDate, closing_date: toDate },
+      },
+      replyText: `${fromDate} – ${toDate} davrini yopish (90xx/91xx/94xx schyotlarini 9910 orqali 8710 ga o'tkazish) bo'yicha taklif tayyorlandi.`,
+    };
+  }
+
+  return {};
+}
+
 async function runDeterministicAgent(params: {
   message: string;
   ctx: ToolContext;
   geminiFailureReason?: string;
 }): Promise<AgentResult> {
   const { message, ctx, geminiFailureReason } = params;
-  const { supabase, entity, coaMap, userRole } = ctx;
+  const { supabase, entity, userRole } = ctx;
   const canExecute = isMutatingRole(userRole);
   const q = message.toLowerCase();
   const toolCalls = ["deterministic_live_db"];
 
-  const [txRes, excRes, docRes, bankRes, tbRes, empRes, conRes, invRes] = await Promise.all([
+  const [txRes, excRes, bankRes, tbRes] = await Promise.all([
     supabase.from("transactions").select("*").eq("business_entity_id", entity.id).order("date", { ascending: false }).limit(50),
     supabase.from("exceptions").select("*").eq("business_entity_id", entity.id).order("created_at", { ascending: false }),
-    supabase.from("documents").select("*").eq("business_entity_id", entity.id).order("date", { ascending: false }).limit(30),
     supabase.from("bank_accounts").select("*").eq("business_entity_id", entity.id),
     supabase.rpc("get_trial_balance", { p_entity_id: entity.id, p_from_date: "1970-01-01", p_to_date: "2099-12-31" }),
-    supabase.from("employees").select("id, full_name, position, salary, status").eq("business_entity_id", entity.id),
-    supabase.from("contracts").select("id, number, counterparty, amount, status").eq("business_entity_id", entity.id),
-    supabase.from("inventory_items").select("id, sku, name, quantity, unit, unit_price, status").eq("business_entity_id", entity.id),
   ]);
 
   const transactions = txRes.data || [];
   const exceptions = excRes.data || [];
-  const documents = docRes.data || [];
   const bankAccounts = bankRes.data || [];
   const trialBalance = tbRes.data || [];
-  const employees = empRes.data || [];
-  const contracts = conRes.data || [];
-  const inventory = invRes.data || [];
 
   const openExceptions = exceptions.filter((e: any) => e.status === "open" || e.status === "in_review");
   const pendingTxs = transactions.filter((t: any) => t.status === "pending");
-  const unsignedDocs = documents.filter((d: any) => d.status === "pending_signature");
   const totalBankBalance = bankAccounts.reduce((s: number, b: any) => s + Number(b.balance || 0), 0);
 
   const row6410 = trialBalance.find((r: any) => r.account_code === "6410");
@@ -722,64 +655,14 @@ async function runDeterministicAgent(params: {
   let reply = "";
   let actionProposed: AgentActionProposal | undefined;
 
-  // Pattern: explicit quick journal entry like "provodka 1120000 5110 4010" or "provodka 1000000 qqs"
-  const provodkaMatch = q.match(/provodka\s+(\d+(?:[.,]\d+)?)\s+(\d{4})\s+(\d{4})/);
-  if (provodkaMatch) {
-    const amount = roundMoney(Number(provodkaMatch[1].replace(",", ".")));
-    const dt = provodkaMatch[2];
-    const kt = provodkaMatch[3];
-    if (!canExecute) {
-      reply = `Sizning rolingiz (${userRole}) provodka yaratish huquqiga ega emas.`;
-    } else if (!coaMap.has(dt) || !coaMap.has(kt) || amount <= 0) {
-      reply = `Schyot kodlari (${dt}, ${kt}) faol 21-BHMS schyotlar rejasida topilmadi yoki summa noto'g'ri.`;
-    } else if (dt === kt) {
-      reply = `Debet (${dt}) va Kredit (${kt}) bir xil schyot bo'lishi mumkin emas.`;
-    } else {
-      const withVat = q.includes("qqs");
-      const lines = withVat && (kt === "9010" || kt === "9020" || kt === "9030") && coaMap.has("6410")
-        ? (() => {
-            const split = splitVatInclusive(amount, 12);
-            return [
-              { account_code: dt, account_name: coaMap.get(dt)!.name, debit_amount: amount, credit_amount: 0, memo: "QQS bilan jami summa" },
-              { account_code: kt, account_name: coaMap.get(kt)!.name, debit_amount: 0, credit_amount: split.net, memo: "QQSsiz tushum" },
-              { account_code: "6410", account_name: coaMap.get("6410")!.name, debit_amount: 0, credit_amount: split.vat, memo: "12% QQS" },
-            ];
-          })()
-        : [
-            { account_code: dt, account_name: coaMap.get(dt)!.name, debit_amount: amount, credit_amount: 0, memo: `AI Agent taklifi: ${dt} -> ${kt}` },
-            { account_code: kt, account_name: coaMap.get(kt)!.name, debit_amount: 0, credit_amount: amount, memo: `AI Agent taklifi: ${dt} -> ${kt}` },
-          ];
-
-      actionProposed = {
-        type: "journal_entry",
-        title: `21-BHMS Provodka: Dt ${dt} / Kt ${kt}`,
-        summary: withVat ? "QQS 12% ajratilgan provodka loyihasi" : "Ikkiyoqlama standart provodka loyihasi",
-        amount: formatUzs(amount),
-        accounts: lines.map((l) => `${l.debit_amount > 0 ? "Dt" : "Kt"} ${l.account_code}`).join(" / "),
-        payload: {
-          entry_date: todayIso(),
-          description: `AI Agent orqali tuzilgan provodka (${dt} / ${kt})`,
-          lines,
-        },
-      };
-      reply = `«${entity.legal_name}» uchun balanslangan 21-BHMS provodka loyihasi tayyorlandi (${formatUzs(amount)}). Bazaga yozish uchun quyidagi «Tasdiqlash» tugmasini bosing.`;
-    }
-  } else if (q.includes("davr") && q.includes("yop")) {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-    const fromDate = `${y}-${m}-01`;
-    const toDate = `${y}-${m}-${String(lastDay).padStart(2, "0")}`;
-    reply = `${fromDate} – ${toDate} davrini yopish (90xx/91xx/94xx schyotlarini 9910 orqali 8710 ga o'tkazish) bo'yicha taklif tayyorlandi.`;
-    if (canExecute) {
-      actionProposed = {
-        type: "close_period",
-        title: `Davrni yopish (${fromDate} — ${toDate})`,
-        summary: "90xx/91xx/94xx schyotlari 9910 orqali 8710 ga yopiladi",
-        payload: { from_date: fromDate, to_date: toDate, closing_date: toDate },
-      };
-    }
+  const explicitAction = tryBuildExplicitActionProposal(message, ctx);
+  if (explicitAction.errorText) {
+    reply = explicitAction.errorText;
+  } else if (explicitAction.proposal && explicitAction.replyText) {
+    actionProposed = explicitAction.proposal;
+    reply = explicitAction.replyText;
+  } else if (q.includes("provodka") && !canExecute) {
+    reply = `Sizning rolingiz (${userRole}) provodka yaratish huquqiga ega emas.`;
   } else if (q.includes("istisno") || q.includes("xato") || q.includes("audit") || q.includes("exception")) {
     toolCalls.push("query_exceptions");
     if (openExceptions.length === 0) {
@@ -810,14 +693,6 @@ async function runDeterministicAgent(params: {
       .map((r: any) => `• ${r.account_code} (${r.account_name}): Dt ${formatUzs(Number(r.period_debit || 0))} / Kt ${formatUzs(Number(r.period_credit || 0))}`)
       .join("\n");
     reply = `«${entity.legal_name}» Oborot-saldovaya vedomost (faol schyotlar):\n${nonZero || "Hozircha harakatlar yo'q."}`;
-  } else if (q.includes("xodim") || q.includes("oylik") || q.includes("ish haqi")) {
-    toolCalls.push("query_employees");
-    const totalPayroll = employees.reduce((s: number, e: any) => s + Number(e.salary || 0), 0);
-    const contrib = calculatePayrollContributions(totalPayroll);
-    reply = `«${entity.legal_name}» kadrlar holati: ${employees.length} ta xodim. Jami hisoblangan oylik fondi: ${formatUzs(totalPayroll)} (JShODS 12%: ${formatUzs(contrib.jshds12)}, Ijtimoiy soliq 12%: ${formatUzs(contrib.socialTax12)}, Qo'lga tegadigan: ${formatUzs(contrib.netPay)}).`;
-  } else if (q.includes("shartnoma") || q.includes("ombor") || q.includes("tovar")) {
-    toolCalls.push("query_contracts_inventory");
-    reply = `«${entity.legal_name}» resurslari: ${contracts.length} ta shartnoma, omborda ${inventory.length} turdagi tovar/material mavjud.`;
   } else if (q.includes("bank") || q.includes("qoldiq") || q.includes("balans") || q.includes("pul")) {
     toolCalls.push("query_bank_accounts", "query_transactions");
     const list = bankAccounts.map((b: any) => `• ${b.bank_name} (${b.currency}): ${formatUzs(Number(b.balance))}`).join("\n");
@@ -833,12 +708,9 @@ async function runDeterministicAgent(params: {
         payload: { transaction_id: tx.id, status: "posted" },
       };
     }
-  } else if (q.includes("hujjat") || q.includes("didox") || q.includes("faktura")) {
-    toolCalls.push("query_documents");
-    reply = `Didox EDO bazasida jami ${documents.length} ta hujjat mavjud. Ulardan ${unsignedDocs.length} tasi E-IMZO imzosini kutmoqda.`;
   } else {
     toolCalls.push("query_financial_overview");
-    reply = `«${entity.legal_name}» (STIR: ${entity.tin_stir}) boʻyicha jonli holat:\n• Bank qoldigʻi: ${formatUzs(totalBankBalance)}\n• Ochiq istisnolar: ${openExceptions.length} ta | Kutilayotgan bank operatsiyalari: ${pendingTxs.length} ta\n• Imzolanmagan hujjatlar: ${unsignedDocs.length} ta | Sof QQS (6410-4410): ${formatUzs(netVat)}\n• Xodimlar: ${employees.length} ta | Shartnomalar: ${contracts.length} ta\n\nTezkor buyruq namunasi: "provodka 1120000 4010 9030 qqs" yoki "oborot ko'rsat" deb yozing.`;
+    reply = `«${entity.legal_name}» (STIR: ${entity.tin_stir}) boʻyicha jonli holat:\n• Bank qoldigʻi: ${formatUzs(totalBankBalance)}\n• Ochiq istisnolar: ${openExceptions.length} ta | Kutilayotgan bank operatsiyalari: ${pendingTxs.length} ta\n• Sof QQS majburiyati (6410-4410): ${formatUzs(netVat)}\n\nTezkor buyruq namunasi: "provodka 1120000 4010 9030 qqs" yoki "oborot ko'rsat" deb yozing.`;
     if (openExceptions[0] && canExecute) {
       actionProposed = {
         type: "exception",
@@ -958,6 +830,12 @@ export async function runFirmusAgent(params: {
             .map((p) => p.text || "")
             .join("")
             .trim();
+          if (!pendingProposal && isMutatingRole(userRole)) {
+            const safeFallbackProposal = tryBuildExplicitActionProposal(message, ctx);
+            if (safeFallbackProposal.proposal) {
+              pendingProposal = safeFallbackProposal.proposal;
+            }
+          }
           if (textReply || pendingProposal) {
             return {
               mode: "gemini_agent",

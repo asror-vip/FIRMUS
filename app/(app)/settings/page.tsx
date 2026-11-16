@@ -7,7 +7,6 @@ import {
   fetchBusinessEntities,
   createBusinessEntity,
   updateBusinessEntity,
-  fetchUserPhoneVerification,
 } from "@/lib/services/supabase-service";
 import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -26,11 +25,8 @@ import {
   Bell,
   Globe,
   CheckCircle2,
-  Smartphone,
   Plus,
-  SlidersHorizontal,
 } from "lucide-react";
-import { OPTIONAL_MODULES } from "@/lib/config/modules";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -43,9 +39,6 @@ function SettingsContent() {
     currentRole,
     language,
     setLanguage,
-    enabledModules,
-    toggleModule,
-    setAllModules,
     refreshContext,
   } = useAppState();
 
@@ -69,16 +62,6 @@ function SettingsContent() {
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
 
-  // Phone verification state (Eskiz.uz SMS OTP)
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
-  const [verifiedAtLabel, setVerifiedAtLabel] = useState<string | null>(null);
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-  const [resendSeconds, setResendSeconds] = useState(0);
-  const [otpCode, setOtpCode] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-
   // Handle URL query params (?action=add-entity or ?tab=security)
   useEffect(() => {
     const action = searchParams.get("action");
@@ -86,12 +69,12 @@ function SettingsContent() {
     if (action === "add-entity") {
       setActiveTab("entities");
       setIsAddEntityOpen(true);
-    } else if (tabParam && ["entities", "modules", "security", "notifications", "language"].includes(tabParam)) {
+    } else if (tabParam && ["entities", "security", "notifications", "language"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
 
-  // Load saved preferences + persisted phone verification
+  // Load saved preferences
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -106,87 +89,11 @@ function SettingsContent() {
         // ignore invalid json
       }
     }
-
-    if (!user?.id) return;
-    fetchUserPhoneVerification(user.id).then((res) => {
-      if (res?.phone && res?.verifiedAt) {
-        setPhoneNumber(res.phone);
-        setIsPhoneVerified(true);
-        setVerifiedAtLabel(new Date(res.verifiedAt).toLocaleDateString("uz-UZ"));
-      }
-    });
   }, [user?.id]);
 
   const persistPrefs = (next: { twoFactorEnabled: boolean; emailAlerts: boolean; telegramAlerts: boolean }) => {
     if (typeof window !== "undefined") {
       localStorage.setItem(`firmus_prefs_${user?.id || "default"}`, JSON.stringify(next));
-    }
-  };
-
-  useEffect(() => {
-    if (resendSeconds <= 0) return;
-    const t = setTimeout(() => setResendSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearTimeout(t);
-  }, [resendSeconds]);
-
-  const handleSendOtp = async () => {
-    const cleanDigits = phoneNumber.replace(/\D/g, "");
-    if (cleanDigits.length < 9) {
-      toast.error("Iltimos, toʻgʻri telefon raqamini kiriting (masalan: +998 90 123-45-67)");
-      return;
-    }
-    setIsSendingOtp(true);
-    try {
-      const res = await fetch("/api/auth/phone-otp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneNumber }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json?.error || "SMS yuborishda xatolik yuz berdi");
-        return;
-      }
-      setIsOtpSent(true);
-      setResendSeconds(60);
-      toast.success(json.message || "Eskiz.uz orqali 6 xonali SMS kod yuborildi!");
-    } catch (err: any) {
-      toast.error("SMS xizmatiga ulanishda xatolik: " + (err?.message || ""));
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpCode || !/^\d{6}$/.test(otpCode.trim())) {
-      toast.error("Iltimos, 6 xonali SMS tasdiqlash kodini toʻliq kiriting");
-      return;
-    }
-
-    setIsVerifying(true);
-    try {
-      const res = await fetch("/api/auth/phone-otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phoneNumber, code: otpCode.trim() }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json?.error || "Tasdiqlash kodi notoʻgʻri");
-        return;
-      }
-      if (json.phone) setPhoneNumber(json.phone);
-      setIsPhoneVerified(true);
-      setVerifiedAtLabel(
-        json.verifiedAt ? new Date(json.verifiedAt).toLocaleDateString("uz-UZ") : null
-      );
-      setIsOtpSent(false);
-      setOtpCode("");
-      toast.success("Telefon raqamingiz Eskiz.uz SMS orqali tasdiqlandi!");
-    } catch (err: any) {
-      toast.error("Tasdiqlashda xatolik: " + (err?.message || ""));
-    } finally {
-      setIsVerifying(false);
     }
   };
 
@@ -309,10 +216,6 @@ function SettingsContent() {
             <Building className="h-3.5 w-3.5" />
             {t.pages.settings.tabs.entities}
           </TabsTrigger>
-          <TabsTrigger value="modules" className="text-xs gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Modullar
-          </TabsTrigger>
           <TabsTrigger value="security" className="text-xs gap-1.5">
             <Shield className="h-3.5 w-3.5" />
             {t.pages.settings.tabs.security}
@@ -424,183 +327,19 @@ function SettingsContent() {
         </TabsContent>
 
         {/* 1B. Modules Feature Flags Tab (Simple Zero-PII Mode vs Full ERP) */}
-        <TabsContent value="modules" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-sm font-semibold">
-                  Interfeys Modullarini Boshqarish (Sodda / Toʻliq Rejim)
-                </CardTitle>
-                <CardDescription>
-                  Hozir faqat buxgalter uchun eng muhim 6 ta boʻlim ochiq. Qolgan modullarni kerak paytda birma-bir yoqishingiz mumkin — kodlar oʻchirilmaydi.
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="text-xs h-8"
-                  onClick={() => {
-                    setAllModules(false);
-                    toast.success("Sodda Zero-PII buxgalter rejimi yoqildi");
-                  }}
-                >
-                  Sodda rejim
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={() => {
-                    setAllModules(true);
-                    toast.success("Barcha qoʻshimcha ERP modullar yoqildi");
-                  }}
-                >
-                  Hammasini yoqish
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2.5 text-xs">
-              {OPTIONAL_MODULES.map((mod) => (
-                <div
-                  key={mod.key}
-                  className="flex items-center justify-between gap-4 p-3 rounded-lg border border-border bg-muted/15"
-                >
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{mod.title}</span>
-                      {mod.containsPii && (
-                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400/50">
-                          OʻRQ-547 PII
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">{mod.description}</p>
-                  </div>
-                  <Switch
-                    checked={Boolean(enabledModules[mod.key])}
-                    onCheckedChange={(val) => {
-                      toggleModule(mod.key, val);
-                      toast.success(`«${mod.title}» ${val ? "yoqildi" : "yashirildi"}`);
-                    }}
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 2. Security & E-IMZO Tab */}
+        {/* 2. Security & Zero-PII Tab */}
         <TabsContent value="security" className="space-y-4 mt-4">
-          {enabledModules.smsOtp ? (
           <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Smartphone className="h-4 w-4 text-indigo-600" />
-                    Telefon raqami va Xavfsizlik darajasi (2FA)
-                  </CardTitle>
-                  <CardDescription>
-                    Google yoki Email orqali kirgandan soʻng, hisobingizni toʻliq himoyalash uchun telefon raqamingizni tasdiqlang
-                  </CardDescription>
-                </div>
-                {isPhoneVerified ? (
-                  <Badge variant="success" className="text-[10px] gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {verifiedAtLabel ? `Tasdiqlangan (${verifiedAtLabel})` : "Tasdiqlangan"}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-700">
-                    Tasdiqlanmagan
-                  </Badge>
-                )}
-              </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Shield className="h-4 w-4 text-emerald-600" />
+                OʻRQ-547 «Zero-PII» Xavfsizlik Rejimi Faol
+              </CardTitle>
+              <CardDescription>
+                Shaxsiy telefon raqamlari va fuqarolarning JShShIR/pasport maʼlumotlari xorijiy bulut serverda saqlanmaydi. Bank ↔ 1C fayllari bevosita brauzeringizda qayta ishlanadi.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3.5 text-xs">
-              <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <label className="font-semibold text-foreground block text-xs">
-                      Ulangan telefon raqami:
-                    </label>
-                    <p className="text-[11px] text-muted-foreground">
-                      Ushbu raqamga muhim moliyaviy oʻzgarishlar va hisobga kirish kodlari yuboriladi.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={phoneNumber}
-                      disabled={isPhoneVerified}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="+998 90 123-45-67"
-                      className="w-44 text-xs h-8 font-mono"
-                    />
-                    {!isPhoneVerified && (
-                      <Button
-                        size="sm"
-                        disabled={isSendingOtp || resendSeconds > 0}
-                        onClick={handleSendOtp}
-                        className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-                      >
-                        {isSendingOtp
-                          ? "Yuborilmoqda..."
-                          : resendSeconds > 0
-                          ? `Qayta (${resendSeconds}s)`
-                          : isOtpSent
-                          ? "Qayta SMS yuborish"
-                          : "SMS kod yuborish"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {isOtpSent && !isPhoneVerified && (
-                  <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-md">
-                    <div>
-                      <span className="font-semibold text-foreground text-xs block">
-                        6 xonali SMS tasdiqlash kodini kiriting:
-                      </span>
-                      <p className="text-[11px] text-muted-foreground">
-                        Eskiz.uz orqali telefon raqamingizga yuborilgan bir martalik kod (5 daqiqa amal qiladi).
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value)}
-                        placeholder="______"
-                        maxLength={6}
-                        className="w-28 text-center text-xs tracking-widest font-mono h-8 font-bold"
-                      />
-                      <Button
-                        size="sm"
-                        disabled={isVerifying}
-                        onClick={handleVerifyOtp}
-                        className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                      >
-                        {isVerifying ? "Tekshirilmoqda..." : "Tasdiqlash"}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
           </Card>
-          ) : (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-emerald-600" />
-                  OʻRQ-547 «Zero-PII» Telefon Himoyasi Faol
-                </CardTitle>
-                <CardDescription>
-                  Shaxsiy telefon raqamlarini xorijiy serverda saqlamaslik uchun SMS OTP moduli hozir yashirilgan. Kerak boʻlganda «Modullar» boʻlimidan yoqishingiz mumkin.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          )}
 
           <Card>
             <CardHeader className="pb-3">

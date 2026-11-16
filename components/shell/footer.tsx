@@ -48,14 +48,17 @@ export function Footer() {
       {/* Sub-footer links */}
       <div className="mt-4 pt-4 border-t border-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-muted-foreground/70">
         <div className="flex flex-wrap items-center gap-4">
+          <Link href="/reconcile" className="hover:text-foreground transition-colors">
+            Bank ↔ 1C AI Sverka
+          </Link>
+          <Link href="/accounting" className="hover:text-foreground transition-colors">
+            Buxgalteriya
+          </Link>
+          <Link href="/finance" className="hover:text-foreground transition-colors">
+            Moliya & Hisobotlar
+          </Link>
           <Link href="/settings" className="hover:text-foreground transition-colors">
             {t.footer.settings}
-          </Link>
-          <Link href="/integrations" className="hover:text-foreground transition-colors">
-            {t.footer.integrations}
-          </Link>
-          <Link href="/reports" className="hover:text-foreground transition-colors">
-            {t.footer.reports}
           </Link>
           <Link href="/privacy" className="hover:text-foreground transition-colors">
             Maxfiylik siyosati

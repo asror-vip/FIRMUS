@@ -2,9 +2,20 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { NotificationItem } from "@/lib/mock/notifications";
-import { fetchExceptions, fetchTaxDeadlines, fetchSyncLogs } from "@/lib/services/supabase-service";
+import { fetchExceptions, fetchTaxDeadlines } from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/mock/store";
+
+export interface NotificationItem {
+  id: string;
+  category: "tax" | "exception" | "sync" | "system";
+  severity: "critical" | "warning" | "success" | "info";
+  title: string;
+  description: string;
+  timestamp: string;
+  isRead: boolean;
+  actionUrl?: string;
+  actionLabel?: string;
+}
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,10 +56,9 @@ export function NotificationsPopover() {
     } catch {}
 
     try {
-      const [excs, deadlines, logs] = await Promise.all([
+      const [excs, deadlines] = await Promise.all([
         fetchExceptions(currentEntity.id),
         fetchTaxDeadlines(currentEntity.id),
-        fetchSyncLogs(currentEntity.id),
       ]);
 
       const built: NotificationItem[] = [];
@@ -86,21 +96,6 @@ export function NotificationsPopover() {
             actionUrl: "/tax",
           });
         });
-
-      (logs || []).slice(0, 3).forEach((l: any) => {
-        const nid = `sync-${l.id}`;
-        built.push({
-          id: nid,
-          category: "sync",
-          severity: l.status === "error" ? "critical" : "success",
-          title: `${l.provider}: ${l.status === "error" ? "Sinxronlash xatosi" : "Muvaffaqiyatli"}`,
-          description: l.message,
-          timestamp: l.timestamp || "Bugun",
-          isRead: readIds.includes(nid),
-          actionLabel: "Integratsiyalar",
-          actionUrl: "/integrations",
-        });
-      });
 
       setNotifications(built);
     } catch (err) {

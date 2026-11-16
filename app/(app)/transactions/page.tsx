@@ -689,9 +689,9 @@ function TransactionsContent() {
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
-                  onClick={() => router.push("/documents")}
+                  onClick={() => router.push("/reconcile")}
                 >
-                  {t.common.details} <ArrowUpRight className="ml-1 h-3 w-3" />
+                  Sverka <ArrowUpRight className="ml-1 h-3 w-3" />
                 </Button>
               </div>
             )}

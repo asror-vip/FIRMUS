@@ -5,11 +5,6 @@ import { useRouter } from "next/navigation";
 import { BusinessEntity, UserRole, Workspace } from "./types";
 import { supabase } from "@/lib/supabase/client";
 import { fetchBusinessEntities, fetchWorkspaces } from "@/lib/services/supabase-service";
-import {
-  DEFAULT_ENABLED_MODULES,
-  FULL_ENABLED_MODULES,
-  type OptionalModuleKey,
-} from "@/lib/config/modules";
 
 const EMPTY_WORKSPACE: Workspace = {
   id: "",
@@ -44,10 +39,6 @@ interface AppStateContextType {
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
 
-  enabledModules: Record<OptionalModuleKey, boolean>;
-  toggleModule: (key: OptionalModuleKey, enabled: boolean) => void;
-  setAllModules: (enabled: boolean) => void;
-
   refreshContext: () => Promise<void>;
   handleSignOut: () => Promise<void>;
 }
@@ -67,9 +58,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<"uz" | "ru" | "en">("uz");
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
-  const [enabledModules, setEnabledModules] = useState<Record<OptionalModuleKey, boolean>>(
-    DEFAULT_ENABLED_MODULES
-  );
 
   const syncRoleForWorkspace = useCallback(async (authUser: any, wsId: string) => {
     if (!authUser || !wsId) return;
@@ -180,40 +168,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     };
   }, [loadWorkspaceAndEntities]);
 
-  // 2. Load persisted language & module feature flags from localStorage safely
+  // 2. Load persisted language from localStorage safely
   useEffect(() => {
     try {
       const savedLang = localStorage.getItem("firmus_lang") || localStorage.getItem("auvrio_lang");
       if (savedLang === "uz" || savedLang === "ru" || savedLang === "en") {
         setLanguageState(savedLang);
       }
-      const savedModules = localStorage.getItem("firmus_enabled_modules");
-      if (savedModules) {
-        const parsed = JSON.parse(savedModules);
-        if (parsed && typeof parsed === "object") {
-          setEnabledModules({ ...DEFAULT_ENABLED_MODULES, ...parsed });
-        }
-      }
     } catch {}
   }, []);
-
-  const toggleModule = (key: OptionalModuleKey, enabled: boolean) => {
-    setEnabledModules((prev) => {
-      const next = { ...prev, [key]: enabled };
-      try {
-        localStorage.setItem("firmus_enabled_modules", JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const setAllModules = (enabled: boolean) => {
-    const next = enabled ? { ...FULL_ENABLED_MODULES } : { ...DEFAULT_ENABLED_MODULES };
-    setEnabledModules(next);
-    try {
-      localStorage.setItem("firmus_enabled_modules", JSON.stringify(next));
-    } catch {}
-  };
 
   const setLanguage = (lang: "uz" | "ru" | "en") => {
     setLanguageState(lang);
@@ -307,10 +270,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         isSearchOpen,
         setIsSearchOpen,
-
-        enabledModules,
-        toggleModule,
-        setAllModules,
 
         refreshContext,
         handleSignOut,

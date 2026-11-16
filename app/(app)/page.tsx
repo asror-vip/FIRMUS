@@ -12,7 +12,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   fetchTransactions,
   fetchExceptions,
-  fetchIntegrations,
   fetchTrialBalance,
 } from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/mock/store";
@@ -24,7 +23,6 @@ import {
   Clock,
   CheckCircle2,
   TrendingUp,
-  Cable,
   Scale,
 } from "lucide-react";
 import {
@@ -39,12 +37,11 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentEntity, toggleAiDrawer, enabledModules } = useAppState();
+  const { currentEntity, toggleAiDrawer } = useAppState();
   const { t } = useTranslation();
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [exceptions, setExceptions] = useState<any[]>([]);
-  const [integrations, setIntegrations] = useState<any[]>([]);
   const [vatNetPayable, setVatNetPayable] = useState<number>(0);
 
   useEffect(() => {
@@ -52,7 +49,6 @@ export default function DashboardPage() {
     if (!currentEntity?.id) {
       setTransactions([]);
       setExceptions([]);
-      setIntegrations([]);
       setVatNetPayable(0);
       return;
     }
@@ -60,13 +56,11 @@ export default function DashboardPage() {
     Promise.all([
       fetchTransactions(currentEntity.id),
       fetchExceptions(currentEntity.id),
-      fetchIntegrations(currentEntity.id),
       fetchTrialBalance(currentEntity.id),
-    ]).then(([txs, excs, integs, tb]) => {
+    ]).then(([txs, excs, tb]) => {
       if (!isMounted) return;
       setTransactions(txs || []);
       setExceptions(excs || []);
-      setIntegrations(integs || []);
 
       const row6410 = (tb || []).find((r: any) => r.account_code === "6410");
       const row4410 = (tb || []).find((r: any) => r.account_code === "4410");
@@ -88,7 +82,6 @@ export default function DashboardPage() {
 
   const openExceptions = exceptions.filter((e) => e.status === "open" || e.status === "in_review");
   const recentExceptions = exceptions.slice(0, 5);
-  const connectedIntegsCount = integrations.filter((i) => i.status === "connected").length;
 
   // Build real cashflow chart series grouped by date
   const cashFlowMap = new Map<string, { date: string; income: number; expense: number }>();
@@ -189,29 +182,13 @@ export default function DashboardPage() {
           onClick={() => router.push("/ai-auditor")}
         />
 
-        {enabledModules.integrations ? (
-          <KpiCard
-            title={t.dashboard.kpiIntegrations}
-            value={`${connectedIntegsCount} / ${integrations.length}`}
-            subtitle={t.dashboard.kpiIntegrationsSub}
-            badge={
-              <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                {t.common.sync}
-              </div>
-            }
-            icon={<Cable className="h-4 w-4 text-indigo-500" />}
-            onClick={() => router.push("/integrations")}
-          />
-        ) : (
-          <KpiCard
-            title="Sof QQS (6410–4410)"
-            value={`${new Intl.NumberFormat("uz-UZ").format(Math.round(vatNetPayable))} soʻm`}
-            subtitle="Bosh kitobdagi joriy QQS majburiyati"
-            icon={<Scale className="h-4 w-4 text-emerald-500" />}
-            onClick={() => router.push("/tax")}
-          />
-        )}
+        <KpiCard
+          title="Sof QQS (6410–4410)"
+          value={`${new Intl.NumberFormat("uz-UZ").format(Math.round(vatNetPayable))} soʻm`}
+          subtitle="Bosh kitobdagi joriy QQS majburiyati"
+          icon={<Scale className="h-4 w-4 text-emerald-500" />}
+          onClick={() => router.push("/tax")}
+        />
       </div>
 
       {/* Row 2: Charts & Integrations Status */}
@@ -311,98 +288,59 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Right 1/3: Integrations or Quick Workflows */}
-        {enabledModules.integrations ? (
+        {/* Right 1/3: Quick Accountant Workflows */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center justify-between">
-              <span>{t.dashboard.integrationsTitle}</span>
-              <Link
-                href="/integrations"
-                className="text-xs font-normal text-primary hover:underline flex items-center gap-0.5"
-              >
-                {t.common.all} <ArrowRight className="h-3 w-3" />
-              </Link>
-            </CardTitle>
-            <CardDescription>{t.pages.integrations.subtitle}</CardDescription>
+            <CardTitle className="text-sm font-semibold">Tezkor buxgalter amallari</CardTitle>
+            <CardDescription>Eng koʻp ishlatiladigan kundalik vazifalar</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 pt-0">
-            {integrations.length > 0 ? (
-              integrations.slice(0, 4).map((integ) => (
-                <div
-                  key={integ.id}
-                  onClick={() => router.push("/integrations")}
-                  className="flex items-center justify-between p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={`h-2 w-2 rounded-full shrink-0 ${
-                        integ.status === "connected"
-                          ? "bg-emerald-500"
-                          : integ.status === "error"
-                          ? "bg-rose-500 animate-pulse"
-                          : "bg-slate-400"
-                      }`}
-                    />
-                    <div className="truncate">
-                      <p className="text-xs font-medium text-foreground truncate">{integ.name}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{integ.lastSyncTime}</p>
-                    </div>
-                  </div>
-
-                  <StatusPill status={integ.status} />
-                </div>
-              ))
-            ) : (
-              <p className="text-xs text-muted-foreground py-4 text-center">
-                Integratsiyalar topilmadi
-              </p>
-            )}
+          <CardContent className="space-y-2.5 pt-0 text-xs">
+            <button
+              type="button"
+              onClick={() => router.push("/reconcile")}
+              className="w-full text-left p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors flex items-center justify-between"
+            >
+              <div>
+                <div className="font-semibold text-foreground">Bank ↔ 1C AI Sverka</div>
+                <div className="text-[10px] text-muted-foreground">Fayl yuklab 5 soniyada solishtirish</div>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/accounting")}
+              className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+            >
+              <div>
+                <div className="font-semibold text-foreground">Oborot-saldovaya vedomost</div>
+                <div className="text-[10px] text-muted-foreground">21-BHMS qoldiqlar va davr yopish</div>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/tax")}
+              className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+            >
+              <div>
+                <div className="font-semibold text-foreground">Soliqlar va Moliya</div>
+                <div className="text-[10px] text-muted-foreground">QQS (12%), Balans va Foyda hisoboti</div>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/settings")}
+              className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+            >
+              <div>
+                <div className="font-semibold text-foreground">Korxona sozlamalari</div>
+                <div className="text-[10px] text-muted-foreground">STIR, soliq rejimi va tilni boshqarish</div>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
           </CardContent>
         </Card>
-        ) : (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Tezkor buxgalter amallari</CardTitle>
-              <CardDescription>Eng koʻp ishlatiladigan kundalik vazifalar</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2.5 pt-0 text-xs">
-              <button
-                type="button"
-                onClick={() => router.push("/reconcile")}
-                className="w-full text-left p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-semibold text-foreground">Bank ↔ 1C AI Sverka</div>
-                  <div className="text-[10px] text-muted-foreground">Fayl yuklab 5 soniyada solishtirish</div>
-                </div>
-                <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/accounting")}
-                className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-semibold text-foreground">Oborot-saldovaya vedomost</div>
-                  <div className="text-[10px] text-muted-foreground">21-BHMS qoldiqlar va davr yopish</div>
-                </div>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/settings?tab=modules")}
-                className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-semibold text-foreground">Qoʻshimcha ERP modullar</div>
-                  <div className="text-[10px] text-muted-foreground">Kerakli boʻlimlarni birma-bir yoqish</div>
-                </div>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Row 3: Pending Approvals & Recent Exceptions */}

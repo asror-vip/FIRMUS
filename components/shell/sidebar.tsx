@@ -6,35 +6,24 @@ import { usePathname } from "next/navigation";
 import { useAppState } from "@/lib/mock/store";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
-import type { OptionalModuleKey } from "@/lib/config/modules";
 import {
   LayoutDashboard,
   ShieldAlert,
   ArrowLeftRight,
   BookOpen,
-  Landmark,
-  FileText,
   Percent,
   TrendingUp,
-  Package,
-  FileCheck,
-  Users,
-  Cable,
-  BarChart3,
-  CreditCard,
   Settings,
   Sparkles,
   PanelLeft,
   ShieldCheck,
   Scale,
-  SlidersHorizontal,
 } from "lucide-react";
 
 interface NavigationItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  moduleKey?: OptionalModuleKey;
 }
 
 interface NavigationGroup {
@@ -44,11 +33,11 @@ interface NavigationGroup {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { toggleAiDrawer, enabledModules } = useAppState();
+  const { toggleAiDrawer } = useAppState();
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const rawGroups: NavigationGroup[] = [
+  const navigationGroups: NavigationGroup[] = [
     {
       label: t.nav.groups.overview,
       items: [
@@ -62,8 +51,6 @@ export function Sidebar() {
       items: [
         { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
         { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
-        { name: t.nav.banking, href: "/banking", icon: Landmark, moduleKey: "banking" },
-        { name: t.nav.documents, href: "/documents", icon: FileText, moduleKey: "documents" },
       ],
     },
     {
@@ -71,30 +58,13 @@ export function Sidebar() {
       items: [
         { name: t.nav.tax, href: "/tax", icon: Percent },
         { name: t.nav.finance, href: "/finance", icon: TrendingUp },
-        { name: t.nav.inventory, href: "/inventory", icon: Package, moduleKey: "inventory" },
-        { name: t.nav.contracts, href: "/contracts", icon: FileCheck, moduleKey: "contracts" },
-        { name: t.nav.employees, href: "/employees", icon: Users, moduleKey: "employees" },
       ],
     },
     {
       label: t.nav.groups.system,
-      items: [
-        { name: t.nav.integrations, href: "/integrations", icon: Cable, moduleKey: "integrations" },
-        { name: t.nav.reports, href: "/reports", icon: BarChart3, moduleKey: "reports" },
-        { name: t.nav.team, href: "/team", icon: Users, moduleKey: "team" },
-        { name: t.nav.billing, href: "/billing", icon: CreditCard, moduleKey: "billing" },
-        { name: t.nav.settings, href: "/settings", icon: Settings },
-        { name: "Qoʻshimcha modullar", href: "/settings?tab=modules", icon: SlidersHorizontal },
-      ],
+      items: [{ name: t.nav.settings, href: "/settings", icon: Settings }],
     },
   ];
-
-  const navigationGroups = rawGroups
-    .map((g) => ({
-      ...g,
-      items: g.items.filter((it) => !it.moduleKey || enabledModules[it.moduleKey]),
-    }))
-    .filter((g) => g.items.length > 0);
 
   return (
     <aside

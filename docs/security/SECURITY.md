@@ -15,7 +15,7 @@ FIRMUS processes sensitive financial records, tax declarations, and enterprise l
 ## 3. Dual-Layer Multi-Tenant Isolation & RBAC
 
 1. **Next.js Server Route & Validation Boundary**:
-   - Authenticated routes verify `supabase.auth.getUser()`, validate inputs with Zod (`lib/validations/accounting.ts`, `lib/ai/agent-types.ts`), enforce RBAC (`MUTATING_AGENT_ROLES` blocking `auditor`/`viewer` mutations), and prevent open redirects (`app/auth/callback/route.ts`) and SSRF (`app/api/integrations/test/route.ts`).
+   - Authenticated routes verify `supabase.auth.getUser()`, validate inputs with Zod (`lib/validations/accounting.ts`, `lib/ai/agent-types.ts`), enforce RBAC (`MUTATING_AGENT_ROLES` blocking `auditor`/`viewer` mutations), and prevent open redirects (`app/auth/callback/route.ts`).
    - Sensitive secrets (`SUPABASE_SERVICE_ROLE_KEY`, `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `GEMINI_API_KEY`) are locked in server-only modules (`import "server-only"`).
 2. **PostgreSQL Row-Level Security (RLS) & Hardened RPCs**:
    - `SECURITY DEFINER` RPCs declare `SET search_path = public`, revoke `anon`/`PUBLIC` execute grants, verify `auth.uid()`, and enforce role/entity isolation inside PostgreSQL.

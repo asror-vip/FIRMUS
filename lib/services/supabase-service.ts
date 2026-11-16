@@ -1,5 +1,4 @@
 import { supabase } from "@/lib/supabase/client";
-import { mockChartOfAccounts } from "@/lib/mock/accounting";
 import { splitVatInclusive, calculatePayrollContributions } from "@/lib/utils/finance";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1240,7 +1239,7 @@ export async function saveUserPhoneVerification(userId: string, phone: string) {
 // ==========================================
 export async function fetchChartOfAccounts(entityId?: string) {
   try {
-    if (entityId && !isValidUuid(entityId)) return mockChartOfAccounts;
+    if (entityId && !isValidUuid(entityId)) return [];
     let query = supabase
       .from("chart_of_accounts")
       .select("*")
@@ -1253,7 +1252,7 @@ export async function fetchChartOfAccounts(entityId?: string) {
 
     const { data, error } = await query;
     if (error || !data || data.length === 0) {
-      return mockChartOfAccounts;
+      return [];
     }
 
     return data.map((acc: any) => ({
@@ -1276,7 +1275,7 @@ export async function fetchChartOfAccounts(entityId?: string) {
     }));
   } catch (err) {
     console.error("fetchChartOfAccounts error:", err);
-    return mockChartOfAccounts;
+    return [];
   }
 }
 

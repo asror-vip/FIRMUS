@@ -15,8 +15,7 @@ flowchart TD
     subgraph NextServer["Server Layer (Next.js Route Handlers & Server Logic)"]
         AI_ORCH["/api/ai-copilot (Gemini Function Calling + Deterministic 21-BHMS Guard)"]
         AI_EXEC["/api/ai-copilot/execute (RBAC + Zod + Audit Log Execution)"]
-        OTP_API["/api/auth/phone-otp/* (HMAC-SHA256 OTP + Rate Limit)"]
-        INTEG_API["/api/integrations/test (SSRF-Protected URL Tester)"]
+        AI_REC["/api/ai-reconcile (Stateless Zero-PII Bank <-> 1C Analyzer)"]
         HEALTH["/api/health"]
     end
 
@@ -62,7 +61,7 @@ firmus/
 │   └── ui/                          # shadcn/ui design system primitives
 ├── lib/
 │   ├── ai/                          # FIRMUS Agent engine (firmus-agent.ts) & typed contracts (agent-types.ts)
-│   ├── services/                    # supabase-service.ts, eskiz-sms.ts, eimzo-client.ts, bank-import.ts, one-c-export.ts
+│   ├── services/                    # supabase-service.ts, reconcile-engine.ts, bank-import.ts, one-c-export.ts
 │   ├── supabase/                    # server.ts, client.ts, service.ts
 │   ├── utils/                       # finance.ts (roundMoney, splitVatInclusive, payroll), privacy.ts (PII masking)
 │   └── validations/                 # Zod v4 schemas

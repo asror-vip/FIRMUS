@@ -8,20 +8,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { User, Mail, Lock, Phone, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, ArrowRight, Loader2, Building2 } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [fullName, setFullName] = useState("");
+  const [workspaceAlias, setWorkspaceAlias] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !email || !password) {
-      toast.error("Iltimos, barcha majburiy maydonlarni toʻldiring");
+    if (!email || !password) {
+      toast.error("Iltimos, elektron pochta va parolni kiriting");
       return;
     }
 
@@ -37,8 +36,7 @@ export default function RegisterPage() {
         password,
         options: {
           data: {
-            full_name: fullName.trim(),
-            phone: phone.trim() || undefined,
+            full_name: workspaceAlias.trim() || "Bosh buxgalter",
             role: "accountant",
           },
         },
@@ -46,7 +44,7 @@ export default function RegisterPage() {
 
       if (error) throw error;
 
-      toast.success("Roʻyxatdan oʻtish muvaffaqiyatli! Xush kelibsiz.");
+      toast.success("Hisob yaratildi! Xush kelibsiz.");
       router.push("/");
       router.refresh();
     } catch (err: any) {
@@ -95,19 +93,18 @@ export default function RegisterPage() {
             FIRMUS Hisobini Yaratish
           </h1>
           <p className="text-xs text-muted-foreground">
-            Buxgalteriya va biznes boshqaruvi platformasi
+            Google bilan tezkor boshlang — shaxsiy telefon va pasport talab qilinmaydi
           </p>
         </div>
 
         <Card className="shadow-lg border-border">
           <CardContent className="pt-6 space-y-3.5 text-xs">
-            {/* Quick Google Sign Up */}
             <Button
               type="button"
               variant="outline"
               disabled={isLoading}
               onClick={handleGoogleSignUp}
-              className="w-full text-xs h-9 gap-2.5 font-medium border-border hover:bg-muted/60 transition-colors"
+              className="w-full text-xs h-10 gap-2.5 font-semibold border-indigo-500/40 bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors"
             >
               <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
                 <path
@@ -141,17 +138,19 @@ export default function RegisterPage() {
 
             <form onSubmit={handleRegister} className="space-y-3">
               <div>
-                <label className="font-semibold text-foreground block mb-1">
-                  Toʻliq ism-sharifingiz:
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-foreground">
+                    Kompaniya / Taxallus:
+                  </label>
+                  <span className="text-[10px] text-muted-foreground">ixtiyoriy</span>
+                </div>
                 <div className="relative">
-                  <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Building2 className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Alisher Rustamov"
+                    value={workspaceAlias}
+                    onChange={(e) => setWorkspaceAlias(e.target.value)}
+                    placeholder="Masalan: Buxgalteriya #1"
                     className="pl-8 text-xs h-9"
-                    required
                   />
                 </div>
               </div>
@@ -166,32 +165,11 @@ export default function RegisterPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
-                    placeholder="alisher@kompaniya.uz"
+                    placeholder="office@kompaniya.uz"
                     className="pl-8 text-xs h-9"
                     required
                   />
                 </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-semibold text-foreground">
-                    Telefon raqami:
-                  </label>
-                  <span className="text-[10px] text-muted-foreground">ixtiyoriy</span>
-                </div>
-                <div className="relative">
-                  <Phone className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+998 90 123-45-67"
-                    className="pl-8 text-xs h-9 font-mono"
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Keyinroq profilingizdan xavfsizlik uchun ham tasdiqlashingiz mumkin.
-                </p>
               </div>
 
               <div>

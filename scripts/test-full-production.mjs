@@ -65,7 +65,8 @@ async function run() {
     { path: "/reconcile", expected: 307 },
     { path: "/transactions", expected: 307 },
     { path: "/accounting", expected: 307 },
-    { path: "/documents", expected: 307 },
+    { path: "/tax", expected: 307 },
+    { path: "/finance", expected: 307 },
     { path: "/settings", expected: 307 },
   ];
 
@@ -79,9 +80,6 @@ async function run() {
     "/api/ai-copilot",
     "/api/ai-copilot/execute",
     "/api/ai-reconcile",
-    "/api/integrations/test",
-    "/api/auth/phone-otp/send",
-    "/api/auth/phone-otp/verify",
   ];
   for (const ep of unauthApis) {
     const res = await fetch(`${BASE_URL}${ep}`, {
@@ -149,43 +147,10 @@ async function run() {
     JSON.stringify(aiRecJson)
   );
 
-  // Test SSRF block & real URL check on /api/integrations/test
-  const ssrfRes = await fetch(`${BASE_URL}/api/integrations/test`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Cookie: cookieHeader },
-    body: JSON.stringify({ apiUrl: "http://127.0.0.1:54321" }),
-  });
-  check("SSRF blocked on /api/integrations/test -> HTTP 403", ssrfRes.status === 403, `got ${ssrfRes.status}`);
-
-  const extRes = await fetch(`${BASE_URL}/api/integrations/test`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Cookie: cookieHeader },
-    body: JSON.stringify({ apiUrl: "https://example.com" }),
-  });
-  const extJson = await extRes.json();
-  check(
-    "Real HTTPS endpoint check on /api/integrations/test succeeds",
-    extRes.status === 200 && extJson.reachable === true && extJson.statusCode === 200,
-    JSON.stringify(extJson)
-  );
-
   // Open redirect guard check on /auth/callback
   const cbRes = await fetch(`${BASE_URL}/auth/callback?next=https://evil.com`, { redirect: "manual" });
   const cbLoc = cbRes.headers.get("location") || "";
   check("Open redirect blocked on /auth/callback", !cbLoc.includes("evil.com"), `location=${cbLoc}`);
-
-  // Test Eskiz Phone OTP config guard on /api/auth/phone-otp/send
-  const otpSendRes = await fetch(`${BASE_URL}/api/auth/phone-otp/send`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Cookie: cookieHeader },
-    body: JSON.stringify({ phone: "+998 90 123-45-67" }),
-  });
-  const otpSendJson = await otpSendRes.json();
-  check(
-    "POST /api/auth/phone-otp/send validates Eskiz config cleanly (503 when keys missing, 200 if set)",
-    otpSendRes.status === 503 || otpSendRes.status === 200,
-    `status=${otpSendRes.status} body=${JSON.stringify(otpSendJson)}`
-  );
 
   // 4. Full Lifecycle inside Temporary Workspace + Temporary Entity
   let tempWorkspaceId = null;

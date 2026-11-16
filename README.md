@@ -18,16 +18,17 @@ FIRMUS is an enterprise-grade business automation and accounting SaaS platform e
 ```text
 firmus/
 ├── app/
-│   ├── (app)/                       # Authenticated dashboard, accounting, banking, docs, HR, contracts, tax, settings
-│   ├── (auth)/                      # Login (Email/Google/E-IMZO), register, forgot-password
-│   ├── api/                         # Route Handlers (ai-copilot, ai-copilot/execute, auth/phone-otp, integrations/test, health)
-│   ├── privacy/ & terms/            # Legal pages & compliance
+│   ├── (app)/                       # Lean core: dashboard, /reconcile (Bank<->1C Sverka), accounting, transactions, ai-auditor, tax, finance, settings
+│   ├── (auth)/                      # Login (Google-first & Email), register, forgot-password
+│   ├── api/                         # Route Handlers (ai-copilot, ai-copilot/execute, ai-reconcile, health)
+│   ├── privacy/ & terms/            # O'RQ-547 Zero-PII privacy & terms pages
 ├── components/                      # Reusable UI, navigation shell, Human-in-the-Loop AI Drawer
 ├── lib/
 │   ├── ai/                          # FIRMUS 21-BHMS AI Agent engine, Zod tool schemas & guardrails
-│   ├── services/                    # Supabase client queries, Eskiz SMS, E-IMZO CAPIWS, bank import, 1C export
-│   ├── utils/                       # Exact money rounding, VAT 12% split, payroll math, PII masking
+│   ├── services/                    # reconcile-engine.ts, supabase-service.ts, bank-import.ts, one-c-export.ts
+│   ├── utils/                       # Exact money rounding, VAT 12% split, payroll math, card/PINFL PII masking
 │   └── validations/                 # Zod v4 schemas
+├── archive/optional-modules/        # Archived extended ERP pages/APIs (banking, docs, HR, contracts, SMS OTP, mocks) for future restore
 ├── supabase/
 │   └── migrations/                  # Versioned PostgreSQL migrations (RLS, atomic ledger RPCs, Storage, AI audit logs)
 ├── scripts/                         # Security RLS, accounting hardening & full production E2E verification scripts

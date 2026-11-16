@@ -36,9 +36,9 @@ flowchart LR
 
 ## Phase 3: Bank Ingestion & 1C Exchange — [DONE]
 - **Deliverables**:
-  - Client-side & server-validated parsers for 1C Client-Bank `.txt` and bank `.csv` statements (`lib/services/bank-import.ts`).
+  - Client-side & server-validated parsers for 1C Client-Bank `.txt` (UTF-8 / Windows-1251), 1C `EnterpriseData XML`, and bank `.csv` statements (`lib/services/bank-import.ts`, `lib/services/reconcile-engine.ts`).
+  - Stateless O'RQ-547 Zero-PII Bank ↔ 1C AI Reconciliation workspace (`/reconcile` + `/api/ai-reconcile`).
   - 1C Client-Bank & Enterprise XML exporters (`lib/services/one-c-export.ts`).
-  - SSRF-protected integration URL verification (`/api/integrations/test`) and sync logs.
 
 ## Phase 4: Deterministic Accounting Engine (21-BHMS) — [DONE]
 - **Deliverables**:
