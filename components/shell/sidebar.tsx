@@ -43,6 +43,7 @@ export function Sidebar() {
       items: [
         { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
         { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
+        { name: "AI Hamkasb & Skaner", href: "/assistant", icon: Sparkles },
         { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
       ],
     },

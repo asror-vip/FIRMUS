@@ -51,6 +51,9 @@ export function Footer() {
           <Link href="/reconcile" className="hover:text-foreground transition-colors">
             Bank ↔ 1C AI Sverka
           </Link>
+          <Link href="/assistant" className="hover:text-foreground transition-colors">
+            AI Hamkasb & Skaner
+          </Link>
           <Link href="/accounting" className="hover:text-foreground transition-colors">
             Buxgalteriya
           </Link>

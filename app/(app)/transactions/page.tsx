@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { importBatchTransactions, ParsedBankTransaction } from "@/lib/services/bank-import";
-import { decodeBankFileBuffer, parseStatementFile } from "@/lib/services/reconcile-engine";
+import { parseStatementFileBuffer } from "@/lib/services/reconcile-engine";
 import { generate1CClientBankText } from "@/lib/services/one-c-export";
 import {
   Search,
@@ -100,12 +100,9 @@ function TransactionsContent() {
     setImportFileName(file.name);
     try {
       const buffer = await file.arrayBuffer();
-      const text = decodeBankFileBuffer(buffer);
-      if (!text) return;
-
-      const parsed = parseStatementFile(text, file.name, currentEntity?.tinStir || "");
+      const parsed = await parseStatementFileBuffer(buffer, file.name, currentEntity?.tinStir || "");
       if (parsed.length === 0) {
-        toast.error("Fayldan toʻlov operatsiyalari topilmadi. Fayl formati 1C Client-Bank (.txt), XML yoki CSV boʻlishi kerak.");
+        toast.error("Fayldan toʻlov operatsiyalari topilmadi. Fayl formati Excel (.xlsx/.xls), Client-Bank (.txt), XML yoki CSV boʻlishi kerak.");
       } else {
         setImportedList(parsed);
         toast.success(`Fayldan ${parsed.length} ta bank toʻlovi muvaffaqiyatli aniqlandi!`);
@@ -880,7 +877,7 @@ function TransactionsContent() {
               <input
                 id="bank-file-upload"
                 type="file"
-                accept=".txt,.csv"
+                accept=".xlsx,.xls,.txt,.csv,.tsv"
                 className="hidden"
                 onChange={handleFileChange}
               />

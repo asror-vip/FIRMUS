@@ -21,8 +21,8 @@ import { Money } from "@/components/shared/money";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
 import {
   RECONCILE_ACCOUNT_OPTIONS,
-  decodeBankFileBuffer,
   parseStatementFile,
+  parseStatementFileBuffer,
   reconcileBankAnd1C,
   buildReconcileJournalLines,
   buildSafeAiReconcileInput,
@@ -129,8 +129,7 @@ export default function ReconcilePage() {
     if (!file) return;
     try {
       const buffer = await file.arrayBuffer();
-      const text = decodeBankFileBuffer(buffer);
-      const parsed = parseStatementFile(text, file.name, currentEntity?.tinStir || "");
+      const parsed = await parseStatementFileBuffer(buffer, file.name, currentEntity?.tinStir || "");
       applyParsedSource(source, parsed, file.name);
     } catch (err: any) {
       toast.error("Faylni oʻqishda xatolik: " + (err?.message || "Nomaʼlum xato"));
@@ -462,14 +461,14 @@ export default function ReconcilePage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">1. Bankdan kelgan koʻchirma</CardTitle>
             <CardDescription className="text-xs">
-              1C Client-Bank (`.txt` UTF-8/Win-1251), Bank `.csv`/`.tsv`, HTML `.xls` yoki Excel nusxa
+              Excel `.xlsx`/`.xls`, 1C Client-Bank `.txt`, `.csv`/`.tsv` yoki Ctrl+V nusxa
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 text-xs">
             <input
               ref={bankInputRef}
               type="file"
-              accept=".txt,.csv,.tsv,.xls"
+              accept=".xlsx,.xls,.txt,.csv,.tsv"
               className="hidden"
               onChange={(e) => handleUploadFile("bank", e.target.files?.[0])}
             />
@@ -480,7 +479,7 @@ export default function ReconcilePage() {
               onClick={() => bankInputRef.current?.click()}
             >
               <Upload className="h-4 w-4 text-indigo-600" />
-              <span>{bankFileName || "Bank faylini tanlash (.txt, .csv, .xls)"}</span>
+              <span>{bankFileName || "Bank faylini tanlash (.xlsx, .txt, .csv, .xls)"}</span>
             </Button>
             <div className="flex items-center justify-between gap-2">
               <Button
@@ -509,14 +508,14 @@ export default function ReconcilePage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">2. 1C dan olingan fayl</CardTitle>
             <CardDescription className="text-xs">
-              1C EnterpriseData (`.xml`), Client-Bank (`.txt`), 1C `.csv`/`.xls` yoki Bosh kitob
+              1C `.xlsx` (Akt sverka/Vypiska), `.xml` EnterpriseData, `.txt`, `.csv` yoki Bosh kitob
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 text-xs">
             <input
               ref={oneCInputRef}
               type="file"
-              accept=".xml,.txt,.csv,.tsv,.xls"
+              accept=".xlsx,.xls,.xml,.txt,.csv,.tsv"
               className="hidden"
               onChange={(e) => handleUploadFile("onec", e.target.files?.[0])}
             />
@@ -527,7 +526,7 @@ export default function ReconcilePage() {
               onClick={() => oneCInputRef.current?.click()}
             >
               <Upload className="h-4 w-4 text-emerald-600" />
-              <span>{oneCFileName || "1C faylini tanlash (.xml, .txt, .csv, .xls)"}</span>
+              <span>{oneCFileName || "1C faylini tanlash (.xlsx, .xml, .txt, .csv)"}</span>
             </Button>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-1">
@@ -572,10 +571,10 @@ export default function ReconcilePage() {
               Haqiqiy ishchi fayllarni solishtirishga tayyor
             </div>
             <p>
-              1) Chap tomonga bankdan yuklangan <code className="font-mono text-foreground">.txt</code> (1C Client-Bank), <code className="font-mono text-foreground">.csv</code>/<code className="font-mono text-foreground">.tsv</code> yoki Excel HTML <code className="font-mono text-foreground">.xls</code> koʻchirmangizni yuklang (yoki jadvaldan <code className="font-mono text-foreground">Ctrl+V</code> qiling).
+              1) Chap tomonga bankdan yuklangan <code className="font-mono text-foreground">.xlsx</code> (Excel), <code className="font-mono text-foreground">.txt</code> (1C Client-Bank), <code className="font-mono text-foreground">.csv</code>/<code className="font-mono text-foreground">.tsv</code> yoki <code className="font-mono text-foreground">.xls</code> koʻchirmangizni yuklang (yoki jadvaldan <code className="font-mono text-foreground">Ctrl+V</code> qiling).
             </p>
             <p>
-              2) Oʻng tomonga 1C dan chiqarilgan <code className="font-mono text-foreground">.xml</code> / <code className="font-mono text-foreground">.txt</code> / <code className="font-mono text-foreground">.csv</code> faylini yuklang — bitta fayl yuklanishi bilanoq solishtirish natijasi va 21-BHMS schyot tavsiyalari chiqadi.
+              2) Oʻng tomonga 1C dan chiqarilgan <code className="font-mono text-foreground">.xlsx</code> (Akt sverka/Vypiska), <code className="font-mono text-foreground">.xml</code>, <code className="font-mono text-foreground">.txt</code> yoki <code className="font-mono text-foreground">.csv</code> faylini yuklang — solishtirish natijasi va 21-BHMS schyot tavsiyalari darhol chiqadi.
             </p>
           </CardContent>
         </Card>

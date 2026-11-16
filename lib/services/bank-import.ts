@@ -1,3 +1,5 @@
+import { excelSerialToIsoDate } from "./xlsx-parser";
+
 export interface ParsedBankTransaction {
   date: string;
   amount: number;
@@ -11,14 +13,19 @@ export interface ParsedBankTransaction {
 }
 
 function normalizeDateString(raw: string): string {
-  const trimmed = raw.trim().slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return trimmed;
+  const trimmed = raw.trim();
+  const iso = trimmed.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    return iso;
   }
-  const dmy = trimmed.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
+  const dmy = iso.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
   if (dmy) {
     const year = dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3];
     return `${year}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  }
+  if (/^\d{5}(?:\.\d+)?$/.test(trimmed)) {
+    const converted = excelSerialToIsoDate(trimmed);
+    if (converted) return converted;
   }
   return new Date().toISOString().split("T")[0];
 }
@@ -247,8 +254,30 @@ function splitDelimitedRow(line: string, delimiter: string): string[] {
   return result.map((c) => c.replace(/^["']|["']$/g, "").trim());
 }
 
+function extractSpreadsheetMlRows(xml: string): string[][] {
+  const rows: string[][] = [];
+  const rowMatches = xml.match(/<Row\b[^>]*>[\s\S]*?<\/Row>/gi) || [];
+  for (const r of rowMatches) {
+    const cells: string[] = [];
+    const cellMatches = r.match(/<Cell\b[^>]*>[\s\S]*?<\/Cell>/gi) || [];
+    for (const c of cellMatches) {
+      const m = c.match(/<Data\b[^>]*>([\s\S]*?)<\/Data>/i);
+      const val = (m?.[1] || c.replace(/<[^>]+>/g, ""))
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, " ")
+        .trim();
+      cells.push(val);
+    }
+    if (cells.length > 0) rows.push(cells);
+  }
+  return rows;
+}
+
 /**
- * Smart parser for CSV, TSV, Excel copy-paste, and HTML .xls bank/1C statements.
+ * Smart parser for CSV, TSV, Excel copy-paste, HTML .xls, and XML SpreadsheetML bank/1C statements.
  * Handles arbitrary Russian/Uzbek/English column headers as well as fixed-column legacy CSVs.
  */
 export function parseBankCsv(csvContent: string): ParsedBankTransaction[] {
@@ -257,8 +286,11 @@ export function parseBankCsv(csvContent: string): ParsedBankTransaction[] {
 
   let rows: string[][] = [];
   const isHtmlTable = /<(html|table|tr)\b/i.test(trimmed);
+  const isSpreadsheetMl = /<Workbook\b/i.test(trimmed) && /<Row\b/i.test(trimmed);
 
-  if (isHtmlTable) {
+  if (isSpreadsheetMl) {
+    rows = extractSpreadsheetMlRows(trimmed);
+  } else if (isHtmlTable) {
     rows = extractHtmlTableRows(trimmed);
   } else {
     const lines = trimmed.split(/\r?\n/).filter((l) => l.trim().length > 0);
@@ -278,6 +310,13 @@ export function parseBankCsv(csvContent: string): ParsedBankTransaction[] {
     rows = lines.map((l) => splitDelimitedRow(l, delimiter));
   }
 
+  return parseBankRows(rows);
+}
+
+/**
+ * Converts already-extracted 2D worksheet/table rows (.xlsx, HTML .xls, CSV) into typed transactions.
+ */
+export function parseBankRows(rows: string[][]): ParsedBankTransaction[] {
   if (rows.length <= 1) return [];
 
   // Detect smart header row within first 15 rows
@@ -351,8 +390,10 @@ export function parseBankCsv(csvContent: string): ParsedBankTransaction[] {
       const cols = rows[i];
       if (cols.length < 2) continue;
 
-      const rawDate = cols[colMap.date] || "";
-      if (!/(\d{4}-\d{2}-\d{2}|\d{1,2}[./]\d{1,2}[./]\d{2,4})/.test(rawDate)) continue;
+      const rawDate = (cols[colMap.date] || "").trim();
+      const isFormattedDate = /(\d{4}-\d{2}-\d{2}|\d{1,2}[./]\d{1,2}[./]\d{2,4})/.test(rawDate);
+      const isExcelSerial = /^\d{5}(?:\.\d+)?$/.test(rawDate) && excelSerialToIsoDate(rawDate) !== null;
+      if (!isFormattedDate && !isExcelSerial) continue;
       const date = normalizeDateString(rawDate);
 
       let amount = 0;

@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Settings,
   Scale,
+  Sparkles,
   X,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ export function CommandPalette() {
   const navigationItems = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
     { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
+    { name: "AI Hamkasb & Skaner", href: "/assistant", icon: Sparkles },
     { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
     { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
     { name: t.nav.accounting, href: "/accounting", icon: BookOpen },

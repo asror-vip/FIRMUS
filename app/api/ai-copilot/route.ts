@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { copilotRequestSchema } from "@/lib/ai/agent-types";
-import { runFirmusAgent } from "@/lib/ai/firmus-agent";
+import { runFirmusAgent, runAdvisoryAgent } from "@/lib/ai/firmus-agent";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,13 +45,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (!targetEntity) {
-      return NextResponse.json({
-        mode: "deterministic_guard",
-        modelUsed: "deterministic-21bhms-guard",
-        reply: "Hisobingizga biriktirilgan korxona topilmadi. Avval Sozlamalar boʻlimidan korxona yarating.",
-        toolCalls: ["business_entities.select"],
-        canExecuteActions: false,
-      });
+      const advisory = await runAdvisoryAgent({ message, history });
+      return NextResponse.json(advisory);
     }
 
     const result = await runFirmusAgent({

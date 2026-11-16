@@ -4,6 +4,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { depersonalizeForAi } from "@/lib/utils/privacy";
 import { roundMoney, splitVatInclusive } from "@/lib/utils/finance";
 import {
+  calculatePayrollUz,
+  calculateVatUz,
+  calculateTurnoverTaxUz,
+  LEX_UZ_TAX_CODE_URL,
+  LEX_UZ_BHMS21_URL,
+} from "@/lib/services/uz-tax-calculator";
+import {
   type AgentActionProposal,
   type AgentHistoryItem,
   journalProposalPayloadSchema,
@@ -104,16 +111,18 @@ function buildFirmusSystemInstruction(params: {
     "1. HECH QACHON raqam, summa, schyot qoldig'i, hujjat yoki shartnoma ma'lumotini o'zingizdan to'qib chiqarmang. Foydalanuvchi raqam so'rasa, albatta read tool (get_financial_overview, get_trial_balance, get_general_ledger, list_recent_journal_entries, search_business_records) chaqiring.",
     "2. HECH QACHON schyotlar rejasida (yuqoridagi ro'yxatda) mavjud bo'lmagan schyot kodini ishlatmang.",
     "3. IKKIYOQLAMA YOZUV QONUNI: Har bir provodkada Debet jami == Kredit jami (aniq 2 xonagacha), bir qatorda ham debit > 0 ham credit > 0 bo'lmasligi, va summalar > 0 bo'lishi shart.",
-    "4. O'ZBEKISTON SOLIQ FORMULALARI:",
-    "   - QQS 12%: Agar summa 'QQS bilan' berilgan bo'lsa: QQS = round(summa * 12 / 112, 2), sof summa = summa - QQS. QQS chiqim/sotishda 6410 (Kt), kirim/xaridda 4410 (Dt).",
-    "   - Ish haqi: JShODS = 12% (6710 Dt / 6410 Kt), Ijtimoiy soliq = 12% (9420 Dt / 6520 Kt), asosiy hisob (9420 Dt / 6710 Kt).",
+    "4. O'ZBEKISTON SOLIQ FORMULALARI VA QONUNCHILIK HAVOLALARI:",
+    `   - Rasmiy manbalar: Soliq kodeksi (${LEX_UZ_TAX_CODE_URL}), 21-son BHMS yangi tahrir (${LEX_UZ_BHMS21_URL}).`,
+    "   - QQS 12% (Soliq kodeksi 258-modda): Agar summa 'QQS bilan' berilgan bo'lsa: QQS = round(summa * 12 / 112, 2), sof summa = summa - QQS. QQS chiqim/sotishda 6410 (Kt), kirim/xaridda 4410 (Dt). Ta'lim/tibbiyot kabi QQS ozodliklari SK 243-moddada ko'rsatilgan.",
+    "   - Ish haqi (Soliq kodeksi 381- va 405-moddalar): JShDS = 12% (shundan 0.1% ShJBPH/INPS ichida; 6710 Dt / 6410 Kt), Netto = Brutto * 0.88 (yoki Brutto = Netto / 0.88), Ijtimoiy soliq = 12% (9420 Dt / 6520 Kt), asosiy hisob (9420 Dt / 6710 Kt).",
+    "   - Aylanmadan soliq = 4% (Soliq kodeksi 467-modda): 9430 Dt / 6410 Kt.",
     "   - Xarid (tovar/xizmat): Tovarlar 2910 yoki Material 1010 yoki Xarajat 9420 (Dt), Yetkazib beruvchi 6010 (Kt).",
     "   - Sotuv (tushum): Xaridor 4010 (Dt), Sotish tushumi 9010/9020/9030 (Kt), QQS 6410 (Kt).",
     "   - Bank to'lovi: Kirim 5110 Dt / 4010 Kt; Chiqim 6010 Dt / 5110 Kt.",
     "   - Davr yopish: 90xx/91xx/94xx schyotlarini 9910 orqali 8710 ga yopish uchun propose_close_period chaqiring.",
     "5. HUMAN-IN-THE-LOOP QAT'IY CHEKLOVI: Siz bazaga o'zboshimchalik bilan yozmaysiz. Har qanday o'zgarish (provodka, storno, istisno, bank operatsiyasi, davr yopish) so'ralganda ALBATTA propose_journal_entry yoki mos propose_* functionCall ni chaqiring! Hech qachon functionCall chaqirmasdan matnda 'taklif tayyorlandi, tasdiqlang' deb yozmang — aks holda tasdiqlash tugmasi chiqmaydi.",
     "6. Agar foydalanuvchi roli 'viewer' yoki 'auditor' bo'lsa, hech qanday propose_* o'zgartirish tool'ini chaqirmang, faqat tahlil bering va ruxsat yo'qligini tushuntiring.",
-    "7. Javoblarni O'zbek tilida, aniq, qisqa, rasmiy va tushunarli buxgalteriya tilida bering.",
+    "7. Javoblarni O'zbek tilida, aniq, qisqa, rasmiy va tushunarli buxgalteriya tilida bering; qonun yoki soliq savolida tegishli Soliq kodeksi moddasi va lex.uz havolasini keltiring.",
   ].join("\n");
 }
 
@@ -887,4 +896,165 @@ export async function runFirmusAgent(params: {
       ? `Tashqi LLM (${lastErrorNote}) vaqtincha javob bermaganligi sababli qatʼiy Supabase tahlil rejimi ishlatildi.`
       : undefined,
   });
+}
+
+function buildDeterministicUzAdvisoryReply(message: string): string {
+  const lower = message.toLowerCase();
+  const numMatch = message.replace(/\s+/g, "").match(/(\d+(?:[.,]\d+)?)/);
+  const parsedAmount = numMatch ? parseFloat(numMatch[1].replace(",", ".")) : 0;
+
+  if (
+    lower.includes("maosh") ||
+    lower.includes("oylik") ||
+    lower.includes("ish haqi") ||
+    lower.includes("jshds") ||
+    lower.includes("jshods") ||
+    lower.includes("qo'liga") ||
+    lower.includes("qoliga")
+  ) {
+    const amount = parsedAmount > 0 ? parsedAmount : 5_000_000;
+    const isNet = lower.includes("qo'l") || lower.includes("qol") || lower.includes("netto");
+    const calc = calculatePayrollUz({
+      amount,
+      direction: isNet ? "net_to_gross" : "gross_to_net",
+    });
+    return [
+      `Ish haqi hisob-kitobi (${calc.taxArticleRef}):`,
+      `• Hisoblangan (Brutto): ${formatUzs(calc.gross)}`,
+      `• JShDS (12%, shundan 0.1% ShJBPH/INPS ichida): -${formatUzs(calc.jshds12)}`,
+      `• Xodim qoʻliga tegadigan (Netto): ${formatUzs(calc.net)}`,
+      `• Ish beruvchi ijtimoiy soligʻi (12%): ${formatUzs(calc.socialTax12)}`,
+      "",
+      "21-son BHMS provodkalari:",
+      ...calc.provodka.map(
+        (p) => `• ${p.debitCode} Dt / ${p.creditCode} Kt — ${formatUzs(p.amount)} (${p.description})`
+      ),
+      `Manba: ${calc.lexUrl}`,
+    ].join("\n");
+  }
+
+  if (lower.includes("qqs") || lower.includes("nds")) {
+    const amount = parsedAmount > 0 ? parsedAmount : 11_200_000;
+    const excluded = lower.includes("ustiga") || lower.includes("qqssiz");
+    const vat = calculateVatUz({ amount, mode: excluded ? "excluded" : "included" });
+    return [
+      `QQS 12% hisob-kitobi (${vat.taxArticleRef}):`,
+      `• QQSsiz sof summa: ${formatUzs(vat.net)}`,
+      `• QQS (12%): ${formatUzs(vat.vat12)}`,
+      `• QQS bilan jami: ${formatUzs(vat.total)}`,
+      "",
+      "21-son BHMS provodkasi (Sotuv / Xarid):",
+      `• Sotuv: 4010 Dt / 9030 Kt (${formatUzs(vat.net)}) va 4010 Dt / 6410 Kt (${formatUzs(vat.vat12)})`,
+      `• Xarid: 6010 Dt / 5110 Kt (${formatUzs(vat.total)}) va 4410 Dt / 6010 Kt (${formatUzs(vat.vat12)})`,
+      `Manba: ${vat.lexUrl}`,
+    ].join("\n");
+  }
+
+  if (lower.includes("aylanma") || lower.includes("4%")) {
+    const revenue = parsedAmount > 0 ? parsedAmount : 100_000_000;
+    const turn = calculateTurnoverTaxUz({ revenue });
+    return [
+      `Aylanmadan olinadigan soliq 4% (${turn.taxArticleRef}):`,
+      `• Jami tushum: ${formatUzs(turn.revenue)}`,
+      `• Toʻlanadigan soliq (4%): ${formatUzs(turn.tax)}`,
+      `• Provodka: 9430 Dt / 6410 Kt (${formatUzs(turn.tax)})`,
+      `Manba: ${turn.lexUrl}`,
+    ].join("\n");
+  }
+
+  return [
+    "Men Oʻzbekiston buxgalteriyasi (21-son BHMS va Soliq kodeksi) boʻyicha yordam berishga tayyorman.",
+    `• Soliq kodeksi: ${LEX_UZ_TAX_CODE_URL} | 21-son BHMS (№3593): ${LEX_UZ_BHMS21_URL}`,
+    "• Namuna savollar: \"4 500 000 oylikdan qo'liga qancha tegadi?\", \"11 200 000 dan QQS 12% ajrat\", \"Ta'lim xizmatlari QQSdan ozodmi?\"",
+    "• Bank koʻchirmangiz va 1C fayllarini solishtirish uchun «Bank ↔ 1C AI Sverka» boʻlimidan foydalaning.",
+  ].join("\n");
+}
+
+/**
+ * Stateless advisory mode for general Uzbekistan tax, payroll, 21-BHMS, and MXIK questions
+ * even when the authenticated user has not registered a business entity yet.
+ */
+export async function runAdvisoryAgent(params: {
+  message: string;
+  history?: AgentHistoryItem[];
+}): Promise<AgentResult> {
+  const { message, history = [] } = params;
+  const safeMessage = depersonalizeForAi(message);
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+
+  if (apiKey) {
+    const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
+    const modelChain = Array.from(
+      new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"])
+    );
+    const advisoryPrompt = [
+      "Siz FIRMUS — Oʻzbekiston buxgalterlari uchun AI hamkasbsiz (Oʻzbekiston Soliq kodeksi va 21-son BHMS №3593).",
+      `Rasmiy havolalar: Soliq kodeksi (${LEX_UZ_TAX_CODE_URL}), 21-son BHMS (${LEX_UZ_BHMS21_URL}).`,
+      "Qoidalar:",
+      "1. Qonunchilik savollariga imkon qadar tegishli Soliq kodeksi moddasini va lex.uz havolasini aniq koʻrsatib javob bering. Aniq ishonchingiz komil boʻlmagan moddani toʻqimang.",
+      "2. Ish haqi savollarida: JShDS 12% (0.1% ShJBPH ichida, SK 381-modda), Ijtimoiy soliq 12% (SK 405-modda) va 21-BHMS Debet/Kredit provodkalarini qadam-baqadam koʻrsating.",
+      "3. QQS 12% (SK 258-modda): ichidan ajratish = summa * 12 / 112. Aylanmadan soliq 4% (SK 467-modda).",
+      "4. Foydalanuvchida hali korxona ulanmagan — shuning uchun Bosh kitobga yozish uchun tepadan «10 soniyada korxona qoʻshish» kerakligini faqat soʻralganda eslating.",
+      "5. Javobni oʻzbek tilida loʻnda, tushunarli va amaliy tarzda bering.",
+    ].join("\n");
+
+    const contents = [
+      ...history.slice(-6).map((h) => ({
+        role: h.sender === "user" ? "user" : "model",
+        parts: [{ text: depersonalizeForAi(h.text) }],
+      })),
+      { role: "user", parts: [{ text: safeMessage }] },
+    ];
+
+    for (const modelName of modelChain) {
+      try {
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
+          {
+            method: "POST",
+            signal: AbortSignal.timeout(15_000),
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": apiKey,
+            },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: advisoryPrompt }] },
+              contents,
+              generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 1500,
+              },
+            }),
+          }
+        );
+        if (!res.ok) continue;
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts
+          ?.map((p: any) => p.text || "")
+          .join("")
+          .trim();
+        if (text) {
+          return {
+            mode: "gemini_agent",
+            modelUsed: modelName,
+            reply: text,
+            toolCalls: ["uz_tax_advisory"],
+            userRole: "advisory",
+            canExecuteActions: false,
+          };
+        }
+      } catch (err) {
+        console.warn(`[FIRMUS ADVISORY] ${modelName} fallback:`, err);
+      }
+    }
+  }
+
+  return {
+    mode: "deterministic_guard",
+    modelUsed: "deterministic-uz-tax-advisory",
+    reply: buildDeterministicUzAdvisoryReply(safeMessage),
+    toolCalls: ["uz_tax_calculator"],
+    userRole: "advisory",
+    canExecuteActions: false,
+  };
 }

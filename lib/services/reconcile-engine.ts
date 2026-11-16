@@ -1,4 +1,5 @@
-import { parse1CClientBankText, parseBankCsv, type ParsedBankTransaction } from "./bank-import";
+import { parse1CClientBankText, parseBankCsv, parseBankRows, type ParsedBankTransaction } from "./bank-import";
+import { parseXlsxBufferToRows } from "./xlsx-parser";
 import { roundMoney } from "@/lib/utils/finance";
 import { sanitizeStringForAi } from "@/lib/utils/privacy";
 
@@ -200,6 +201,28 @@ export function parseStatementFile(
     if (parsedXml.length > 0) return parsedXml;
   }
   return parseBankCsv(rawText);
+}
+
+/**
+ * Full binary/text statement parser: handles native .xlsx ZIP Excel workbooks as well as
+ * 1C Client-Bank .txt, EnterpriseData .xml, CSV/TSV, HTML .xls, and XML SpreadsheetML.
+ */
+export async function parseStatementFileBuffer(
+  buffer: ArrayBuffer,
+  fileName: string,
+  ourEntityStir = ""
+): Promise<ParsedBankTransaction[]> {
+  const bytes = new Uint8Array(buffer);
+  const lower = fileName.toLowerCase();
+  const isZipMagic = bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+
+  if (lower.endsWith(".xlsx") || isZipMagic) {
+    const xlsxRows = await parseXlsxBufferToRows(buffer);
+    return parseBankRows(xlsxRows);
+  }
+
+  const text = decodeBankFileBuffer(buffer);
+  return parseStatementFile(text, fileName, ourEntityStir);
 }
 
 /**
