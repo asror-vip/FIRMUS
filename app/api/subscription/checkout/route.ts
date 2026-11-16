@@ -102,6 +102,33 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Explicit cancellation of an unpaid order (when user switches payment method or cancels)
+    if (body.action === "cancel_order") {
+      const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
+      if (!orderId) {
+        return NextResponse.json({ error: "orderId talab qilinadi" }, { status: 400 });
+      }
+
+      const svc = getServiceClient();
+      const { data: cancelRes, error: cancelErr } = await svc.rpc("cancel_checkout_order", {
+        p_user_id: user.id,
+        p_order_id: orderId,
+      });
+
+      if (cancelErr) {
+        return NextResponse.json(
+          { error: cancelErr.message || "Buyurtmani bekor qilib boʻlmadi" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        orderId,
+        cancelled: Boolean(cancelRes?.cancelled),
+      });
+    }
+
     // Creating a new checkout order
     const {
       planId,
@@ -152,9 +179,15 @@ export async function POST(req: NextRequest) {
     });
 
     if (rpcErr || !orderData) {
+      const rawMsg = rpcErr?.message || "Buyurtma yaratib boʻlmadi";
+      const isConflict =
+        rawMsg.includes("allaqachon toʻlangan") ||
+        rawMsg.includes("yuqoriroq tarif faol") ||
+        rawMsg.includes("faol!");
+
       return NextResponse.json(
-        { error: rpcErr?.message || "Buyurtma yaratib boʻlmadi" },
-        { status: 400 }
+        { error: rawMsg },
+        { status: isConflict ? 409 : 400 }
       );
     }
 

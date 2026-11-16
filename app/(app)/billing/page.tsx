@@ -6,6 +6,7 @@ import { FEATURES } from "@/lib/config/features";
 import {
   AI_MODELS,
   PLANS_LIST,
+  PLANS_CONFIG,
   type PlanSpec,
 } from "@/lib/config/plans";
 import { fetchWorkspaceUsageSummary } from "@/lib/services/supabase-service";
@@ -212,8 +213,24 @@ export default function BillingPage() {
     };
   };
 
+  const handleSwitchPaymentMethod = async () => {
+    const orderId = checkoutOrder?.order?.orderId || checkoutOrder?.orderId;
+    if (orderId) {
+      try {
+        await fetch("/api/subscription/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "cancel_order", orderId }),
+        });
+      } catch (err) {
+        console.warn("Could not cancel pending order:", err);
+      }
+    }
+    setCheckoutOrder(null);
+  };
+
   const handleInitiateCheckout = async () => {
-    if (!selectedPlanForInfo || selectedPlanForInfo.monthlyPriceUzs === 0) return;
+    if (!selectedPlanForInfo || selectedPlanForInfo.monthlyPriceUzs === 0 || isCheckingOut || isConfirmingOrder) return;
     setIsCheckingOut(true);
     try {
       const payload: any = {
@@ -268,6 +285,7 @@ export default function BillingPage() {
   };
 
   const handleConfirmOrder = async (orderId: string) => {
+    if (isConfirmingOrder || isCheckingOut) return;
     setIsConfirmingOrder(true);
     try {
       const res = await fetch("/api/subscription/checkout", {
@@ -280,14 +298,30 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data?.alreadyPaid) {
+          toast.info(data?.message || "Buyurtma avval toʻlangan");
+          await refreshSubscription();
+          setIsPaymentModalOpen(false);
+          setCheckoutOrder(null);
+          return;
+        }
         throw new Error(data?.error || "Buyurtmani tasdiqlab boʻlmadi");
       }
-      toast.success(data?.message || "Toʻlov muvaffaqiyatli tasdiqlandi! Obuna faollashdi.");
+      if (data?.alreadyPaid) {
+        toast.info(data?.message || "Buyurtma avval toʻlangan");
+      } else {
+        toast.success(data?.message || "Toʻlov muvaffaqiyatli tasdiqlandi! Obuna faollashdi.");
+      }
       await refreshSubscription();
       setIsPaymentModalOpen(false);
       setCheckoutOrder(null);
     } catch (err: any) {
       toast.error(err?.message || "Tasdiqlashda xatolik yuz berdi");
+      if (err?.message?.includes("avval toʻlangan") || err?.message?.includes("already paid")) {
+        await refreshSubscription();
+        setIsPaymentModalOpen(false);
+        setCheckoutOrder(null);
+      }
     } finally {
       setIsConfirmingOrder(false);
     }
@@ -295,53 +329,57 @@ export default function BillingPage() {
 
   const handleCopyInvoice = async () => {
     if (!selectedPlanForInfo) return;
+    const inv = checkoutOrder?.invoiceDetails;
+    const ord = checkoutOrder?.order;
+    const orderId = ord?.orderId || checkoutOrder?.orderId || "—";
     const invNum =
+      inv?.invoiceNumber ||
       checkoutOrder?.invoiceNumber ||
-      checkoutOrder?.order?.orderId ||
-      `INV-${Date.now().toString().slice(-6)}`;
-    const buyerName =
+      (orderId !== "—" ? `INV-${orderId}` : `INV-${Date.now().toString().slice(-6)}`);
+    const seller = inv?.sellerName || "«FIRMUS TECH» MChJ";
+    const sTin = inv?.sellerTin || "309888777";
+    const sAccount = inv?.sellerAccount || "2020 8000 9005 1234 5001";
+    const sBank = inv?.sellerBank || "«Oʻzsanoatqurilishbank» ATB";
+    const sMfo = inv?.sellerMfo || "00440";
+    const bName =
+      inv?.buyerName ||
       checkoutOrder?.b2bMetadata?.companyName ||
       b2bCompanyName ||
       currentEntity?.name ||
       "Mijoz";
-    const buyerStir =
+    const bTin =
+      inv?.buyerTin ||
       checkoutOrder?.b2bMetadata?.tinStir ||
       b2bTinStir ||
       currentEntity?.tinStir ||
       "—";
-    const buyerAccount =
-      checkoutOrder?.b2bMetadata?.bankAccount || "—";
-    const regularAnnual = selectedPlanForInfo.monthlyPriceUzs * 12;
-    const finalPriceUzs =
-      billingCycle === "annual"
-        ? !annualDiscountUsed
-          ? selectedPlanForInfo.annualTotalPriceUzs
-          : regularAnnual
-        : selectedPlanForInfo.monthlyPriceUzs;
-    const amountStr = formatUzs(checkoutOrder?.amountUzs || finalPriceUzs);
+    const amountVal =
+      inv?.amountUzs ||
+      ord?.finalAmountUzs ||
+      checkoutOrder?.amountUzs ||
+      finalPriceUzs;
+    const amountStr = formatUzs(amountVal);
     const purpose =
+      inv?.paymentPurpose ||
       checkoutOrder?.paymentPurpose ||
-      `FIRMUS AI ${selectedPlanForInfo.name} tarifi uchun ${
-        billingCycle === "annual" ? "yillik (12 oylik)" : "oylik"
-      } dasturiy taʼminot obuna toʻlovi. QQS siz`;
+      `FIRMUS AI ${selectedPlanForInfo.name} tarifi uchun obuna toʻlovi. QQS siz`;
 
     const text = [
       `HISOB-FAKTURA (INVOYS) № ${invNum}`,
       `Sana: ${new Date().toLocaleDateString("uz-UZ")}`,
       `------------------------------------`,
-      `Yetkazib beruvchi (Sotuvchi): «FIRMUS TECH» MChJ`,
-      `STIR: 309888777`,
-      `H/R: 2020 8000 9005 1234 5001`,
-      `Bank: «Oʻzsanoatqurilishbank» ATB, MFO: 00440`,
+      `Yetkazib beruvchi (Sotuvchi): ${seller}`,
+      `STIR: ${sTin}`,
+      `H/R: ${sAccount}`,
+      `Bank: ${sBank}, MFO: ${sMfo}`,
       `------------------------------------`,
-      `Buyurtmachi (Xaridor): ${buyerName}`,
-      `STIR: ${buyerStir}`,
-      `H/R: ${buyerAccount}`,
+      `Buyurtmachi (Xaridor): ${bName}`,
+      `STIR: ${bTin}`,
       `------------------------------------`,
       `Toʻlov summasi: ${amountStr} (0% komissiya)`,
       `Toʻlov maqsadi: ${purpose}`,
       `------------------------------------`,
-      `Buyurtma ID: ${checkoutOrder?.orderId || checkoutOrder?.order?.orderId || "—"}`,
+      `Buyurtma ID: ${orderId}`,
     ].join("\n");
 
     const ok = await copyToClipboard(text);
@@ -369,6 +407,15 @@ export default function BillingPage() {
         : regularAnnual
       : selectedPlanForInfo.monthlyPriceUzs
     : 0;
+
+  const daysLeft = subscription.expiresAt ? daysRemaining(subscription.expiresAt) : null;
+  const canRenewSoon = daysLeft !== null && daysLeft <= 5;
+  const isAlreadyActivePaid =
+    Boolean(selectedPlanForInfo) &&
+    !subscription.isTrialActive &&
+    subscription.planId !== "starter" &&
+    (selectedPlanForInfo?.id === subscription.planId ||
+      (subscription.planId === "pro_plus" && selectedPlanForInfo?.id === "professional"));
 
   return (
     <div className="space-y-6">
@@ -525,6 +572,18 @@ export default function BillingPage() {
           const featuresList = FEATURES.multiCompanyMode ? plan.b2bFeatures : plan.soloFeatures;
           const showTrialBtn = plan.id === "professional" && subscription.trialAvailable;
           const priceInfo = getMainPriceLabel(plan);
+          const isPaidActive = !subscription.isTrialActive && subscription.planId !== "starter";
+          const isIncludedInHigherTier =
+            subscription.planId === "pro_plus" && !subscription.isTrialActive && plan.id === "professional";
+
+          let buttonLabel = "Ulanish / Toʻlov";
+          if (isCurrent && isPaidActive) {
+            buttonLabel = "Faol tarif tafsilotlari";
+          } else if (isIncludedInHigherTier) {
+            buttonLabel = "Pro+ tarkibiga kiradi";
+          } else if (plan.monthlyPriceUzs === 0) {
+            buttonLabel = "Asosiy bepul tarif";
+          }
 
           return (
             <Card
@@ -611,7 +670,7 @@ export default function BillingPage() {
 
                 <Button
                   type="button"
-                  variant={isCurrent || showTrialBtn ? "outline" : "default"}
+                  variant={isCurrent || showTrialBtn || isIncludedInHigherTier ? "outline" : "default"}
                   className="w-full h-9 text-xs gap-1.5"
                   onClick={() => {
                     setSelectedPlanForInfo(plan);
@@ -619,16 +678,12 @@ export default function BillingPage() {
                     setIsPaymentModalOpen(true);
                   }}
                 >
-                  {isCurrent ? (
+                  {isCurrent || isIncludedInHigherTier ? (
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
                   ) : (
                     <CreditCard className="h-3.5 w-3.5" />
                   )}
-                  {isCurrent
-                    ? "Tarif va toʻlov maʼlumotlari"
-                    : plan.monthlyPriceUzs === 0
-                    ? "Asosiy bepul tarif"
-                    : "Ulanish / Toʻlov tartibi"}
+                  {buttonLabel}
                 </Button>
               </div>
             </Card>
@@ -639,9 +694,21 @@ export default function BillingPage() {
       {/* Interactive Low-Commission Payment Checkout Dialog */}
       <Dialog
         open={isPaymentModalOpen}
-        onOpenChange={(open) => {
+        onOpenChange={async (open) => {
           setIsPaymentModalOpen(open);
           if (!open) {
+            const orderId = checkoutOrder?.order?.orderId || checkoutOrder?.orderId;
+            if (orderId) {
+              try {
+                await fetch("/api/subscription/checkout", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "cancel_order", orderId }),
+                });
+              } catch (err) {
+                console.warn("Could not cancel pending order on modal close:", err);
+              }
+            }
             setCheckoutOrder(null);
           }
         }}
@@ -663,6 +730,86 @@ export default function BillingPage() {
               </Button>
             </DialogFooter>
           </DialogContent>
+        ) : isAlreadyActivePaid && !canRenewSoon ? (
+          <DialogContent className="sm:max-w-md text-xs">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  {selectedPlanForInfo.name}
+                </DialogTitle>
+                <Badge variant="success" className="text-[10px]">
+                  Faol (Toʻlangan)
+                </Badge>
+              </div>
+              <DialogDescription className="text-xs">
+                Joriy faol obunangiz haqida maʼlumot.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Holat:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    Faol obuna
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Amal qilish muddati:</span>
+                  <span className="font-medium text-foreground">
+                    {subscription.expiresAt
+                      ? `${new Date(subscription.expiresAt).toLocaleDateString("uz-UZ")}${
+                          daysLeft !== null ? ` (${daysLeft} kun qoldi)` : ""
+                        }`
+                      : "Muddatsiz (Faol)"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-border pt-2">
+                  <span className="text-muted-foreground">Oylik AI limiti:</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {selectedPlanForInfo.limits.monthlyCredits > 0
+                      ? `${selectedPlanForInfo.limits.monthlyCredits} ta kredit`
+                      : "Cheksiz"}
+                  </span>
+                </div>
+              </div>
+
+              {subscription.planId === "pro_plus" && selectedPlanForInfo.id === "professional" && (
+                <div className="rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <span>
+                    Sizda hozir yanada yuqori <strong>Pro+</strong> tarifi faol. Professional tarifdagi barcha imkoniyatlar toʻliq sizning obunangizga kiritilgan.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPaymentModalOpen(false)}
+              >
+                Yopish
+              </Button>
+              {subscription.planId === "professional" && selectedPlanForInfo.id === "professional" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  onClick={() => {
+                    setSelectedPlanForInfo(PLANS_CONFIG.pro_plus);
+                    setCheckoutOrder(null);
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Pro+ ga oʻtish
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
         ) : checkoutOrder ? (
           paymentMethod === "bank_transfer_didox" ? (
             /* 1. Bank transfer Didox Invoice card */
@@ -674,7 +821,11 @@ export default function BillingPage() {
                     Hisob-faktura (Invoys)
                   </DialogTitle>
                   <span className="font-mono text-[11px] font-semibold text-muted-foreground">
-                    {checkoutOrder.invoiceNumber || `INV-${Date.now().toString().slice(-6)}`}
+                    {checkoutOrder.invoiceDetails?.invoiceNumber ||
+                      checkoutOrder.invoiceNumber ||
+                      (checkoutOrder.order?.orderId
+                        ? `INV-${checkoutOrder.order.orderId}`
+                        : `INV-${Date.now().toString().slice(-6)}`)}
                   </span>
                 </div>
               </DialogHeader>
@@ -683,18 +834,42 @@ export default function BillingPage() {
                 <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2 text-[11px]">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Yetkazib beruvchi:</span>
-                    <span className="font-medium text-foreground">«FIRMUS TECH» MChJ (STIR: 309888777)</span>
+                    <span className="font-medium text-foreground">
+                      {checkoutOrder.invoiceDetails?.sellerName || "«FIRMUS TECH» MChJ"} (STIR: {checkoutOrder.invoiceDetails?.sellerTin || "309888777"})
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">H/R & Bank:</span>
+                    <span className="font-medium font-mono text-[10px] text-foreground">
+                      {checkoutOrder.invoiceDetails?.sellerAccount || "2020 8000 9005 1234 5001"} ({checkoutOrder.invoiceDetails?.sellerBank || "SQB"})
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Buyurtmachi:</span>
                     <span className="font-medium text-foreground">
-                      {checkoutOrder.b2bMetadata?.companyName || b2bCompanyName || currentEntity?.name || "Mijoz"} (STIR: {checkoutOrder.b2bMetadata?.tinStir || b2bTinStir || currentEntity?.tinStir || "—"})
+                      {checkoutOrder.invoiceDetails?.buyerName ||
+                        checkoutOrder.b2bMetadata?.companyName ||
+                        b2bCompanyName ||
+                        currentEntity?.name ||
+                        "Mijoz"}{" "}
+                      (STIR:{" "}
+                      {checkoutOrder.invoiceDetails?.buyerTin ||
+                        checkoutOrder.b2bMetadata?.tinStir ||
+                        b2bTinStir ||
+                        currentEntity?.tinStir ||
+                        "—"}
+                      )
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-2">
                     <span className="text-muted-foreground">Summa:</span>
                     <span className="font-mono font-bold text-sm text-foreground">
-                      {formatUzs(checkoutOrder.amountUzs || finalPriceUzs)}
+                      {formatUzs(
+                        checkoutOrder.invoiceDetails?.amountUzs ||
+                          checkoutOrder.order?.finalAmountUzs ||
+                          checkoutOrder.amountUzs ||
+                          finalPriceUzs
+                      )}
                     </span>
                   </div>
                 </div>
@@ -727,7 +902,7 @@ export default function BillingPage() {
                     variant="ghost"
                     size="sm"
                     className="h-8 text-xs text-muted-foreground"
-                    onClick={() => setCheckoutOrder(null)}
+                    onClick={handleSwitchPaymentMethod}
                   >
                     Boshqa usul
                   </Button>
@@ -739,10 +914,10 @@ export default function BillingPage() {
                   type="button"
                   variant="success"
                   size="sm"
-                  disabled={isConfirmingOrder}
+                  disabled={isConfirmingOrder || isCheckingOut}
                   className="w-full h-9 text-xs gap-1.5"
                   onClick={() =>
-                    handleConfirmOrder(checkoutOrder.orderId || checkoutOrder.order?.orderId)
+                    handleConfirmOrder(checkoutOrder.order?.orderId || checkoutOrder.orderId)
                   }
                 >
                   {isConfirmingOrder ? (
@@ -784,7 +959,11 @@ export default function BillingPage() {
                   <div className="flex items-center justify-between border-t border-border pt-2">
                     <span className="text-muted-foreground">Toʻlov summasi:</span>
                     <span className="font-mono font-bold text-sm text-foreground">
-                      {formatUzs(checkoutOrder.amountUzs || finalPriceUzs)}
+                      {formatUzs(
+                        checkoutOrder.order?.finalAmountUzs ||
+                          checkoutOrder.amountUzs ||
+                          finalPriceUzs
+                      )}
                     </span>
                   </div>
                 </div>
@@ -795,17 +974,17 @@ export default function BillingPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setCheckoutOrder(null)}
+                  onClick={handleSwitchPaymentMethod}
                 >
                   Boshqa usul
                 </Button>
                 <Button
                   type="button"
                   size="sm"
-                  disabled={isConfirmingOrder}
+                  disabled={isConfirmingOrder || isCheckingOut}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
                   onClick={() =>
-                    handleConfirmOrder(checkoutOrder.orderId || checkoutOrder.order?.orderId)
+                    handleConfirmOrder(checkoutOrder.order?.orderId || checkoutOrder.orderId)
                   }
                 >
                   {isConfirmingOrder ? (
@@ -938,7 +1117,7 @@ export default function BillingPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={isCheckingOut}
+                disabled={isCheckingOut || isConfirmingOrder}
                 onClick={() => setIsPaymentModalOpen(false)}
               >
                 Bekor qilish
@@ -946,7 +1125,7 @@ export default function BillingPage() {
               <Button
                 type="button"
                 size="sm"
-                disabled={isCheckingOut}
+                disabled={isCheckingOut || isConfirmingOrder}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
                 onClick={handleInitiateCheckout}
               >
