@@ -262,27 +262,32 @@ async function runTests() {
 
   // 9. BONUS TEST 9: Immutability & Reversal (Storno)
   try {
-    // 9a. Test that direct deletion of posted entry is blocked by trigger
-    const { data: entryToReverse } = await adminClient
-      .from("journal_entries")
-      .select("id")
-      .eq("status", "posted")
-      .limit(1)
-      .single();
+    // 9a. Create a fresh posted entry specifically for reversal test
+    const { data: freshEntry } = await adminClient.rpc("create_journal_entry_atomic", {
+      p_business_entity_id: ENTITY_ID,
+      p_entry_number: `JE-REV-IMMUTABLE-${Date.now()}`,
+      p_entry_date: "2026-11-16",
+      p_description: "Immutability and reversal test entry",
+      p_source_type: "manual",
+      p_lines: [
+        { account_code: "5110", debit_amount: 5000000, credit_amount: 0 },
+        { account_code: "4010", debit_amount: 0, credit_amount: 5000000 },
+      ],
+    });
 
     let directDeleteBlocked = false;
-    if (entryToReverse) {
+    if (freshEntry?.id) {
       const { error: delErr } = await adminClient
         .from("journal_entries")
         .delete()
-        .eq("id", entryToReverse.id);
+        .eq("id", freshEntry.id);
 
       directDeleteBlocked = delErr && delErr.message.includes("Tasdiqlangan (posted) provodkani o'chirish taqiqlangan");
     }
 
     // 9b. Test Reversal RPC
     const { data: revRes, error: revErr } = await adminClient.rpc("reverse_journal_entry", {
-      p_entry_id: entryToReverse.id,
+      p_entry_id: freshEntry.id,
       p_reason: "Sinov stornosi",
     });
 
