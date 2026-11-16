@@ -24,6 +24,7 @@ import {
   Globe,
   LogOut,
   Settings,
+  CreditCard,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -168,6 +169,13 @@ export function Topbar() {
 
             <DropdownMenuSeparator />
 
+            <DropdownMenuItem
+              onClick={() => router.push("/billing")}
+              className="text-xs cursor-pointer"
+            >
+              <CreditCard className="mr-2 h-3.5 w-3.5" />
+              Obunalar
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => router.push("/settings")}
               className="text-xs cursor-pointer"

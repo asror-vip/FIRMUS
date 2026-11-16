@@ -379,9 +379,9 @@ export const ruTranslations: Translations = {
         entitiesUnit: "организаций",
         teamMembers: "Участники команды",
         teamMembersUnit: "сотрудников",
-        aiTokens: "Токены AI GPT-6 Luna",
-        aiTokensSpent: "израсходовано",
-        storage: "Хранилище документов (S3)",
+        aiTokens: "Запросы FIRMUS AI",
+        aiTokensSpent: "использовано",
+        storage: "История документов",
       },
       plans: {
         starter: {
@@ -402,7 +402,7 @@ export const ruTranslations: Translations = {
             "До 10 организаций клиентов",
             "До 15 участников команды",
             "Интеграция 1C:Предприятие 8.3 и Didox",
-            "AI Аудитор GPT-6 Luna и Центр исключений",
+            "AI Аудитор FIRMUS и Центр исключений",
             "Автоматический расчет налогов и выписки",
             "20 ГБ зашифрованного хранилища S3",
           ],

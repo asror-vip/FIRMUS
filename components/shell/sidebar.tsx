@@ -17,6 +17,7 @@ import {
   Sparkles,
   PanelLeft,
   Scale,
+  CreditCard,
 } from "lucide-react";
 
 interface NavigationItem {
@@ -62,7 +63,10 @@ export function Sidebar() {
     },
     {
       label: t.nav.groups.system,
-      items: [{ name: t.nav.settings, href: "/settings", icon: Settings }],
+      items: [
+        { name: "Obunalar", href: "/billing", icon: CreditCard },
+        { name: t.nav.settings, href: "/settings", icon: Settings },
+      ],
     },
   ];
 
@@ -186,10 +190,10 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Sidebar Footer: Status & Version */}
-      <div className="border-t border-border mt-auto">
+      {/* Sidebar Footer: Status & Version (h-14 aligned with main Footer border) */}
+      <div className="h-14 shrink-0 border-t border-border mt-auto bg-card/30">
         {!isCollapsed ? (
-          <div className="p-3 space-y-1.5 bg-muted/10">
+          <div className="h-full px-3 flex flex-col justify-center gap-0.5">
             <div className="flex items-center justify-between text-[11px]">
               <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -199,12 +203,12 @@ export function Sidebar() {
                 v1.0.4
               </span>
             </div>
-            <p className="text-[9px] text-muted-foreground/60 leading-tight">
+            <p className="text-[9px] text-muted-foreground/60 leading-none">
               {t.sidebarFooter.rights}
             </p>
           </div>
         ) : (
-          <div className="p-3 flex flex-col items-center justify-center gap-2">
+          <div className="h-full px-3 flex items-center justify-center">
             <div
               className="h-2 w-2 rounded-full bg-emerald-500"
               title="Faol"

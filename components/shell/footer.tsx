@@ -9,7 +9,7 @@ export function Footer() {
   const { t } = useTranslation();
 
   return (
-    <footer className="mt-auto shrink-0 border-t border-border bg-card/30 px-4 sm:px-6 lg:px-8 py-3.5 text-[11px] text-muted-foreground">
+    <footer className="mt-auto shrink-0 border-t border-border bg-card/30 px-4 sm:px-6 lg:px-8 min-h-14 sm:h-14 flex items-center py-2.5 sm:py-0 text-[11px] text-muted-foreground">
       <div className="mx-auto max-w-[1400px] w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="font-semibold text-foreground tracking-tight text-xs">FIRMUS</span>
@@ -27,6 +27,9 @@ export function Footer() {
           </Link>
           <Link href="/terms" className="hover:text-foreground transition-colors">
             Oferta
+          </Link>
+          <Link href="/billing" className="hover:text-foreground transition-colors">
+            Obunalar
           </Link>
           <Link href="/settings" className="hover:text-foreground transition-colors">
             {t.footer.settings}

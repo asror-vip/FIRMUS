@@ -379,9 +379,9 @@ export const uzTranslations: Translations = {
         entitiesUnit: "ta korxona",
         teamMembers: "Jamoa aʼzolari",
         teamMembersUnit: "nafar xodim",
-        aiTokens: "AI GPT-6 Luna tokenlari",
-        aiTokensSpent: "sarflandi",
-        storage: "Hujjatlar xotirasi (S3)",
+        aiTokens: "FIRMUS AI soʻrovlari",
+        aiTokensSpent: "ishlatildi",
+        storage: "Ishlar tarixi",
       },
       plans: {
         starter: {
@@ -402,7 +402,7 @@ export const uzTranslations: Translations = {
             "10 tagacha mijoz korxonalari",
             "15 tagacha jamoa aʼzosi",
             "1C:Enterprise 8.3 & Didox integratsiyasi",
-            "GPT-6 Luna AI Auditor va Exception Center",
+            "FIRMUS AI Auditor va tekshiruv",
             "Avtomatik soliq hisob-kitobi va bank koʻchirmalari",
             "20 GB shifrlangan S3 xotirasi",
           ],

@@ -2529,3 +2529,46 @@ export async function deleteAiChatThread(threadId: string) {
     .eq("id", threadId);
   if (error) throw error;
 }
+
+// ==========================================
+// 12. SUBSCRIPTION / USAGE SUMMARY
+// ==========================================
+export async function fetchWorkspaceUsageSummary(params: {
+  workspaceId?: string;
+  entityId?: string;
+}): Promise<{
+  monthlyBatches: number;
+  aiThreadsCount: number;
+}> {
+  try {
+    const periodMonth = new Date().toISOString().slice(0, 7);
+
+    let batchQuery = supabase
+      .from("work_batches")
+      .select("id", { count: "exact", head: true })
+      .eq("period_month", periodMonth);
+
+    if (params.entityId && isValidUuid(params.entityId)) {
+      batchQuery = batchQuery.eq("business_entity_id", params.entityId);
+    }
+
+    let chatQuery = supabase
+      .from("ai_chat_threads")
+      .select("id", { count: "exact", head: true });
+
+    if (params.entityId && isValidUuid(params.entityId)) {
+      chatQuery = chatQuery.or(
+        `business_entity_id.eq.${params.entityId},business_entity_id.is.null`
+      );
+    }
+
+    const [batchRes, chatRes] = await Promise.all([batchQuery, chatQuery]);
+    return {
+      monthlyBatches: batchRes.count ?? 0,
+      aiThreadsCount: chatRes.count ?? 0,
+    };
+  } catch (err) {
+    console.warn("fetchWorkspaceUsageSummary warning:", err);
+    return { monthlyBatches: 0, aiThreadsCount: 0 };
+  }
+}

@@ -379,9 +379,9 @@ export const enTranslations: Translations = {
         entitiesUnit: "entities",
         teamMembers: "Team Members",
         teamMembersUnit: "members",
-        aiTokens: "AI GPT-6 Luna Tokens",
+        aiTokens: "FIRMUS AI Requests",
         aiTokensSpent: "used",
-        storage: "Document Storage (S3)",
+        storage: "Work History",
       },
       plans: {
         starter: {
@@ -402,7 +402,7 @@ export const enTranslations: Translations = {
             "Up to 10 client entities",
             "Up to 15 team members",
             "1C:Enterprise 8.3 & Didox integration",
-            "GPT-6 Luna AI Auditor & Exception Center",
+            "FIRMUS AI Auditor & Exception Center",
             "Automated tax calculation and bank statements",
             "20 GB encrypted S3 storage",
           ],
