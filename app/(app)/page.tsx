@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   TrendingUp,
   Cable,
+  Scale,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -38,7 +39,7 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentEntity, toggleAiDrawer } = useAppState();
+  const { currentEntity, toggleAiDrawer, enabledModules } = useAppState();
   const { t } = useTranslation();
 
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -117,14 +118,15 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push("/transactions")}
-            className="text-xs h-8"
+            onClick={() => router.push("/reconcile")}
+            className="text-xs h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
           >
-            {t.nav.transactions}
+            <Scale className="h-3.5 w-3.5" />
+            Bank ↔ 1C AI Sverka
           </Button>
           <Button
             size="sm"
@@ -135,6 +137,28 @@ export default function DashboardPage() {
             {t.aiDrawer.title}
           </Button>
         </div>
+      </div>
+
+      {/* Quick Start 5-Minute Accountant Strip */}
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-2.5">
+          <Scale className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <div className="font-semibold text-foreground">
+              3–4 soatlik «Bank ↔ 1C» solishtirishini 5 soniyada bajaring
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Bank koʻchirmasi (`.txt` / `.csv`) va 1C faylini yuklang — AI farqlarni topib, 21-BHMS schyotlarini qoʻyadi (shaxsiy maʼlumotlarsiz, OʻRQ-547 Zero-PII).
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => router.push("/reconcile")}
+          className="text-xs h-8 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+        >
+          Fayl yuklash va solishtirish <ArrowRight className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
       {/* Row 1: 4 Real Live KPI Cards */}
@@ -165,19 +189,29 @@ export default function DashboardPage() {
           onClick={() => router.push("/ai-auditor")}
         />
 
-        <KpiCard
-          title={t.dashboard.kpiIntegrations}
-          value={`${connectedIntegsCount} / ${integrations.length}`}
-          subtitle={t.dashboard.kpiIntegrationsSub}
-          badge={
-            <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              {t.common.sync}
-            </div>
-          }
-          icon={<Cable className="h-4 w-4 text-indigo-500" />}
-          onClick={() => router.push("/integrations")}
-        />
+        {enabledModules.integrations ? (
+          <KpiCard
+            title={t.dashboard.kpiIntegrations}
+            value={`${connectedIntegsCount} / ${integrations.length}`}
+            subtitle={t.dashboard.kpiIntegrationsSub}
+            badge={
+              <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                {t.common.sync}
+              </div>
+            }
+            icon={<Cable className="h-4 w-4 text-indigo-500" />}
+            onClick={() => router.push("/integrations")}
+          />
+        ) : (
+          <KpiCard
+            title="Sof QQS (6410–4410)"
+            value={`${new Intl.NumberFormat("uz-UZ").format(Math.round(vatNetPayable))} soʻm`}
+            subtitle="Bosh kitobdagi joriy QQS majburiyati"
+            icon={<Scale className="h-4 w-4 text-emerald-500" />}
+            onClick={() => router.push("/tax")}
+          />
+        )}
       </div>
 
       {/* Row 2: Charts & Integrations Status */}
@@ -277,7 +311,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Right 1/3: Integrations Live Status */}
+        {/* Right 1/3: Integrations or Quick Workflows */}
+        {enabledModules.integrations ? (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center justify-between">
@@ -325,6 +360,49 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        ) : (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Tezkor buxgalter amallari</CardTitle>
+              <CardDescription>Eng koʻp ishlatiladigan kundalik vazifalar</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2.5 pt-0 text-xs">
+              <button
+                type="button"
+                onClick={() => router.push("/reconcile")}
+                className="w-full text-left p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-semibold text-foreground">Bank ↔ 1C AI Sverka</div>
+                  <div className="text-[10px] text-muted-foreground">Fayl yuklab 5 soniyada solishtirish</div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/accounting")}
+                className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-semibold text-foreground">Oborot-saldovaya vedomost</div>
+                  <div className="text-[10px] text-muted-foreground">21-BHMS qoldiqlar va davr yopish</div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/settings?tab=modules")}
+                className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-semibold text-foreground">Qoʻshimcha ERP modullar</div>
+                  <div className="text-[10px] text-muted-foreground">Kerakli boʻlimlarni birma-bir yoqish</div>
+                </div>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Row 3: Pending Approvals & Recent Exceptions */}

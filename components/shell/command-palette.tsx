@@ -6,6 +6,7 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
+import type { OptionalModuleKey } from "@/lib/config/modules";
 import {
   Search,
   LayoutDashboard,
@@ -23,37 +24,44 @@ import {
   BarChart3,
   CreditCard,
   Settings,
+  Scale,
   X,
 } from "lucide-react";
 
 export function CommandPalette() {
-  const { isSearchOpen, setIsSearchOpen, toggleAiDrawer } = useAppState();
+  const { isSearchOpen, setIsSearchOpen, toggleAiDrawer, enabledModules } = useAppState();
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const router = useRouter();
 
-  const navigationItems = [
+  const navigationItems: Array<{
+    name: string;
+    href: string;
+    icon: React.ComponentType<{ className?: string }>;
+    moduleKey?: OptionalModuleKey;
+  }> = [
     { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
+    { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
     { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
     { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
     { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
-    { name: t.nav.banking, href: "/banking", icon: Landmark },
-    { name: t.nav.documents, href: "/documents", icon: FileText },
+    { name: t.nav.banking, href: "/banking", icon: Landmark, moduleKey: "banking" },
+    { name: t.nav.documents, href: "/documents", icon: FileText, moduleKey: "documents" },
     { name: t.nav.tax, href: "/tax", icon: Percent },
     { name: t.nav.finance, href: "/finance", icon: TrendingUp },
-    { name: t.nav.inventory, href: "/inventory", icon: Package },
-    { name: t.nav.contracts, href: "/contracts", icon: FileCheck },
-    { name: t.nav.employees, href: "/employees", icon: Users },
-    { name: t.nav.integrations, href: "/integrations", icon: Cable },
-    { name: t.nav.reports, href: "/reports", icon: BarChart3 },
-    { name: t.nav.team, href: "/team", icon: Users },
-    { name: t.nav.billing, href: "/billing", icon: CreditCard },
+    { name: t.nav.inventory, href: "/inventory", icon: Package, moduleKey: "inventory" },
+    { name: t.nav.contracts, href: "/contracts", icon: FileCheck, moduleKey: "contracts" },
+    { name: t.nav.employees, href: "/employees", icon: Users, moduleKey: "employees" },
+    { name: t.nav.integrations, href: "/integrations", icon: Cable, moduleKey: "integrations" },
+    { name: t.nav.reports, href: "/reports", icon: BarChart3, moduleKey: "reports" },
+    { name: t.nav.team, href: "/team", icon: Users, moduleKey: "team" },
+    { name: t.nav.billing, href: "/billing", icon: CreditCard, moduleKey: "billing" },
     { name: t.nav.settings, href: "/settings", icon: Settings },
   ];
 
-  const filtered = navigationItems.filter((item) =>
-    item.name.toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = navigationItems
+    .filter((item) => !item.moduleKey || enabledModules[item.moduleKey])
+    .filter((item) => item.name.toLowerCase().includes(query.toLowerCase()));
 
   const handleSelect = (href: string) => {
     setIsSearchOpen(false);

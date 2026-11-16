@@ -1,5 +1,5 @@
 /**
- * Pure phone normalization, PINFL masking, and AI depersonalization utilities.
+ * Pure phone normalization, PINFL/card masking, and O'RQ-547 AI depersonalization utilities.
  */
 
 export function normalizeUzPhone(input: string): string | null {
@@ -27,9 +27,14 @@ export function maskPinfl(pinfl: string): string {
   return `${clean.slice(0, 4)}••••••${clean.slice(10, 14)}`;
 }
 
-function sanitizeStringForAi(value: string): string {
+/**
+ * Strips 20-digit bank accounts, 16-digit bank card numbers (Uzcard/Humo/Visa/Mastercard),
+ * 14-digit PINFLs, +998 phones, and corporate STIR tokens from string values.
+ */
+export function sanitizeStringForAi(value: string): string {
   return value
     .replace(/\b\d{20}\b/g, "[BANK_HISOB_MASKED]")
+    .replace(/\b(?:8600|9860|5614|6262|4\d{3}|5[1-5]\d{2})[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, "[KARTA_MASKED]")
     .replace(/\b\d{14}\b/g, "[PINFL_MASKED]")
     .replace(/\+?998[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}/g, "[TELEFON_MASKED]")
     .replace(/\b[23]\d{8}\b/g, "[STIR_MASKED]");
@@ -84,8 +89,9 @@ function sanitizeNodeForAi(node: unknown, keyHint = ""): unknown {
 }
 
 /**
- * Strips sensitive Uzbek PII/commercial identifiers (PINFL, STIR, 20-digit bank accounts, phones, tokens)
- * before sending payloads to external LLM providers (O'RQ-547 compliance) without altering numeric money amounts.
+ * Strips sensitive Uzbek PII/commercial identifiers (PINFL, STIR, 20-digit bank accounts,
+ * 16-digit cards, phones, tokens) before sending payloads to external LLM providers (O'RQ-547 compliance)
+ * without altering numeric money amounts.
  */
 export function depersonalizeForAi<T>(payload: T): T {
   return sanitizeNodeForAi(payload) as T;

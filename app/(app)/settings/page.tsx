@@ -28,7 +28,9 @@ import {
   CheckCircle2,
   Smartphone,
   Plus,
+  SlidersHorizontal,
 } from "lucide-react";
+import { OPTIONAL_MODULES } from "@/lib/config/modules";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -41,6 +43,9 @@ function SettingsContent() {
     currentRole,
     language,
     setLanguage,
+    enabledModules,
+    toggleModule,
+    setAllModules,
     refreshContext,
   } = useAppState();
 
@@ -81,7 +86,7 @@ function SettingsContent() {
     if (action === "add-entity") {
       setActiveTab("entities");
       setIsAddEntityOpen(true);
-    } else if (tabParam && ["entities", "security", "notifications", "language"].includes(tabParam)) {
+    } else if (tabParam && ["entities", "modules", "security", "notifications", "language"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -304,6 +309,10 @@ function SettingsContent() {
             <Building className="h-3.5 w-3.5" />
             {t.pages.settings.tabs.entities}
           </TabsTrigger>
+          <TabsTrigger value="modules" className="text-xs gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Modullar
+          </TabsTrigger>
           <TabsTrigger value="security" className="text-xs gap-1.5">
             <Shield className="h-3.5 w-3.5" />
             {t.pages.settings.tabs.security}
@@ -414,9 +423,77 @@ function SettingsContent() {
           </Card>
         </TabsContent>
 
+        {/* 1B. Modules Feature Flags Tab (Simple Zero-PII Mode vs Full ERP) */}
+        <TabsContent value="modules" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-sm font-semibold">
+                  Interfeys Modullarini Boshqarish (Sodda / Toʻliq Rejim)
+                </CardTitle>
+                <CardDescription>
+                  Hozir faqat buxgalter uchun eng muhim 6 ta boʻlim ochiq. Qolgan modullarni kerak paytda birma-bir yoqishingiz mumkin — kodlar oʻchirilmaydi.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-8"
+                  onClick={() => {
+                    setAllModules(false);
+                    toast.success("Sodda Zero-PII buxgalter rejimi yoqildi");
+                  }}
+                >
+                  Sodda rejim
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={() => {
+                    setAllModules(true);
+                    toast.success("Barcha qoʻshimcha ERP modullar yoqildi");
+                  }}
+                >
+                  Hammasini yoqish
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2.5 text-xs">
+              {OPTIONAL_MODULES.map((mod) => (
+                <div
+                  key={mod.key}
+                  className="flex items-center justify-between gap-4 p-3 rounded-lg border border-border bg-muted/15"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">{mod.title}</span>
+                      {mod.containsPii && (
+                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400/50">
+                          OʻRQ-547 PII
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">{mod.description}</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(enabledModules[mod.key])}
+                    onCheckedChange={(val) => {
+                      toggleModule(mod.key, val);
+                      toast.success(`«${mod.title}» ${val ? "yoqildi" : "yashirildi"}`);
+                    }}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* 2. Security & E-IMZO Tab */}
         <TabsContent value="security" className="space-y-4 mt-4">
-          {/* Progressive Profiling: Phone Verification & 2FA */}
+          {enabledModules.smsOtp ? (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -511,6 +588,19 @@ function SettingsContent() {
               </div>
             </CardContent>
           </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-emerald-600" />
+                  OʻRQ-547 «Zero-PII» Telefon Himoyasi Faol
+                </CardTitle>
+                <CardDescription>
+                  Shaxsiy telefon raqamlarini xorijiy serverda saqlamaslik uchun SMS OTP moduli hozir yashirilgan. Kerak boʻlganda «Modullar» boʻlimidan yoqishingiz mumkin.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="pb-3">
@@ -555,11 +645,13 @@ function SettingsContent() {
                 <h4 className="font-semibold text-foreground text-xs mb-2">{t.pages.settings.activeSessions}:</h4>
                 <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
                   <div className="flex justify-between font-mono text-[11px]">
-                    <span className="font-semibold text-foreground">Google Chrome (Windows 11) • {t.pages.settings.currentSession}</span>
+                    <span className="font-semibold text-foreground">
+                      {user?.email || "Autentifikatsiya qilingan sessiya"} • {t.pages.settings.currentSession}
+                    </span>
                     <span className="text-emerald-600 dark:text-emerald-400">{t.pages.settings.online}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    IP: 213.230.77.12 (Tashkent) • {t.common.date}: {t.common.now}
+                    Supabase Auth JWT sessiya • {t.common.date}: {t.common.now}
                   </p>
                 </div>
               </div>

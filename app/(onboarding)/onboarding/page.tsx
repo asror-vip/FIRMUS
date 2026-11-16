@@ -86,7 +86,7 @@ export default function OnboardingPage() {
         tinStir: stir.trim(),
         companyType: "MChJ",
         taxRegime,
-        accountantName: user.user_metadata?.full_name || user.email || "Bosh buxgalter",
+        accountantName: "Bosh buxgalter",
       });
 
       if (inviteEmail.trim()) {

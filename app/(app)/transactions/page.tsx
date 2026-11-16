@@ -15,7 +15,8 @@ import { Money } from "@/components/shared/money";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { parse1CClientBankText, parseBankCsv, importBatchTransactions, ParsedBankTransaction } from "@/lib/services/bank-import";
+import { importBatchTransactions, ParsedBankTransaction } from "@/lib/services/bank-import";
+import { decodeBankFileBuffer, parseStatementFile } from "@/lib/services/reconcile-engine";
 import { generate1CClientBankText } from "@/lib/services/one-c-export";
 import {
   Search,
@@ -97,26 +98,21 @@ function TransactionsContent() {
     if (!file) return;
 
     setImportFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
+    try {
+      const buffer = await file.arrayBuffer();
+      const text = decodeBankFileBuffer(buffer);
       if (!text) return;
 
-      let parsed: ParsedBankTransaction[] = [];
-      if (file.name.endsWith(".txt") || text.includes("1CClientBankExchange")) {
-        parsed = parse1CClientBankText(text);
-      } else {
-        parsed = parseBankCsv(text);
-      }
-
+      const parsed = parseStatementFile(text, file.name, currentEntity?.tinStir || "");
       if (parsed.length === 0) {
-        toast.error("Fayldan toʻlov operatsiyalari topilmadi. Fayl formati 1C Client-Bank (.txt) yoki CSV boʻlishi kerak.");
+        toast.error("Fayldan toʻlov operatsiyalari topilmadi. Fayl formati 1C Client-Bank (.txt), XML yoki CSV boʻlishi kerak.");
       } else {
         setImportedList(parsed);
         toast.success(`Fayldan ${parsed.length} ta bank toʻlovi muvaffaqiyatli aniqlandi!`);
       }
-    };
-    reader.readAsText(file, "utf-8");
+    } catch (err: any) {
+      toast.error("Faylni oʻqishda xatolik: " + (err?.message || "Nomaʼlum xato"));
+    }
   };
 
   const loadTransactions = useCallback(async () => {

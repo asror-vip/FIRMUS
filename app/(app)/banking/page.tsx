@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchBankAccounts, createBankAccountRecord, fetchTransactions } from "@/lib/services/supabase-service";
-import { parse1CClientBankText, parseBankCsv, importBatchTransactions } from "@/lib/services/bank-import";
+import { importBatchTransactions } from "@/lib/services/bank-import";
+import { decodeBankFileBuffer, parseStatementFile } from "@/lib/services/reconcile-engine";
 import { bankAccountSchema, getFirstZodError } from "@/lib/validations/accounting";
 import { useAppState } from "@/lib/mock/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -180,10 +181,9 @@ export default function BankingPage() {
     if (!file) return;
 
     try {
-      const text = await file.text();
-      const parsed = file.name.endsWith(".csv")
-        ? parseBankCsv(text)
-        : parse1CClientBankText(text);
+      const buffer = await file.arrayBuffer();
+      const text = decodeBankFileBuffer(buffer);
+      const parsed = parseStatementFile(text, file.name, currentEntity?.tinStir || "");
 
       if (parsed.length === 0) {
         toast.error("Fayldan toʻlovlar topilmadi. Standart CSV yoki 1C Client-Bank (.txt) yuklang.");

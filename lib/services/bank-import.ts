@@ -1,5 +1,3 @@
-import { createTransaction } from "./supabase-service";
-
 export interface ParsedBankTransaction {
   date: string;
   amount: number;
@@ -139,6 +137,7 @@ export function parseBankCsv(csvContent: string): ParsedBankTransaction[] {
  * Batch insert parsed transactions into Supabase
  */
 export async function importBatchTransactions(items: ParsedBankTransaction[], entityId?: string) {
+  const { createTransaction } = await import("./supabase-service");
   const results = [];
   for (const item of items) {
     const created = await createTransaction({

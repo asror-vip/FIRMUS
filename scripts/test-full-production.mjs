@@ -62,6 +62,7 @@ async function run() {
     { path: "/privacy", expected: 200 },
     { path: "/terms", expected: 200 },
     { path: "/", expected: 307 },
+    { path: "/reconcile", expected: 307 },
     { path: "/transactions", expected: 307 },
     { path: "/accounting", expected: 307 },
     { path: "/documents", expected: 307 },
@@ -77,6 +78,7 @@ async function run() {
   const unauthApis = [
     "/api/ai-copilot",
     "/api/ai-copilot/execute",
+    "/api/ai-reconcile",
     "/api/integrations/test",
     "/api/auth/phone-otp/send",
     "/api/auth/phone-otp/verify",
@@ -115,6 +117,36 @@ async function run() {
     "Auth POST /api/ai-copilot -> 200 live_db/gemini reply",
     copilotRes.status === 200 && typeof copilotJson.reply === "string" && copilotJson.reply.length > 10,
     JSON.stringify(copilotJson)
+  );
+
+  // Test Zero-PII Bank <-> 1C AI Reconcile API
+  const aiRecRes = await fetch(`${BASE_URL}/api/ai-reconcile`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+    body: JSON.stringify({
+      items: [
+        {
+          id: "rec-test-1",
+          status: "bank_only",
+          date: "2026-11-16",
+          type: "expense",
+          bankAmount: 350000,
+          oneCAmount: 0,
+          diffAmount: 350000,
+          purpose: "Oylik RKO va bank komissiyasi",
+          counterpartyHint: "Kapitalbank",
+          currentAccountCode: "9420",
+        },
+      ],
+    }),
+  });
+  const aiRecJson = await aiRecRes.json();
+  check(
+    "Auth POST /api/ai-reconcile -> 200 stateless 21-BHMS classification",
+    aiRecRes.status === 200 &&
+      Array.isArray(aiRecJson.suggestions) &&
+      aiRecJson.suggestions[0]?.accountCode === "9420",
+    JSON.stringify(aiRecJson)
   );
 
   // Test SSRF block & real URL check on /api/integrations/test

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAppState } from "@/lib/mock/store";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { cn } from "@/lib/utils";
+import type { OptionalModuleKey } from "@/lib/config/modules";
 import {
   LayoutDashboard,
   ShieldAlert,
@@ -25,14 +26,15 @@ import {
   Sparkles,
   PanelLeft,
   ShieldCheck,
+  Scale,
+  SlidersHorizontal,
 } from "lucide-react";
 
 interface NavigationItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
-  badgeDot?: boolean;
+  moduleKey?: OptionalModuleKey;
 }
 
 interface NavigationGroup {
@@ -42,16 +44,17 @@ interface NavigationGroup {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { toggleAiDrawer } = useAppState();
+  const { toggleAiDrawer, enabledModules } = useAppState();
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const navigationGroups: NavigationGroup[] = [
+  const rawGroups: NavigationGroup[] = [
     {
       label: t.nav.groups.overview,
       items: [
         { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
-        { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert, badge: "6" },
+        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
+        { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
       ],
     },
     {
@@ -59,8 +62,8 @@ export function Sidebar() {
       items: [
         { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
         { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
-        { name: t.nav.banking, href: "/banking", icon: Landmark },
-        { name: t.nav.documents, href: "/documents", icon: FileText, badge: "14" },
+        { name: t.nav.banking, href: "/banking", icon: Landmark, moduleKey: "banking" },
+        { name: t.nav.documents, href: "/documents", icon: FileText, moduleKey: "documents" },
       ],
     },
     {
@@ -68,22 +71,30 @@ export function Sidebar() {
       items: [
         { name: t.nav.tax, href: "/tax", icon: Percent },
         { name: t.nav.finance, href: "/finance", icon: TrendingUp },
-        { name: t.nav.inventory, href: "/inventory", icon: Package },
-        { name: t.nav.contracts, href: "/contracts", icon: FileCheck },
-        { name: t.nav.employees, href: "/employees", icon: Users },
+        { name: t.nav.inventory, href: "/inventory", icon: Package, moduleKey: "inventory" },
+        { name: t.nav.contracts, href: "/contracts", icon: FileCheck, moduleKey: "contracts" },
+        { name: t.nav.employees, href: "/employees", icon: Users, moduleKey: "employees" },
       ],
     },
     {
       label: t.nav.groups.system,
       items: [
-        { name: t.nav.integrations, href: "/integrations", icon: Cable, badgeDot: true },
-        { name: t.nav.reports, href: "/reports", icon: BarChart3 },
-        { name: t.nav.team, href: "/team", icon: Users },
-        { name: t.nav.billing, href: "/billing", icon: CreditCard },
+        { name: t.nav.integrations, href: "/integrations", icon: Cable, moduleKey: "integrations" },
+        { name: t.nav.reports, href: "/reports", icon: BarChart3, moduleKey: "reports" },
+        { name: t.nav.team, href: "/team", icon: Users, moduleKey: "team" },
+        { name: t.nav.billing, href: "/billing", icon: CreditCard, moduleKey: "billing" },
         { name: t.nav.settings, href: "/settings", icon: Settings },
+        { name: "Qoʻshimcha modullar", href: "/settings?tab=modules", icon: SlidersHorizontal },
       ],
     },
   ];
+
+  const navigationGroups = rawGroups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => !it.moduleKey || enabledModules[it.moduleKey]),
+    }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <aside
@@ -149,10 +160,13 @@ export function Sidebar() {
 
             {group.items.map((item) => {
               const Icon = item.icon;
+              const cleanHref = item.href.split("?")[0];
               const isActive =
                 item.href === "/"
                   ? pathname === "/"
-                  : pathname.startsWith(item.href);
+                  : item.href.includes("?")
+                  ? false
+                  : pathname.startsWith(cleanHref);
 
               return (
                 <Link
@@ -176,23 +190,6 @@ export function Sidebar() {
                   {!isCollapsed && (
                     <span className="truncate flex-1">{item.name}</span>
                   )}
-
-                  {!isCollapsed && item.badge && (
-                    <span
-                      className={cn(
-                        "rounded-full px-1.5 py-0.2 text-[10px] font-mono font-semibold",
-                        isActive
-                          ? "bg-white/20 text-white"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {item.badge}
-                    </span>
-                  )}
-
-                  {!isCollapsed && item.badgeDot && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  )}
                 </Link>
               );
             })}
@@ -205,7 +202,7 @@ export function Sidebar() {
         <div className="p-3 mx-2.5 mb-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 text-xs">
           <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold mb-1">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>GPT-6 Luna Copilot</span>
+            <span>FIRMUS AI Agent</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-tight mb-2">
             {t.sidebarFooter.copilotSubtitle}
