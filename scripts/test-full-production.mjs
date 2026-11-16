@@ -123,6 +123,23 @@ async function run() {
   });
   check("SSRF blocked on /api/integrations/test -> HTTP 403", ssrfRes.status === 403, `got ${ssrfRes.status}`);
 
+  const extRes = await fetch(`${BASE_URL}/api/integrations/test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+    body: JSON.stringify({ apiUrl: "https://example.com" }),
+  });
+  const extJson = await extRes.json();
+  check(
+    "Real HTTPS endpoint check on /api/integrations/test succeeds",
+    extRes.status === 200 && extJson.reachable === true && extJson.statusCode === 200,
+    JSON.stringify(extJson)
+  );
+
+  // Open redirect guard check on /auth/callback
+  const cbRes = await fetch(`${BASE_URL}/auth/callback?next=https://evil.com`, { redirect: "manual" });
+  const cbLoc = cbRes.headers.get("location") || "";
+  check("Open redirect blocked on /auth/callback", !cbLoc.includes("evil.com"), `location=${cbLoc}`);
+
   // Test Eskiz Phone OTP config guard on /api/auth/phone-otp/send
   const otpSendRes = await fetch(`${BASE_URL}/api/auth/phone-otp/send`, {
     method: "POST",
@@ -136,7 +153,8 @@ async function run() {
     `status=${otpSendRes.status} body=${JSON.stringify(otpSendJson)}`
   );
 
-  // 4. Full Lifecycle inside Temporary Entity (COA auto-seed, Storage, VAT Split Ledger, Period Closing, Cleanup)
+  // 4. Full Lifecycle inside Temporary Workspace + Temporary Entity
+  let tempWorkspaceId = null;
   let tempEntityId = null;
   const auditorClient = createClient(supabaseUrl, anonKey);
   await auditorClient.auth.signInWithPassword({
@@ -145,10 +163,17 @@ async function run() {
   });
 
   try {
+    const { data: wsData, error: wsErr } = await chiefClient.rpc("create_workspace_with_owner", {
+      p_name: "E2E TEST WORKSPACE",
+      p_type: "accounting_firm",
+    });
+    check("create_workspace_with_owner succeeds for authenticated user", !wsErr && !!wsData?.id, wsErr?.message);
+    tempWorkspaceId = wsData.id;
+
     const { data: ent, error: entErr } = await chiefClient
       .from("business_entities")
       .insert({
-        workspace_id: "00000000-0000-0000-0000-000000000001",
+        workspace_id: tempWorkspaceId,
         legal_name: "E2E TEST AUDIT KORXONASI MCHJ",
         tin_stir: "309998877",
         company_type: "MChJ",
@@ -158,6 +183,65 @@ async function run() {
       .single();
     if (entErr) throw entErr;
     tempEntityId = ent.id;
+    check("Create entity inside newly created workspace succeeds via RLS", !!tempEntityId);
+
+    // Test creating custom sub-account, contract, inventory, employee, bank account, document inside tempEntityId
+    const [coaIns, bankIns, invIns, empIns, cntIns] = await Promise.all([
+      chiefClient.from("chart_of_accounts").insert({
+        business_entity_id: tempEntityId,
+        code: "5121",
+        name: "E2E Maxsus valyuta schyoti",
+        type: "asset",
+        is_active: true,
+      }).select().single(),
+      chiefClient.from("bank_accounts").insert({
+        business_entity_id: tempEntityId,
+        bank_name: "ATB Kapitalbank",
+        account_number: "20208000905412340001",
+        mfo: "00974",
+        currency: "UZS",
+        balance: 50000000,
+        status: "connected",
+      }).select().single(),
+      chiefClient.from("inventory_items").insert({
+        business_entity_id: tempEntityId,
+        sku: "E2E-SKU-1",
+        name: "E2E Qog'oz",
+        category: "Kanselyariya",
+        quantity: 100,
+        unit: "dona",
+        unit_price: 25000,
+        status: "in_stock",
+      }).select().single(),
+      chiefClient.from("employees").insert({
+        business_entity_id: tempEntityId,
+        full_name: "E2E Test Xodim",
+        position: "Buxgalter",
+        department: "Moliya",
+        salary: 8000000,
+        pinfl: "31502941234567",
+        hire_date: "2026-11-01",
+        status: "active",
+      }).select().single(),
+      chiefClient.from("contracts").insert({
+        business_entity_id: tempEntityId,
+        number: "SH-E2E-001",
+        type: "Yetkazib berish",
+        counterparty: "E2E Hamkor MCHJ",
+        counterparty_stir: "301112233",
+        amount: 112000000,
+        start_date: "2026-11-01",
+        end_date: "2027-11-01",
+        status: "active",
+      }).select().single(),
+    ]);
+    check(
+      "Entity CRUD (COA subaccount, bank account, inventory, employee, contract) all succeed via RLS",
+      !coaIns.error && !bankIns.error && !invIns.error && !empIns.error && !cntIns.error,
+      [coaIns.error?.message, bankIns.error?.message, invIns.error?.message, empIns.error?.message, cntIns.error?.message]
+        .filter(Boolean)
+        .join("; ")
+    );
 
     // Verify 24 COA accounts seeded (including 0200 & 9910) + 4 integrations
     const { data: coa } = await chiefClient
@@ -266,19 +350,21 @@ async function run() {
       `8710=${acc8710?.closing_credit}, 9010=${acc9010?.closing_credit}, Dt=${sumDt}, Ct=${sumCt}`
     );
   } finally {
-    if (tempEntityId) {
+    if (tempEntityId || tempWorkspaceId) {
       await runSql(`
         BEGIN;
         ALTER TABLE public.journal_lines DISABLE TRIGGER trg_journal_lines_immutable;
         ALTER TABLE public.journal_entries DISABLE TRIGGER trg_journal_entry_immutable;
-        DELETE FROM public.journal_lines WHERE journal_entry_id IN (SELECT id FROM public.journal_entries WHERE business_entity_id = '${tempEntityId}');
-        DELETE FROM public.journal_entries WHERE business_entity_id = '${tempEntityId}';
-        DELETE FROM public.business_entities WHERE id = '${tempEntityId}';
+        ${tempEntityId ? `DELETE FROM public.journal_lines WHERE journal_entry_id IN (SELECT id FROM public.journal_entries WHERE business_entity_id = '${tempEntityId}');` : ""}
+        ${tempEntityId ? `DELETE FROM public.journal_entries WHERE business_entity_id = '${tempEntityId}';` : ""}
+        ${tempEntityId ? `DELETE FROM public.business_entities WHERE id = '${tempEntityId}';` : ""}
+        ${tempWorkspaceId ? `DELETE FROM public.team_members WHERE workspace_id = '${tempWorkspaceId}';` : ""}
+        ${tempWorkspaceId ? `DELETE FROM public.workspaces WHERE id = '${tempWorkspaceId}';` : ""}
         ALTER TABLE public.journal_entries ENABLE TRIGGER trg_journal_entry_immutable;
         ALTER TABLE public.journal_lines ENABLE TRIGGER trg_journal_lines_immutable;
         COMMIT;
       `);
-      console.log(`Cleaned up temporary test entity ${tempEntityId}`);
+      console.log(`Cleaned up temporary test workspace=${tempWorkspaceId} entity=${tempEntityId}`);
     }
   }
 

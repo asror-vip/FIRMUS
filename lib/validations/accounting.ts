@@ -13,7 +13,7 @@ export const journalEntrySchema = z
     debitAccountCode: z.string().trim().min(4, "Debet schyotini tanlang"),
     creditAccountCode: z.string().trim().min(4, "Kredit schyotini tanlang"),
     amount: z.coerce
-      .number({ invalid_type_error: "Summa raqam boʻlishi kerak" })
+      .number({ error: "Summa raqam boʻlishi kerak" })
       .positive("Summa 0 dan katta musbat son boʻlishi shart")
       .max(999_999_999_999, "Summa ruxsat etilgan chegaradan oshib ketdi"),
   })
@@ -25,7 +25,7 @@ export const journalEntrySchema = z
 export const transactionSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Sana YYYY-MM-DD formatida boʻlishi kerak"),
   amount: z.coerce
-    .number({ invalid_type_error: "Summa raqam boʻlishi kerak" })
+    .number({ error: "Summa raqam boʻlishi kerak" })
     .positive("Summa 0 dan katta boʻlishi kerak"),
   type: z.enum(["income", "expense"]),
   counterparty: z.string().trim().min(2, "Kontragent nomini kiriting"),
@@ -48,7 +48,7 @@ export const documentSchema = z.object({
     .optional()
     .refine((val) => !val || stirRegex.test(val), "STIR raqami aniq 9 ta raqamdan iborat boʻlishi kerak"),
   amount: z.coerce
-    .number({ invalid_type_error: "Summa raqam boʻlishi kerak" })
+    .number({ error: "Summa raqam boʻlishi kerak" })
     .positive("Hujjat summasi 0 dan katta boʻlishi kerak"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Sana notoʻgʻri formatda"),
   contractNumber: z.string().trim().optional(),
@@ -65,7 +65,7 @@ export const contractSchema = z
       .optional()
       .refine((val) => !val || stirRegex.test(val), "STIR aniq 9 ta raqam boʻlishi kerak"),
     amount: z.coerce
-      .number({ invalid_type_error: "Summa raqam boʻlishi kerak" })
+      .number({ error: "Summa raqam boʻlishi kerak" })
       .positive("Shartnoma summasi musbat son boʻlishi kerak"),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Boshlanish sanasi notoʻgʻri"),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tugash sanasi notoʻgʻri"),
@@ -81,11 +81,11 @@ export const inventorySchema = z.object({
   name: z.string().trim().min(2, "Tovar nomini kiriting"),
   category: z.string().trim().min(2, "Kategoriyani tanlang"),
   quantity: z.coerce
-    .number({ invalid_type_error: "Miqdor son boʻlishi kerak" })
+    .number({ error: "Miqdor son boʻlishi kerak" })
     .nonnegative("Miqdor manfiy boʻlishi mumkin emas"),
   unit: z.string().trim().min(1, "Oʻlchov birligini kiriting"),
   unitPrice: z.coerce
-    .number({ invalid_type_error: "Narx son boʻlishi kerak" })
+    .number({ error: "Narx son boʻlishi kerak" })
     .positive("Birlik narxi 0 dan katta boʻlishi kerak"),
 });
 
@@ -94,7 +94,7 @@ export const employeeSchema = z.object({
   position: z.string().trim().min(2, "Lavozimni kiriting"),
   department: z.string().trim().min(2, "Boʻlimni kiriting"),
   salary: z.coerce
-    .number({ invalid_type_error: "Maosh raqam boʻlishi kerak" })
+    .number({ error: "Maosh raqam boʻlishi kerak" })
     .positive("Oylik maosh 0 dan katta boʻlishi kerak"),
   pinfl: z.string().trim().regex(pinflRegex, "JShShIR (PINFL) aniq 14 ta raqamdan iborat boʻlishi shart"),
   hireDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ishga kirish sanasi notoʻgʻri"),
@@ -109,7 +109,7 @@ export const bankAccountSchema = z.object({
   mfo: z.string().trim().regex(mfoRegex, "MFO kodi aniq 5 ta raqamdan iborat boʻlishi shart"),
   currency: z.enum(["UZS", "USD"]),
   balance: z.coerce
-    .number({ invalid_type_error: "Balans raqam boʻlishi kerak" })
+    .number({ error: "Balans raqam boʻlishi kerak" })
     .nonnegative("Balans manfiy boʻlishi mumkin emas"),
 });
 
@@ -136,5 +136,5 @@ export const teamInviteSchema = z.object({
 });
 
 export function getFirstZodError(err: z.ZodError): string {
-  return err.errors[0]?.message || "Maʼlumotlar notoʻgʻri kiritilgan";
+  return err.issues[0]?.message || "Maʼlumotlar notoʻgʻri kiritilgan";
 }

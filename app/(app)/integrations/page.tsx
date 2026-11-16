@@ -34,7 +34,11 @@ export default function IntegrationsPage() {
   const [configToken, setConfigToken] = useState("");
 
   const loadData = async () => {
-    if (!currentEntity?.id) return;
+    if (!currentEntity?.id) {
+      setIntegrations([]);
+      setSyncLogs([]);
+      return;
+    }
     setIsLoading(true);
     try {
       const [integs, logs] = await Promise.all([

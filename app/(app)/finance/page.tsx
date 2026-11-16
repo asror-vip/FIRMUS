@@ -31,7 +31,11 @@ export default function FinancePage() {
 
   useEffect(() => {
     let isMounted = true;
-    if (!currentEntity?.id) return;
+    if (!currentEntity?.id) {
+      setTrialBalance([]);
+      setTransactions([]);
+      return;
+    }
 
     Promise.all([
       fetchTrialBalance(currentEntity.id),
@@ -92,7 +96,12 @@ export default function FinancePage() {
   const totalAssets = fixedAssets + inventoryVal + receivablesVal + cashVal;
 
   const equityCapital = sumAccountNet(["83"], "net_credit");
-  const retainedEarnings = sumAccountNet(["87"], "net_credit") + Math.max(0, netProfit);
+  // Unclosed profit = 90xx closing credit - 91xx/94xx closing debit; once period is closed it lives in 8710
+  const unclosedOperatingProfit = Math.max(
+    0,
+    sumAccountNet(["90"], "net_credit") - sumAccountNet(["91", "94"], "net_debit")
+  );
+  const retainedEarnings = sumAccountNet(["87"], "net_credit") + unclosedOperatingProfit;
   const totalEquity = equityCapital + retainedEarnings;
 
   const payablesSuppliers = sumAccountNet(["60", "63"], "net_credit");

@@ -43,7 +43,7 @@ export default function TeamPage() {
             id: d.id,
             name: d.name,
             email: d.email,
-            phone: d.phone || "+998 90 123-45-67",
+            phone: d.phone || "Kiritilmagan",
             role: d.role,
             assignedEntityIds:
               d.assignedEntityIds && d.assignedEntityIds.length > 0

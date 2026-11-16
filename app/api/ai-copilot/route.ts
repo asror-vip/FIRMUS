@@ -3,9 +3,11 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { depersonalizeForAi } from "@/lib/utils/privacy";
 import { z } from "zod";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const copilotRequestSchema = z.object({
   message: z.string().trim().min(1, "Savol matni boʻsh boʻlishi mumkin emas").max(2000),
-  entityId: z.string().uuid("Notoʻgʻri korxona ID").optional(),
+  entityId: z.string().regex(UUID_REGEX, "Notoʻgʻri korxona ID").optional(),
 });
 
 function formatUzs(val: number): string {
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
     const parsed = copilotRequestSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.errors[0]?.message || "Notoʻgʻri soʻrov" },
+        { error: parsed.error.issues[0]?.message || "Notoʻgʻri soʻrov" },
         { status: 400 }
       );
     }

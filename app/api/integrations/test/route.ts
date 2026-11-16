@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const parsed = testConnectionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { reachable: false, error: parsed.error.errors[0]?.message || "Notoʻgʻri URL" },
+        { reachable: false, error: parsed.error.issues[0]?.message || "Notoʻgʻri URL" },
         { status: 400 }
       );
     }
