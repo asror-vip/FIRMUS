@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
-import { Package, AlertTriangle, Plus, Search, Download, ArrowDownUp } from "lucide-react";
+import { AlertTriangle, Plus, Search, Download, ArrowDownUp } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 

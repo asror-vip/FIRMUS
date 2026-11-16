@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
-import { FileCheck, Search, Plus, Download, X, Clock, Calendar, Building, ArrowUpRight } from "lucide-react";
+import { Search, Plus, Download, X } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 

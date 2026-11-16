@@ -115,6 +115,18 @@ export default function AccountingPage() {
     loadJournalEntries();
   }, [loadJournalEntries]);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      loadJournalEntries();
+      setLedgerVersion((v) => v + 1);
+    };
+
+    window.addEventListener("firmus:refresh-data", handleRefresh);
+    return () => {
+      window.removeEventListener("firmus:refresh-data", handleRefresh);
+    };
+  }, [loadJournalEntries]);
+
   // Load real Trial Balance
   useEffect(() => {
     let isMounted = true;
@@ -167,10 +179,6 @@ export default function AccountingPage() {
       acc.code.includes(coaSearch) ||
       acc.name.toLowerCase().includes(coaSearch.toLowerCase())
   );
-
-  const totalDebit = journalEntries.reduce((acc, curr) => acc + curr.totalDebit, 0);
-  const totalCredit = journalEntries.reduce((acc, curr) => acc + curr.totalCredit, 0);
-  const isBalanced = totalDebit === totalCredit;
 
   // Trial balance totals from real database
   const tbTotalDebit = trialBalanceData.reduce((acc, row) => acc + Number(row.period_debit || 0), 0);

@@ -26,9 +26,7 @@ import {
   X,
   CheckCircle2,
   FileText,
-  Building,
   ArrowUpRight,
-  ShieldCheck,
   Upload,
   FileCode,
 } from "lucide-react";

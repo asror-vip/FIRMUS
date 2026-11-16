@@ -20,18 +20,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
-import { UserRole } from "@/lib/mock/types";
 import {
-  Settings,
   Building,
   Shield,
   Bell,
   Globe,
-  User,
   CheckCircle2,
-  Lock,
   Smartphone,
-  Save,
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -289,15 +284,6 @@ function SettingsContent() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const roleLabels: Record<UserRole, string> = {
-    workspace_owner: "Workspace Owner (Toʻliq ega)",
-    chief_accountant: "Bosh buxgalter (Tasdiqlovchi)",
-    accountant: "Buxgalter (Mijoz operatori)",
-    auditor: "Auditor (Faqat oʻqish)",
-    company_director: "Bosh direktor",
-    viewer: "Kuzatuvchi",
   };
 
   return (

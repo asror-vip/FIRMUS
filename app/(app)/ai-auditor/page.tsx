@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   fetchExceptions,
@@ -8,6 +8,7 @@ import {
   createJournalEntryRecord,
   isValidUuid,
 } from "@/lib/services/supabase-service";
+import { createClient } from "@/lib/supabase/client";
 import { useAppState } from "@/lib/mock/store";
 import { ExceptionItem } from "@/lib/mock/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,6 +31,21 @@ import {
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { cn } from "@/lib/utils";
+
+interface AiActionLog {
+  id: string;
+  business_entity_id: string;
+  actor_user_id: string;
+  action_type: string;
+  target_id: string | null;
+  summary: string;
+  payload?: any;
+  model_used: string;
+  decision: "approved" | "rejected" | "failed";
+  error_message?: string | null;
+  created_at: string;
+}
 
 function AiAuditorContent() {
   const searchParams = useSearchParams();
@@ -39,38 +55,76 @@ function AiAuditorContent() {
 
   const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
   const [selectedExc, setSelectedExc] = useState<ExceptionItem | null>(null);
+  const [actionLogs, setActionLogs] = useState<AiActionLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
-    if (!currentEntity?.id) return;
+  const loadExceptions = useCallback(async (entityId: string) => {
     setIsLoading(true);
-    fetchExceptions(currentEntity.id)
-      .then((data) => {
-        if (!isMounted) return;
-        setExceptions(data);
-        if (targetExcId) {
-          const match = data.find((e) => e.id === targetExcId);
-          setSelectedExc(match || data[0] || null);
-        } else {
-          setSelectedExc(data[0] || null);
-        }
-      })
-      .catch((err) => console.error("Error loading exceptions:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    try {
+      const data = await fetchExceptions(entityId);
+      setExceptions(data);
+      if (targetExcId) {
+        const match = data.find((e) => e.id === targetExcId);
+        setSelectedExc(match || data[0] || null);
+      } else {
+        setSelectedExc((prev) => (prev ? (data.find((e) => e.id === prev.id) || data[0] || null) : (data[0] || null)));
+      }
+    } catch (err) {
+      console.error("Error loading exceptions:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [targetExcId]);
 
-    return () => {
-      isMounted = false;
+  const loadActionLogs = useCallback(async (entityId: string) => {
+    if (!isValidUuid(entityId)) return;
+    setIsLoadingLogs(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("ai_action_logs")
+        .select("*")
+        .eq("business_entity_id", entityId)
+        .order("created_at", { ascending: false })
+        .limit(25);
+
+      if (error) {
+        console.error("Error loading ai_action_logs:", error);
+      } else if (data) {
+        setActionLogs(data as AiActionLog[]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch ai action logs:", err);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!currentEntity?.id) return;
+    loadExceptions(currentEntity.id);
+    loadActionLogs(currentEntity.id);
+
+    const handleRefresh = () => {
+      if (currentEntity?.id) {
+        loadExceptions(currentEntity.id);
+        loadActionLogs(currentEntity.id);
+      }
     };
-  }, [currentEntity?.id, targetExcId]);
+
+    window.addEventListener("firmus:refresh-data", handleRefresh);
+    return () => {
+      window.removeEventListener("firmus:refresh-data", handleRefresh);
+    };
+  }, [currentEntity?.id, loadExceptions, loadActionLogs]);
 
   const handleRecheck = async () => {
     if (!currentEntity?.id) return;
+    loadActionLogs(currentEntity.id);
     setIsLoading(true);
     try {
       const data = await fetchExceptions(currentEntity.id);
@@ -409,6 +463,102 @@ function AiAuditorContent() {
           )}
         </div>
       </div>
+
+      {/* AI Agent Harakatlar Jurnali (Audit Trail) */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              AI Agent Harakatlar Jurnali (Audit Trail)
+            </CardTitle>
+            <CardDescription className="text-xs">
+              AI Copilot va Agent tomonidan amalga oshirilgan barcha takliflar va Human-in-the-Loop qarorlari tarixi
+            </CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => currentEntity?.id && loadActionLogs(currentEntity.id)}
+            disabled={isLoadingLogs}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isLoadingLogs && "animate-spin")} />
+            Yangilash
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {isLoadingLogs ? (
+            <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin text-indigo-500" />
+              Jurnal yuklanmoqda...
+            </div>
+          ) : actionLogs.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+              Hozircha AI agent harakatlar jurnali mavjud emas. AI Drawer orqali provodka yoki operatsiyalarni tasdiqlaganingizda bu yerda aks etadi.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground text-left">
+                    <th className="pb-2 font-medium">Vaqt</th>
+                    <th className="pb-2 font-medium">Amal turi</th>
+                    <th className="pb-2 font-medium">Tavsif (Summary)</th>
+                    <th className="pb-2 font-medium">Model</th>
+                    <th className="pb-2 font-medium text-right">Qaror (Decision)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {actionLogs.map((log) => {
+                    const badgeVariant =
+                      log.decision === "approved"
+                        ? "success"
+                        : log.decision === "rejected"
+                        ? "destructive"
+                        : "warning";
+
+                    return (
+                      <tr key={log.id} className="hover:bg-muted/40 transition-colors">
+                        <td className="py-2.5 pr-3 text-muted-foreground whitespace-nowrap font-mono text-[11px]">
+                          {new Date(log.created_at).toLocaleString("uz-UZ", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <span className="font-mono text-[11px] font-semibold bg-muted px-1.5 py-0.5 rounded">
+                            {log.action_type}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-3 font-medium text-foreground max-w-md">
+                          <div className="truncate" title={log.summary}>
+                            {log.summary}
+                          </div>
+                          {log.error_message && (
+                            <div className="text-[10px] text-destructive truncate">{log.error_message}</div>
+                          )}
+                        </td>
+                        <td className="py-2.5 pr-3 text-muted-foreground whitespace-nowrap text-[11px] font-mono">
+                          {log.model_used}
+                        </td>
+                        <td className="py-2.5 pl-3 text-right whitespace-nowrap">
+                          <Badge variant={badgeVariant} className="text-[10px] px-2 py-0.5">
+                            {log.decision}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

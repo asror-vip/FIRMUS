@@ -42,7 +42,7 @@ interface NavigationGroup {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentRole, toggleAiDrawer } = useAppState();
+  const { toggleAiDrawer } = useAppState();
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 

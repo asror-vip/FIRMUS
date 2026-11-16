@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calculator,
   Calendar,
-  CheckCircle2,
   Download,
   CreditCard,
 } from "lucide-react";
@@ -38,9 +37,11 @@ export default function TaxPage() {
   const [isCalcModalOpen, setIsCalcModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Real Ledger balances for 6410 (Tax Payable) & 4410 (Input VAT)
+  // Real Ledger balances for 6410 (Tax Payable), 4410 (Input VAT), 6520 (Social Tax)
   const [vatOutput6410, setVatOutput6410] = useState<number>(0);
   const [vatInput4410, setVatInput4410] = useState<number>(0);
+  const [liveSocialTax, setLiveSocialTax] = useState<number>(0);
+  const [liveJshds, setLiveJshds] = useState<number>(0);
 
   const loadTaxData = useCallback(async () => {
     if (!currentEntity?.id) {
@@ -48,6 +49,8 @@ export default function TaxPage() {
       setDeadlines([]);
       setVatOutput6410(0);
       setVatInput4410(0);
+      setLiveSocialTax(0);
+      setLiveJshds(0);
       setIsLoading(false);
       return;
     }
@@ -62,8 +65,21 @@ export default function TaxPage() {
 
       const row6410 = (tb || []).find((r: any) => r.account_code === "6410");
       const row4410 = (tb || []).find((r: any) => r.account_code === "4410");
+      const row6520 = (tb || []).find((r: any) => r.account_code === "6520");
+
       setVatOutput6410(row6410 ? Number(row6410.period_credit || 0) : 0);
       setVatInput4410(row4410 ? Number(row4410.period_debit || 0) : 0);
+
+      const socTax = row6520
+        ? Number(row6520.closing_credit ?? row6520.period_credit ?? 0)
+        : 0;
+      setLiveSocialTax(socTax);
+
+      const jshds = row6410
+        ? Number(row6410.period_credit ?? row6410.closing_credit ?? 0)
+        : 0;
+      setLiveJshds(jshds);
+
       setTaxRecords((dbTaxRecords || []) as TaxRecord[]);
       setDeadlines(dbDeadlines || []);
     } catch (err) {
@@ -76,6 +92,14 @@ export default function TaxPage() {
 
   useEffect(() => {
     loadTaxData();
+
+    const handleRefresh = () => {
+      loadTaxData();
+    };
+    window.addEventListener("firmus:refresh-data", handleRefresh);
+    return () => {
+      window.removeEventListener("firmus:refresh-data", handleRefresh);
+    };
   }, [loadTaxData]);
 
   const jshdsRec = taxRecords.find((r) => r.type.toLowerCase().includes("jshds"));
@@ -83,6 +107,9 @@ export default function TaxPage() {
   const profitOrTurnoverRec = taxRecords.find(
     (r) => r.type.toLowerCase().includes("foyda") || r.type.toLowerCase().includes("aylanma")
   );
+
+  const jshdsAmount = jshdsRec ? jshdsRec.calculatedAmount : liveJshds;
+  const socialTaxAmount = socialRec ? socialRec.calculatedAmount : liveSocialTax;
 
   const netVatPayable = Math.max(0, vatOutput6410 - vatInput4410);
 
@@ -235,17 +262,35 @@ export default function TaxPage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">JShDS (12%)</span>
             <Badge
-              variant={jshdsRec?.status === "paid" ? "success" : jshdsRec?.status === "overdue" ? "destructive" : "outline"}
+              variant={
+                jshdsRec?.status === "paid"
+                  ? "success"
+                  : jshdsRec?.status === "overdue"
+                  ? "destructive"
+                  : jshdsAmount > 0
+                  ? "warning"
+                  : "outline"
+              }
               className="text-[10px] px-1 py-0 h-4"
             >
-              {jshdsRec?.status === "paid" ? t.statuses.paid : jshdsRec ? t.common.pending : "Kutilmoqda"}
+              {jshdsRec?.status === "paid"
+                ? t.statuses.paid
+                : jshdsRec
+                ? t.common.pending
+                : jshdsAmount > 0
+                ? "Hisoblangan"
+                : "Kutilmoqda"}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
-            <Money amount={jshdsRec?.calculatedAmount || 0} />
+            <Money amount={jshdsAmount} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            {jshdsRec ? `Muddat: ${jshdsRec.deadline}` : "Ushbu davr uchun hisobot yoʻq"}
+            {jshdsRec
+              ? `Muddat: ${jshdsRec.deadline}`
+              : jshdsAmount > 0
+              ? "Bosh kitob (6410 Kt) boʻyicha hisoblangan"
+              : "Ushbu davr uchun hisobot yoʻq"}
           </p>
         </Card>
 
@@ -253,17 +298,35 @@ export default function TaxPage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">Ijtimoiy soliq (12%)</span>
             <Badge
-              variant={socialRec?.status === "paid" ? "success" : socialRec?.status === "overdue" ? "destructive" : "outline"}
+              variant={
+                socialRec?.status === "paid"
+                  ? "success"
+                  : socialRec?.status === "overdue"
+                  ? "destructive"
+                  : socialTaxAmount > 0
+                  ? "warning"
+                  : "outline"
+              }
               className="text-[10px] px-1 py-0 h-4"
             >
-              {socialRec?.status === "paid" ? t.statuses.paid : socialRec ? t.common.pending : "Kutilmoqda"}
+              {socialRec?.status === "paid"
+                ? t.statuses.paid
+                : socialRec
+                ? t.common.pending
+                : socialTaxAmount > 0
+                ? "Hisoblangan"
+                : "Kutilmoqda"}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
-            <Money amount={socialRec?.calculatedAmount || 0} />
+            <Money amount={socialTaxAmount} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            {socialRec ? `Muddat: ${socialRec.deadline}` : "Ushbu davr uchun hisobot yoʻq"}
+            {socialRec
+              ? `Muddat: ${socialRec.deadline}`
+              : socialTaxAmount > 0
+              ? "Bosh kitob (6520 Kt) boʻyicha hisoblangan"
+              : "Ushbu davr uchun hisobot yoʻq"}
           </p>
         </Card>
 

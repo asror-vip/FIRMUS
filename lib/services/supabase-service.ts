@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase/client";
 import { mockChartOfAccounts } from "@/lib/mock/accounting";
-import { splitVatInclusive } from "@/lib/utils/finance";
+import { splitVatInclusive, calculatePayrollContributions } from "@/lib/utils/finance";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1716,4 +1716,110 @@ export async function recordIntegrationSyncInDb(
 
   if (error) throw error;
   return data;
+}
+
+// ==========================================
+// 11. PAYROLL & AI ACTION AUDIT LOGS
+// ==========================================
+export async function postMonthlyPayroll(params: {
+  entityId?: string;
+  entryDate: string;
+  grossSalary: number;
+  monthTag: string;
+  employeeCount: number;
+}) {
+  if (!isValidUuid(params.entityId)) {
+    throw new Error("Korxona ID tanlanmagan yoki notoʻgʻri");
+  }
+
+  const { gross, jshds12, socialTax12, netPay } = calculatePayrollContributions(params.grossSalary);
+  const cleanMonth = params.monthTag.replace(/[^a-zA-Z0-9]/g, "-");
+  const entryNumber = `PAYROLL-${cleanMonth}-${Date.now().toString().slice(-4)}`;
+
+  const lines = [
+    {
+      account_code: "9420",
+      account_name: "Maʼmuriy xarajatlar",
+      debit_amount: gross,
+      credit_amount: 0,
+      memo: `Mehnat haqi hisoblandi (${params.monthTag})`,
+    },
+    {
+      account_code: "6710",
+      account_name: "Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar",
+      debit_amount: 0,
+      credit_amount: gross,
+      memo: `Mehnat haqi hisoblandi (${params.monthTag})`,
+    },
+    {
+      account_code: "6710",
+      account_name: "Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar",
+      debit_amount: jshds12,
+      credit_amount: 0,
+      memo: `12% JShODS ushlab qolindi (${params.monthTag})`,
+    },
+    {
+      account_code: "6410",
+      account_name: "Budjetga toʻlovlar boʻyicha qarzlar (Soliqlar)",
+      debit_amount: 0,
+      credit_amount: jshds12,
+      memo: `12% JShODS ushlab qolindi (${params.monthTag})`,
+    },
+    {
+      account_code: "9420",
+      account_name: "Maʼmuriy xarajatlar",
+      debit_amount: socialTax12,
+      credit_amount: 0,
+      memo: `12% Ijtimoiy soliq hisoblandi (${params.monthTag})`,
+    },
+    {
+      account_code: "6520",
+      account_name: "Maqsadli davlat jamgʻarmalariga toʻlovlar",
+      debit_amount: 0,
+      credit_amount: socialTax12,
+      memo: `12% Ijtimoiy soliq hisoblandi (${params.monthTag})`,
+    },
+  ];
+
+  const { data, error } = await supabase.rpc("create_journal_entry_atomic", {
+    p_business_entity_id: params.entityId,
+    p_entry_number: entryNumber,
+    p_entry_date: params.entryDate,
+    p_description: `Ish haqi hisob-kitobi (${params.monthTag}, ${params.employeeCount} nafar xodim)`,
+    p_source_type: "payroll",
+    p_source_reference_id: `payroll-${cleanMonth}`,
+    p_idempotency_key: `idem-payroll-${params.entityId}-${cleanMonth}`,
+    p_lines: lines,
+  });
+
+  if (error) {
+    throw new Error(`Ish haqi provodkasida xatolik: ${error.message}`);
+  }
+
+  return {
+    data,
+    payroll: { gross, jshds12, socialTax12, netPay },
+  };
+}
+
+export async function fetchAiActionLogs(entityId?: string) {
+  try {
+    let query = supabase
+      .from("ai_action_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(40);
+
+    if (entityId) {
+      if (!isValidUuid(entityId)) return [];
+      query = query.eq("business_entity_id", entityId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error("fetchAiActionLogs error:", err);
+    return [];
+  }
 }

@@ -14,7 +14,7 @@ import {
 import { listEImzoCertificates, signWithEImzoCertificate } from "@/lib/services/eimzo-client";
 import { documentSchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,6 @@ import {
   FileText,
   Upload,
   Search,
-  Filter,
   Grid,
   List,
   Sparkles,
@@ -33,8 +32,6 @@ import {
   X,
   FileCheck,
   CheckCircle2,
-  Clock,
-  ArrowUpRight,
   ShieldCheck,
   RefreshCw,
 } from "lucide-react";

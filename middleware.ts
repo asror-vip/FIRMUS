@@ -44,7 +44,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/auth/callback");
 
   const isPublicLegalPage =
-    pathname.startsWith("/privacy") || pathname.startsWith("/terms");
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms") ||
+    pathname === "/api/health";
 
   // If user is unauthenticated and attempting to access protected routes
   if (!user && !isAuthPage && !isPublicLegalPage) {

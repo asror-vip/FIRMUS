@@ -13,7 +13,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -23,15 +22,12 @@ import {
   Sun,
   Moon,
   Globe,
-  UserCheck,
   LogOut,
   Settings,
-  Shield,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { UserRole } from "@/lib/mock/types";
 
 export function Topbar() {
   const router = useRouter();
@@ -41,7 +37,6 @@ export function Topbar() {
     setIsSearchOpen,
     toggleAiDrawer,
     currentRole,
-    setCurrentRole,
     language,
     setLanguage,
   } = useAppState();

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   fetchIntegrations,
   updateIntegrationSettings,
@@ -33,7 +33,7 @@ export default function IntegrationsPage() {
   const [configUrl, setConfigUrl] = useState("");
   const [configToken, setConfigToken] = useState("");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!currentEntity?.id) {
       setIntegrations([]);
       setSyncLogs([]);
@@ -52,11 +52,11 @@ export default function IntegrationsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentEntity?.id]);
 
   useEffect(() => {
     loadData();
-  }, [currentEntity?.id]);
+  }, [loadData]);
 
   const handleOpenSettings = (integ: any) => {
     setSelectedInteg(integ);

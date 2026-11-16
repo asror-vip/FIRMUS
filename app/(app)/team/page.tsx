@@ -63,7 +63,7 @@ export default function TeamPage() {
     return () => {
       isMounted = false;
     };
-  }, [currentWorkspace?.id, entities.length]);
+  }, [currentWorkspace?.id, entities]);
 
   const rolesCatalog = [
     { role: "Workspace Owner", desc: "Barcha korxonalar, obuna, jamoa va tizim sozlamalarini toʻliq boshqarish." },

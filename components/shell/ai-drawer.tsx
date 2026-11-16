@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAppState } from "@/lib/mock/store";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
@@ -37,6 +37,18 @@ export function AiDrawer() {
       time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
+
+  useEffect(() => {
+    setMessages([
+      {
+        id: "m-init",
+        sender: "ai",
+        text: t.aiDrawer.greeting,
+        time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+    setInput("");
+  }, [currentEntity?.id, t.aiDrawer.greeting]);
 
   if (!isAiDrawerOpen) return null;
 
@@ -123,6 +135,12 @@ export function AiDrawer() {
       if (!res.ok) {
         throw new Error(data.error || "Amalni bajarishda xatolik");
       }
+
+      window.dispatchEvent(
+        new CustomEvent("firmus:refresh-data", {
+          detail: { entityId: currentEntity.id, actionType: msg.actionProposed.type, decision },
+        })
+      );
 
       setMessages((prev) =>
         prev.map((m) =>

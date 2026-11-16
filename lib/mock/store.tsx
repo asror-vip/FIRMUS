@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { BusinessEntity, UserRole, Workspace } from "./types";
 import { supabase } from "@/lib/supabase/client";
 import { fetchBusinessEntities, fetchWorkspaces } from "@/lib/services/supabase-service";
@@ -45,6 +46,7 @@ interface AppStateContextType {
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<any | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>("");
@@ -212,7 +214,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    window.location.href = "/login";
+    router.push("/login");
   };
 
   // Keyboard shortcut listener for ⌘K and AI drawer

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { ShieldCheck, CheckCircle2, HeartHandshake, HelpCircle, ExternalLink } from "lucide-react";
+import { ShieldCheck, ExternalLink } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function Footer() {

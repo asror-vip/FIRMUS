@@ -897,9 +897,9 @@ export async function runFirmusAgent(params: {
     return runDeterministicAgent({ message, ctx });
   }
 
-  const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
+  const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
   const modelChain = Array.from(
-    new Set([primaryModel, "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"])
+    new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-lite-latest"])
   );
   const systemInstruction = buildFirmusSystemInstruction({ entity, coaRows, userRole });
 
@@ -958,11 +958,13 @@ export async function runFirmusAgent(params: {
             .map((p) => p.text || "")
             .join("")
             .trim();
-          if (textReply) {
+          if (textReply || pendingProposal) {
             return {
               mode: "gemini_agent",
               modelUsed: modelName,
-              reply: textReply,
+              reply:
+                textReply ||
+                "Amaliy taklif tayyorlandi. Tasdiqlash uchun quyidagi kartadan foydalaning.",
               toolCalls: toolCallsUsed.length > 0 ? toolCallsUsed : [modelName],
               actionProposed: pendingProposal,
               userRole,

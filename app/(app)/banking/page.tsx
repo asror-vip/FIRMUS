@@ -15,11 +15,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import {
-  Landmark,
   Plus,
   Upload,
   RefreshCw,
-  CheckCircle2,
   ArrowDownLeft,
   ArrowUpRight,
   ShieldCheck,

@@ -20,10 +20,6 @@ import {
   AlertCircle,
   Info,
   ArrowRight,
-  Trash2,
-  Cable,
-  Percent,
-  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";

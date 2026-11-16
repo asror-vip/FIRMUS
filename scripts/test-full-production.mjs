@@ -56,6 +56,7 @@ async function run() {
 
   // 1. Public & Auth Route HTTP checks
   const publicChecks = [
+    { path: "/api/health", expected: 200 },
     { path: "/login", expected: 200 },
     { path: "/register", expected: 200 },
     { path: "/privacy", expected: 200 },
@@ -246,16 +247,26 @@ async function run() {
         .join("; ")
     );
 
-    // Verify 24 COA accounts seeded (including 0200 & 9910) + 4 integrations
+    // Verify 24+ COA accounts seeded (including 0200, 9910, 4310, 6310) + 4 integrations + tax_deadlines
     const { data: coa } = await chiefClient
       .from("chart_of_accounts")
       .select("code")
       .eq("business_entity_id", tempEntityId);
     const codes = new Set((coa || []).map((c) => c.code));
     check(
-      "Entity insert trigger seeded 24+ BHMS accounts (incl. 0200 & 9910)",
-      codes.size >= 24 && codes.has("0200") && codes.has("9910"),
+      "Entity insert trigger seeded 24+ BHMS accounts (incl. 0200, 9910, 4310, 6310)",
+      codes.size >= 24 && codes.has("0200") && codes.has("9910") && codes.has("4310") && codes.has("6310"),
       `count=${codes.size}`
+    );
+
+    const { data: seededDeadlines, error: dlErr } = await chiefClient
+      .from("tax_deadlines")
+      .select("id, title")
+      .eq("business_entity_id", tempEntityId);
+    check(
+      "Entity insert trigger seeded >= 3 default tax deadlines",
+      !dlErr && (seededDeadlines?.length ?? 0) >= 3,
+      `count=${seededDeadlines?.length}, err=${dlErr?.message}`
     );
 
     // Supabase Storage upload + signed URL + delete

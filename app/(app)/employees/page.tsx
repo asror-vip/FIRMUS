@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { fetchEmployees, createEmployee, createJournalEntryRecord } from "@/lib/services/supabase-service";
+import { fetchEmployees, createEmployee } from "@/lib/services/supabase-service";
+import { calculatePayrollContributions } from "@/lib/utils/finance";
+import { createClient } from "@/lib/supabase/client";
 import { employeeSchema, getFirstZodError } from "@/lib/validations/accounting";
 import { maskPinfl } from "@/lib/utils/privacy";
 import { useAppState } from "@/lib/mock/store";
@@ -13,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
-import { Users, Plus, DollarSign, Download, CheckCircle2, UserCheck } from "lucide-react";
+import { Plus, DollarSign, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
@@ -78,26 +80,72 @@ export default function EmployeesPage() {
     try {
       const today = new Date().toISOString().split("T")[0];
       const monthTag = today.slice(0, 7);
+      const { gross, jshds12, socialTax12 } = calculatePayrollContributions(totalPayroll);
 
-      const res = await createJournalEntryRecord({
-        entityId: currentEntity?.id,
-        entryNumber: `JE-PAY-${monthTag}-${Math.floor(100 + Math.random() * 900)}`,
-        entryDate: today,
-        description: `${monthTag} oyi uchun xodimlar ish haqi hisoblandi (6710 schyot va JShDS 12%)`,
-        debitAccountCode: "9420",
-        debitAccountName: "Maʼmuriy xarajatlar",
-        creditAccountCode: "6710",
-        creditAccountName: "Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar",
-        amount: totalPayroll,
-        sourceType: "payroll",
-        idempotencyKey: `idem-payroll-${currentEntity?.id}-${monthTag}-${employees.length}-${Math.round(totalPayroll)}`,
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("create_journal_entry_atomic", {
+        p_business_entity_id: currentEntity?.id,
+        p_entry_number: `JE-PAY-${monthTag}-${Math.floor(100 + Math.random() * 900)}`,
+        p_entry_date: today,
+        p_description: `${monthTag} oyi uchun xodimlar ish haqi hisoblandi (6710, JShDS 12% va Ijtimoiy soliq 12%)`,
+        p_source_type: "payroll",
+        p_source_reference_id: `payroll-${monthTag}`,
+        p_idempotency_key: `idem-payroll-${currentEntity?.id}-${monthTag}-${employees.length}-${Math.round(gross)}`,
+        p_lines: [
+          {
+            account_code: "9420",
+            account_name: "Maʼmuriy xarajatlar",
+            debit_amount: gross,
+            credit_amount: 0,
+            memo: "Oylik ish haqi hisoblandi (Gross)",
+          },
+          {
+            account_code: "6710",
+            account_name: "Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar",
+            debit_amount: 0,
+            credit_amount: gross,
+            memo: "Xodimlarga hisoblangan ish haqi majburiyati",
+          },
+          {
+            account_code: "6710",
+            account_name: "Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar",
+            debit_amount: jshds12,
+            credit_amount: 0,
+            memo: "Ish haqidan JShDS (12%) ushlab qolindi",
+          },
+          {
+            account_code: "6410",
+            account_name: "Byudjetga toʻlovlar boʻyicha qarzlar",
+            debit_amount: 0,
+            credit_amount: jshds12,
+            memo: "Byudjetga toʻlanadigan JShDS (12%)",
+          },
+          {
+            account_code: "9420",
+            account_name: "Maʼmuriy xarajatlar",
+            debit_amount: socialTax12,
+            credit_amount: 0,
+            memo: "Ijtimoiy soliq (12%) hisoblandi",
+          },
+          {
+            account_code: "6520",
+            account_name: "Davlat maqsadli jamgʻarmalariga toʻlovlar boʻyicha qarzlar",
+            debit_amount: 0,
+            credit_amount: socialTax12,
+            memo: "Ijtimoiy soliq (12%) majburiyati",
+          },
+        ],
       });
 
-      if (res?.idempotent) {
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data?.is_duplicate) {
         toast.info(`Ushbu tarkib (${employees.length} xodim) uchun ${monthTag} ish haqi provodkasi allaqachon Bosh kitobda mavjud.`);
       } else {
         toast.success(
-          `Ish haqi vedomosti shakllantirildi va Bosh kitobga (Dt 9420 / Kt 6710) ${totalPayroll.toLocaleString()} soʻm provodka tushirildi!`
+          `Ish haqi 21-BHMS boʻyicha hisoblandi: Gross ${gross.toLocaleString()} soʻm (9420/6710), JShDS 12%: ${jshds12.toLocaleString()} soʻm (6710/6410), Ijtimoiy soliq 12%: ${socialTax12.toLocaleString()} soʻm (9420/6520).`
         );
       }
     } catch (err: any) {
