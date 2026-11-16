@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,12 +27,20 @@ import {
   buildReconcileJournalLines,
   buildSafeAiReconcileInput,
   buildReconcileCsvReport,
+  sanitizeReconcileRowsForStorage,
   type ReconcileRow,
   type ReconcileSummary,
 } from "@/lib/services/reconcile-engine";
 import type { ParsedBankTransaction } from "@/lib/services/bank-import";
 import { generate1CClientBankText, generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
-import { fetchTransactions } from "@/lib/services/supabase-service";
+import {
+  fetchTransactions,
+  fetchWorkBatches,
+  saveWorkBatch,
+  markWorkBatchPosted,
+  deleteWorkBatch,
+  type WorkBatchRecord,
+} from "@/lib/services/supabase-service";
 import { sanitizeStringForAi } from "@/lib/utils/privacy";
 import { roundMoney } from "@/lib/utils/finance";
 import { supabase } from "@/lib/supabase/client";
@@ -50,6 +58,10 @@ import {
   RotateCcw,
   ClipboardPaste,
   Search,
+  History,
+  BookmarkCheck,
+  Trash2,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -85,14 +97,37 @@ export default function ReconcilePage() {
   const [aiModeNote, setAiModeNote] = useState<string | null>(null);
   const [isPostingLedger, setIsPostingLedger] = useState(false);
 
+  // Saved batch history state
+  const [savedBatches, setSavedBatches] = useState<WorkBatchRecord[]>([]);
+  const [historyMonth, setHistoryMonth] = useState<string>("all");
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const [isSavingBatch, setIsSavingBatch] = useState(false);
+
   // Paste dialog state
   const [pasteTarget, setPasteTarget] = useState<"bank" | "onec" | null>(null);
   const [pasteText, setPasteText] = useState("");
+
+  const loadHistory = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setSavedBatches([]);
+      return;
+    }
+    const items = await fetchWorkBatches({
+      entityId: currentEntity.id,
+      batchType: "reconcile",
+    });
+    setSavedBatches(items);
+  }, [currentEntity?.id]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const runComparison = (nextBank: ParsedBankTransaction[], nextOneC: ParsedBankTransaction[]) => {
     if (nextBank.length === 0 && nextOneC.length === 0) {
       setRows([]);
       setSummary(null);
+      setActiveBatchId(null);
       return;
     }
     const { rows: compared, summary: sum } = reconcileBankAnd1C(nextBank, nextOneC);
@@ -100,6 +135,7 @@ export default function ReconcilePage() {
     setSummary(sum);
     setSelectedIds(compared.filter((r) => r.status === "bank_only").map((r) => r.id));
     setAiModeNote(null);
+    setActiveBatchId(null);
   };
 
   const applyParsedSource = (source: "bank" | "onec", parsed: ParsedBankTransaction[], label: string) => {
@@ -189,6 +225,74 @@ export default function ReconcilePage() {
     setSearchQuery("");
     setActiveTab("all");
     setAiModeNote(null);
+    setActiveBatchId(null);
+  };
+
+  const handleSaveBatchToHistory = async (markPosted = false): Promise<string | null> => {
+    if (!currentEntity?.id) {
+      toast.error("Saqlash uchun avval korxona qoʻshing");
+      return null;
+    }
+    if (!summary || rows.length === 0) return null;
+
+    setIsSavingBatch(true);
+    try {
+      const sampleDate = rows.find((r) => /^\d{4}-\d{2}/.test(r.date))?.date;
+      const periodMonth = sampleDate ? sampleDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+      const safeRows = sanitizeReconcileRowsForStorage(rows);
+      const label = [bankFileName || "Bank", oneCFileName || "1C"].filter(Boolean).join(" ↔ ");
+
+      const created = await saveWorkBatch({
+        entityId: currentEntity.id,
+        batchType: "reconcile",
+        periodMonth,
+        title: label,
+        bankFileName: bankFileName || undefined,
+        oneCFileName: oneCFileName || undefined,
+        rowCount: rows.length,
+        totalIncome: summary.bankTotalIncome,
+        totalExpense: summary.bankTotalExpense,
+        status: markPosted ? "posted_to_ledger" : "reviewed",
+        summaryJson: summary,
+        sanitizedPayload: safeRows,
+      });
+
+      setActiveBatchId(created.id);
+      await loadHistory();
+      if (!markPosted) {
+        toast.success("Solishtirish tarixga saqlandi!");
+      }
+      return created.id;
+    } catch (err: any) {
+      if (!markPosted) toast.error("Saqlashda xatolik: " + err.message);
+      return null;
+    } finally {
+      setIsSavingBatch(false);
+    }
+  };
+
+  const handleOpenBatch = (batch: WorkBatchRecord) => {
+    const loadedRows = Array.isArray(batch.sanitizedPayload) ? (batch.sanitizedPayload as ReconcileRow[]) : [];
+    setRows(loadedRows);
+    setSummary((batch.summaryJson || null) as ReconcileSummary | null);
+    setBankFileName(batch.bankFileName || "");
+    setOneCFileName(batch.oneCFileName || "");
+    setSelectedIds(loadedRows.filter((r) => r.status === "bank_only").map((r) => r.id));
+    setActiveBatchId(batch.id);
+    setActiveTab("all");
+    setAiModeNote(null);
+    toast.success(`«${batch.title}» yuklandi`);
+  };
+
+  const handleDeleteBatch = async (batchId: string) => {
+    try {
+      await deleteWorkBatch(batchId);
+      if (activeBatchId === batchId) setActiveBatchId(null);
+      await loadHistory();
+      toast.success("Tarixdan oʻchirildi");
+    } catch (err: any) {
+      toast.error("Oʻchirishda xatolik: " + err.message);
+    }
   };
 
   const handleChangeRowAccount = (rowId: string, nextCode: string) => {
@@ -378,6 +482,13 @@ export default function ReconcilePage() {
         });
         if (error) throw error;
         successCount++;
+      }
+
+      if (activeBatchId) {
+        await markWorkBatchPosted(activeBatchId);
+        await loadHistory();
+      } else {
+        await handleSaveBatchToHistory(true);
       }
 
       window.dispatchEvent(new CustomEvent("firmus:refresh-data", { detail: { entityId: currentEntity.id } }));
@@ -677,6 +788,22 @@ export default function ReconcilePage() {
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 CSV Hisobot
               </Button>
+              {currentEntity?.id && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-8 gap-1.5"
+                  disabled={isSavingBatch || Boolean(activeBatchId)}
+                  onClick={() => handleSaveBatchToHistory(false)}
+                >
+                  {isSavingBatch ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <BookmarkCheck className="h-3.5 w-3.5 text-emerald-600" />
+                  )}
+                  {activeBatchId ? "Saqlangan" : "Tarixga saqlash"}
+                </Button>
+              )}
               {selectedIds.length > 0 && (
                 <Button
                   size="sm"
@@ -818,6 +945,116 @@ export default function ReconcilePage() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {/* Saved Batch History organized by Month */}
+      {currentEntity?.id && (
+        <Card>
+          <CardHeader className="pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-semibold">
+                Saqlangan ishlar tarixi ({savedBatches.length})
+              </CardTitle>
+            </div>
+            {savedBatches.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={historyMonth === "all" ? "default" : "outline"}
+                  className="h-6 text-[11px] px-2"
+                  onClick={() => setHistoryMonth("all")}
+                >
+                  Barchasi
+                </Button>
+                {Array.from(new Set(savedBatches.map((b) => b.periodMonth)))
+                  .sort((a, b) => b.localeCompare(a))
+                  .map((m) => (
+                    <Button
+                      key={m}
+                      type="button"
+                      size="sm"
+                      variant={historyMonth === m ? "default" : "outline"}
+                      className="h-6 text-[11px] px-2 font-mono"
+                      onClick={() => setHistoryMonth(m)}
+                    >
+                      {m}
+                    </Button>
+                  ))}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            {savedBatches.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                Saqlangan solishtirishlar yoʻq
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Oy</TableHead>
+                    <TableHead>Fayllar</TableHead>
+                    <TableHead className="text-right">Qator</TableHead>
+                    <TableHead className="text-right">Bank Kirim</TableHead>
+                    <TableHead className="text-right">Bank Chiqim</TableHead>
+                    <TableHead>Holat</TableHead>
+                    <TableHead className="text-right">Amal</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {savedBatches
+                    .filter((b) => historyMonth === "all" || b.periodMonth === historyMonth)
+                    .map((b) => (
+                      <TableRow key={b.id} className="text-xs">
+                        <TableCell className="font-mono text-[11px] whitespace-nowrap">{b.periodMonth}</TableCell>
+                        <TableCell className="font-medium max-w-[260px] truncate">{b.title}</TableCell>
+                        <TableCell className="text-right font-mono">{b.rowCount}</TableCell>
+                        <TableCell className="text-right font-mono text-emerald-600">
+                          <Money amount={b.totalIncome} />
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          <Money amount={b.totalExpense} />
+                        </TableCell>
+                        <TableCell>
+                          {b.status === "posted_to_ledger" ? (
+                            <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] gap-1 px-2"
+                              onClick={() => handleOpenBatch(b)}
+                            >
+                              <FolderOpen className="h-3 w-3" />
+                              Ochish
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                              aria-label="Oʻchirish"
+                              onClick={() => handleDeleteBatch(b.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Clipboard Paste Dialog */}

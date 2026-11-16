@@ -572,6 +572,28 @@ export function buildReconcileJournalLines(row: ReconcileRow): ReconcileJournalL
       ];
 }
 
+export function sanitizeReconcileRowsForStorage(rows: ReconcileRow[]): ReconcileRow[] {
+  return rows.map((r) => ({
+    ...r,
+    counterparty: sanitizeStringForAi(r.counterparty),
+    explanation: sanitizeStringForAi(r.explanation),
+    bankItem: r.bankItem
+      ? {
+          ...r.bankItem,
+          counterparty: sanitizeStringForAi(r.bankItem.counterparty),
+          description: sanitizeStringForAi(r.bankItem.description),
+        }
+      : undefined,
+    oneCItem: r.oneCItem
+      ? {
+          ...r.oneCItem,
+          counterparty: sanitizeStringForAi(r.oneCItem.counterparty),
+          description: sanitizeStringForAi(r.oneCItem.description),
+        }
+      : undefined,
+  }));
+}
+
 /**
  * Strips all PII (cards, PINFL, phones, STIR) inside browser memory before sending rows to /api/ai-reconcile.
  */

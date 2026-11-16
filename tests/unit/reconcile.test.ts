@@ -5,6 +5,7 @@ import {
   reconcileBankAnd1C,
   buildReconcileJournalLines,
   buildSafeAiReconcileInput,
+  sanitizeReconcileRowsForStorage,
   detectVatIncluded,
 } from "../../lib/services/reconcile-engine";
 
@@ -165,5 +166,32 @@ describe("Bank <-> 1C AI Reconciliation Engine", () => {
     expect(vatIncomeLines.find((l) => l.accountCode === "5110")?.debit).toBe(5600000);
     expect(vatIncomeLines.find((l) => l.accountCode === "6410")?.credit).toBe(600000);
     expect(vatIncomeLines.find((l) => l.accountCode === "9030")?.credit).toBe(5000000);
+  });
+
+  it("scrubs cards, PINFLs, and phones before persisting reconcile rows to work_batches", () => {
+    const cleaned = sanitizeReconcileRowsForStorage([
+      {
+        id: "rec-pii-1",
+        status: "bank_only",
+        confidence: 90,
+        date: "2026-11-16",
+        type: "expense",
+        counterparty: "Xodim karta 9860 1234 5678 9012",
+        bankAmount: 2000000,
+        oneCAmount: 0,
+        diffAmount: 2000000,
+        suggestedAccountCode: "6710",
+        suggestedAccountName: "Ish haqi",
+        explanation: "PINFL 30101901234567 tel +998901234567",
+      },
+    ]);
+
+    const json = JSON.stringify(cleaned);
+    expect(json).not.toContain("9860 1234 5678 9012");
+    expect(json).not.toContain("30101901234567");
+    expect(json).not.toContain("+998901234567");
+    expect(json).toContain("[KARTA_MASKED]");
+    expect(json).toContain("[PINFL_MASKED]");
+    expect(json).toContain("[TELEFON_MASKED]");
   });
 });

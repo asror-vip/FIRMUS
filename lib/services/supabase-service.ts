@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase/client";
 import { splitVatInclusive, calculatePayrollContributions } from "@/lib/utils/finance";
+import { depersonalizeForAi, sanitizeStringForAi } from "@/lib/utils/privacy";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1821,4 +1822,158 @@ export async function fetchAiActionLogs(entityId?: string) {
     console.error("fetchAiActionLogs error:", err);
     return [];
   }
+}
+
+// ==========================================
+// 10. PII-SAFE WORK BATCHES HISTORY
+// ==========================================
+export interface WorkBatchRecord {
+  id: string;
+  businessEntityId: string;
+  batchType: "reconcile" | "document_scan" | "contract_risk";
+  periodMonth: string;
+  title: string;
+  bankFileName?: string;
+  oneCFileName?: string;
+  rowCount: number;
+  totalIncome: number;
+  totalExpense: number;
+  status: "reviewed" | "posted_to_ledger";
+  summaryJson: Record<string, any>;
+  sanitizedPayload: any;
+  createdAt: string;
+}
+
+export async function fetchWorkBatches(params: {
+  entityId: string;
+  periodMonth?: string;
+  batchType?: "reconcile" | "document_scan" | "contract_risk";
+  limit?: number;
+}): Promise<WorkBatchRecord[]> {
+  if (!isValidUuid(params.entityId)) return [];
+  try {
+    let query = supabase
+      .from("work_batches")
+      .select("*")
+      .eq("business_entity_id", params.entityId)
+      .order("created_at", { ascending: false })
+      .limit(params.limit ?? 60);
+
+    if (params.periodMonth && /^\d{4}-\d{2}$/.test(params.periodMonth)) {
+      query = query.eq("period_month", params.periodMonth);
+    }
+    if (params.batchType) {
+      query = query.eq("batch_type", params.batchType);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      businessEntityId: row.business_entity_id,
+      batchType: row.batch_type,
+      periodMonth: row.period_month,
+      title: row.title,
+      bankFileName: row.bank_file_name || undefined,
+      oneCFileName: row.onec_file_name || undefined,
+      rowCount: Number(row.row_count || 0),
+      totalIncome: Number(row.total_income || 0),
+      totalExpense: Number(row.total_expense || 0),
+      status: row.status === "posted_to_ledger" ? "posted_to_ledger" : "reviewed",
+      summaryJson: row.summary_json || {},
+      sanitizedPayload: row.sanitized_payload || [],
+      createdAt: row.created_at,
+    }));
+  } catch (err) {
+    console.error("fetchWorkBatches error:", err);
+    return [];
+  }
+}
+
+export async function saveWorkBatch(input: {
+  entityId: string;
+  batchType: "reconcile" | "document_scan" | "contract_risk";
+  periodMonth?: string;
+  title: string;
+  bankFileName?: string;
+  oneCFileName?: string;
+  rowCount: number;
+  totalIncome: number;
+  totalExpense: number;
+  status?: "reviewed" | "posted_to_ledger";
+  summaryJson: Record<string, any>;
+  sanitizedPayload: any;
+}): Promise<WorkBatchRecord> {
+  if (!isValidUuid(input.entityId)) {
+    throw new Error("Korxona ID notoʻgʻri");
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Autentifikatsiya talab qilinadi");
+  }
+
+  const periodMonth =
+    input.periodMonth && /^\d{4}-\d{2}$/.test(input.periodMonth)
+      ? input.periodMonth
+      : new Date().toISOString().slice(0, 7);
+
+  const { data, error } = await supabase
+    .from("work_batches")
+    .insert({
+      business_entity_id: input.entityId,
+      created_by_user_id: user.id,
+      batch_type: input.batchType,
+      period_month: periodMonth,
+      title: sanitizeStringForAi(input.title).slice(0, 190),
+      bank_file_name: input.bankFileName ? sanitizeStringForAi(input.bankFileName).slice(0, 170) : null,
+      onec_file_name: input.oneCFileName ? sanitizeStringForAi(input.oneCFileName).slice(0, 170) : null,
+      row_count: Math.max(0, Math.round(input.rowCount)),
+      total_income: Number(input.totalIncome || 0),
+      total_expense: Number(input.totalExpense || 0),
+      status: input.status || "reviewed",
+      summary_json: depersonalizeForAi(input.summaryJson || {}),
+      sanitized_payload: depersonalizeForAi(input.sanitizedPayload || []),
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    businessEntityId: data.business_entity_id,
+    batchType: data.batch_type,
+    periodMonth: data.period_month,
+    title: data.title,
+    bankFileName: data.bank_file_name || undefined,
+    oneCFileName: data.onec_file_name || undefined,
+    rowCount: Number(data.row_count || 0),
+    totalIncome: Number(data.total_income || 0),
+    totalExpense: Number(data.total_expense || 0),
+    status: data.status === "posted_to_ledger" ? "posted_to_ledger" : "reviewed",
+    summaryJson: data.summary_json || {},
+    sanitizedPayload: data.sanitized_payload || [],
+    createdAt: data.created_at,
+  };
+}
+
+export async function markWorkBatchPosted(batchId: string) {
+  if (!isValidUuid(batchId)) return;
+  const { error } = await supabase
+    .from("work_batches")
+    .update({ status: "posted_to_ledger" })
+    .eq("id", batchId);
+  if (error) throw error;
+}
+
+export async function deleteWorkBatch(batchId: string) {
+  if (!isValidUuid(batchId)) return;
+  const { error } = await supabase
+    .from("work_batches")
+    .delete()
+    .eq("id", batchId);
+  if (error) throw error;
 }

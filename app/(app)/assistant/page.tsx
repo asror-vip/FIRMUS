@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
 import { Money } from "@/components/shared/money";
@@ -20,6 +20,13 @@ import {
 } from "@/lib/services/uz-tax-calculator";
 import { roundMoney } from "@/lib/utils/finance";
 import { supabase } from "@/lib/supabase/client";
+import {
+  fetchWorkBatches,
+  saveWorkBatch,
+  markWorkBatchPosted,
+  deleteWorkBatch,
+  type WorkBatchRecord,
+} from "@/lib/services/supabase-service";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import {
   Sparkles,
@@ -32,6 +39,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Upload,
+  History,
+  FolderOpen,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -113,6 +123,24 @@ export default function AssistantPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScannedDocResult | null>(null);
   const [isPostingDoc, setIsPostingDoc] = useState(false);
+  const [savedScans, setSavedScans] = useState<WorkBatchRecord[]>([]);
+  const [activeScanBatchId, setActiveScanBatchId] = useState<string | null>(null);
+
+  const loadSavedScans = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setSavedScans([]);
+      return;
+    }
+    const items = await fetchWorkBatches({
+      entityId: currentEntity.id,
+      batchType: "document_scan",
+    });
+    setSavedScans(items);
+  }, [currentEntity?.id]);
+
+  useEffect(() => {
+    loadSavedScans();
+  }, [loadSavedScans]);
 
   // 3. Calculator state
   const [calcSalaryAmount, setCalcSalaryAmount] = useState("5000000");
@@ -279,6 +307,34 @@ export default function AssistantPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Hujjatni tahlil qilib boʻlmadi");
       setScanResult(data);
+      setActiveScanBatchId(null);
+
+      if (currentEntity?.id) {
+        try {
+          const saved = await saveWorkBatch({
+            entityId: currentEntity.id,
+            batchType: "document_scan",
+            periodMonth: /^\d{4}-\d{2}/.test(data.date || "") ? data.date.slice(0, 7) : undefined,
+            title: `${data.documentType || "Hujjat"} ${data.documentNumber || ""} (${data.counterparty || ""})`.trim(),
+            bankFileName: scanFileName || undefined,
+            rowCount: Array.isArray(data.items) ? Math.max(1, data.items.length) : 1,
+            totalIncome: data.direction === "income" ? Number(data.totalAmount || 0) : 0,
+            totalExpense: data.direction === "expense" ? Number(data.totalAmount || 0) : 0,
+            status: "reviewed",
+            summaryJson: {
+              date: data.date,
+              totalAmount: data.totalAmount,
+              vatAmount: data.vatAmount,
+            },
+            sanitizedPayload: data,
+          });
+          setActiveScanBatchId(saved.id);
+          await loadSavedScans();
+        } catch (saveErr) {
+          console.warn("Could not auto-save scan batch:", saveErr);
+        }
+      }
+
       toast.success("Hujjat oʻqildi va 21-BHMS provodkasi tayyorlandi!");
     } catch (err: any) {
       toast.error("Skaner xatosi: " + err.message);
@@ -342,6 +398,10 @@ export default function AssistantPage() {
         p_lines: lines,
       });
       if (error) throw error;
+      if (activeScanBatchId) {
+        await markWorkBatchPosted(activeScanBatchId);
+        await loadSavedScans();
+      }
       window.dispatchEvent(new CustomEvent("firmus:refresh-data", { detail: { entityId: currentEntity.id } }));
       toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
     } catch (err: any) {
@@ -678,6 +738,85 @@ export default function AssistantPage() {
               </CardContent>
             </Card>
           </div>
+
+          {currentEntity?.id && savedScans.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <History className="h-4 w-4 text-muted-foreground" />
+                  Saqlangan hujjatlar ({savedScans.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Oy</TableHead>
+                      <TableHead>Hujjat / Kontragent</TableHead>
+                      <TableHead className="text-right">Summa</TableHead>
+                      <TableHead>Holat</TableHead>
+                      <TableHead className="text-right">Amal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {savedScans.map((s) => (
+                      <TableRow key={s.id} className="text-xs">
+                        <TableCell className="font-mono text-[11px]">{s.periodMonth}</TableCell>
+                        <TableCell className="font-medium max-w-[260px] truncate">{s.title}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          <Money amount={Number(s.summaryJson?.totalAmount || s.totalExpense || s.totalIncome || 0)} />
+                        </TableCell>
+                        <TableCell>
+                          {s.status === "posted_to_ledger" ? (
+                            <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] gap-1 px-2"
+                              onClick={() => {
+                                if (s.sanitizedPayload) {
+                                  setScanResult(s.sanitizedPayload as ScannedDocResult);
+                                  setScanFileName(s.bankFileName || s.title);
+                                  setScanPreviewUrl(null);
+                                  setActiveScanBatchId(s.id);
+                                  toast.success("Saqlangan hujjat ochildi");
+                                }
+                              }}
+                            >
+                              <FolderOpen className="h-3 w-3" />
+                              Ochish
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                              aria-label="Oʻchirish"
+                              onClick={async () => {
+                                await deleteWorkBatch(s.id);
+                                if (activeScanBatchId === s.id) setActiveScanBatchId(null);
+                                await loadSavedScans();
+                                toast.success("Tarixdan oʻchirildi");
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* TAB 3: PAYROLL & TAX CALCULATOR */}
