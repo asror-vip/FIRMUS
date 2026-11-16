@@ -15,21 +15,30 @@ export function generate1CClientBankText(
     counterpartyStir?: string;
     description: string;
     accountCode?: string;
+    documentNumber?: string;
   }>,
-  entityInfo = {
-    name: 'OOO "ORIENT AGRO EXPORT"',
-    inn: "308554433",
-    account: "20208000700123456001",
-    bank: "Kapitalbank ATB",
+  entityInfo: {
+    name: string;
+    inn: string;
+    account: string;
+    bank: string;
+    openingBalance?: number;
+  } = {
+    name: 'OOO "FIRMUS PARTNER"',
+    inn: "300000000",
+    account: "20208000000000000000",
+    bank: "Tijorat banki",
+    openingBalance: 0,
   }
 ): string {
   const today = new Date().toISOString().split("T")[0].split("-").reverse().join(".");
   const startDate = transactions[transactions.length - 1]?.date.split("-").reverse().join(".") || today;
   const endDate = transactions[0]?.date.split("-").reverse().join(".") || today;
+  const openingBal = Number(entityInfo.openingBalance || 0).toFixed(2);
 
   let txt = `1CClientBankExchange\r\n`;
   txt += `ВерсияФормата=1.02\r\n`;
-  txt += `Кодировка=Windows\r\n`;
+  txt += `Кодировка=UTF-8\r\n`;
   txt += `Отправитель=FIRMUS AI Automation Cloud\r\n`;
   txt += `Получатель=1С:Предприятие 8.3\r\n`;
   txt += `ДатаСоздания=${today}\r\n`;
@@ -40,13 +49,13 @@ export function generate1CClientBankText(
   txt += `СекцияРасчСчет\r\n`;
   txt += `ДатаНачала=${startDate}\r\n`;
   txt += `ДатаКонца=${endDate}\r\n`;
-  txt += `НачальныйОстаток=1157650000.00\r\n`;
+  txt += `НачальныйОстаток=${openingBal}\r\n`;
   txt += `РасчСчет=${entityInfo.account}\r\n`;
   txt += `КонецРасчСчет\r\n`;
 
   transactions.forEach((tx, idx) => {
     const formattedDate = tx.date.split("-").reverse().join(".");
-    const num = idx + 101;
+    const num = tx.documentNumber || String(idx + 101);
 
     txt += `СекцияДокумент=Платежное поручение\r\n`;
     txt += `Номер=${num}\r\n`;

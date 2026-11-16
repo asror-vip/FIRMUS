@@ -3,7 +3,9 @@ import {
   parseStatementFile,
   classify21BhmsAccount,
   reconcileBankAnd1C,
+  buildReconcileJournalLines,
   buildSafeAiReconcileInput,
+  detectVatIncluded,
 } from "../../lib/services/reconcile-engine";
 
 const SAMPLE_BANK_TXT = [
@@ -111,5 +113,57 @@ describe("Bank <-> 1C AI Reconciliation Engine", () => {
     const serialized = JSON.stringify(safeInput);
     expect(serialized).not.toContain("8600 1234 5678 9012");
     expect(serialized).toContain("[KARTA_MASKED]");
+  });
+
+  it("detects 12% VAT flag and builds balanced 3-line 21-BHMS journal entries", () => {
+    expect(detectVatIncluded("Tovar uchun QQS 12% bilan")).toBe(true);
+    expect(detectVatIncluded("Uskuna to'lovi (QQSsiz)")).toBe(false);
+    expect(detectVatIncluded("Без НДС по договору")).toBe(false);
+
+    const vatExpenseLines = buildReconcileJournalLines({
+      id: "rec-vat-1",
+      status: "bank_only",
+      confidence: 90,
+      date: "2026-11-16",
+      type: "expense",
+      counterparty: "OOO TEXNO",
+      bankAmount: 11200000,
+      oneCAmount: 0,
+      diffAmount: 11200000,
+      suggestedAccountCode: "6010",
+      suggestedAccountName: "Yetkazib beruvchilar",
+      explanation: "Uskuna",
+      vatIncluded: true,
+    });
+
+    expect(vatExpenseLines).toHaveLength(3);
+    expect(vatExpenseLines.find((l) => l.accountCode === "4410")?.debit).toBe(1200000);
+    expect(vatExpenseLines.find((l) => l.accountCode === "6010")?.debit).toBe(10000000);
+    expect(vatExpenseLines.find((l) => l.accountCode === "5110")?.credit).toBe(11200000);
+
+    const totalDt = vatExpenseLines.reduce((s, l) => s + l.debit, 0);
+    const totalCt = vatExpenseLines.reduce((s, l) => s + l.credit, 0);
+    expect(totalDt).toBe(totalCt);
+
+    const vatIncomeLines = buildReconcileJournalLines({
+      id: "rec-vat-2",
+      status: "bank_only",
+      confidence: 90,
+      date: "2026-11-16",
+      type: "income",
+      counterparty: "OOO XARIDOR",
+      bankAmount: 5600000,
+      oneCAmount: 0,
+      diffAmount: 5600000,
+      suggestedAccountCode: "9030",
+      suggestedAccountName: "Xizmatlar",
+      explanation: "Xizmat QQS 12%",
+      vatIncluded: true,
+    });
+
+    expect(vatIncomeLines).toHaveLength(3);
+    expect(vatIncomeLines.find((l) => l.accountCode === "5110")?.debit).toBe(5600000);
+    expect(vatIncomeLines.find((l) => l.accountCode === "6410")?.credit).toBe(600000);
+    expect(vatIncomeLines.find((l) => l.accountCode === "9030")?.credit).toBe(5000000);
   });
 });

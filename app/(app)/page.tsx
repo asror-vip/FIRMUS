@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { KpiCard } from "@/components/shared/kpi-card";
+import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -102,9 +103,11 @@ export default function DashboardPage() {
             <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
               {t.dashboard.title}
             </h1>
-            <span className="text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium px-2 py-0.5 rounded-full">
-              {currentEntity?.tradeName || currentEntity?.name}
-            </span>
+            {(currentEntity?.tradeName || currentEntity?.name) && (
+              <span className="text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium px-2 py-0.5 rounded-full">
+                {currentEntity?.tradeName || currentEntity?.name}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {t.dashboard.subtitle}
@@ -131,6 +134,9 @@ export default function DashboardPage() {
           </Button>
         </div>
       </div>
+
+      {/* 10-second Zero-PII quick entity setup for new Google accounts */}
+      <QuickEntityBanner />
 
       {/* Quick Start 5-Minute Accountant Strip */}
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

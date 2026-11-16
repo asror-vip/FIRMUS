@@ -1,33 +1,47 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { useAppState } from "@/lib/mock/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Money } from "@/components/shared/money";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Money } from "@/components/shared/money";
+import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
+import {
+  RECONCILE_ACCOUNT_OPTIONS,
   decodeBankFileBuffer,
   parseStatementFile,
   reconcileBankAnd1C,
+  buildReconcileJournalLines,
   buildSafeAiReconcileInput,
   buildReconcileCsvReport,
   type ReconcileRow,
   type ReconcileSummary,
 } from "@/lib/services/reconcile-engine";
 import type { ParsedBankTransaction } from "@/lib/services/bank-import";
-import { generate1CClientBankText } from "@/lib/services/one-c-export";
+import { generate1CClientBankText, generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
 import { fetchTransactions } from "@/lib/services/supabase-service";
 import { sanitizeStringForAi } from "@/lib/utils/privacy";
+import { roundMoney } from "@/lib/utils/finance";
 import { supabase } from "@/lib/supabase/client";
 import {
   Upload,
   Sparkles,
   Download,
   FileSpreadsheet,
+  FileCode,
   CheckCircle2,
   AlertTriangle,
   XCircle,
@@ -36,6 +50,8 @@ import {
   Database,
   Play,
   RotateCcw,
+  ClipboardPaste,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -59,7 +75,7 @@ const DEMO_BANK_TEXT = [
   "ПлательщикИНН=308554433",
   "Получатель1=OOO TEXNO TA'MINOT",
   "ПолучательИНН=307445566",
-  "НазначениеПлатежа=Uskunalar uchun to'lov",
+  "НазначениеПлатежа=Uskunalar uchun to'lov QQS 12% bilan",
   "КонецДокумента",
   "СекцияДокумент=Платежное поручение",
   "Номер=203",
@@ -122,6 +138,18 @@ const DEMO_1C_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </Body>
 </EnterpriseData>`;
 
+function downloadFileBlob(content: string, fileName: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export default function ReconcilePage() {
   const { currentEntity } = useAppState();
   const bankInputRef = useRef<HTMLInputElement | null>(null);
@@ -135,11 +163,16 @@ export default function ReconcilePage() {
   const [rows, setRows] = useState<ReconcileRow[]>([]);
   const [summary, setSummary] = useState<ReconcileSummary | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [isAiChecking, setIsAiChecking] = useState(false);
   const [aiModeNote, setAiModeNote] = useState<string | null>(null);
   const [isPostingLedger, setIsPostingLedger] = useState(false);
+
+  // Paste dialog state
+  const [pasteTarget, setPasteTarget] = useState<"bank" | "onec" | null>(null);
+  const [pasteText, setPasteText] = useState("");
 
   const runComparison = (nextBank: ParsedBankTransaction[], nextOneC: ParsedBankTransaction[]) => {
     if (nextBank.length === 0 && nextOneC.length === 0) {
@@ -154,39 +187,60 @@ export default function ReconcilePage() {
     setAiModeNote(null);
   };
 
+  const applyParsedSource = (source: "bank" | "onec", parsed: ParsedBankTransaction[], label: string) => {
+    if (parsed.length === 0) {
+      toast.error(
+        `«${label}» dan operatsiyalar oʻqilmadi. Client-Bank (.txt), 1C XML, CSV/TSV yoki Excel HTML jadval formatidan foydalaning.`
+      );
+      return false;
+    }
+
+    if (source === "bank") {
+      setBankFileName(label);
+      setBankItems(parsed);
+      runComparison(parsed, oneCItems);
+      toast.success(`Bank koʻchirmasidan ${parsed.length} ta operatsiya oʻqildi.`);
+    } else {
+      setOneCFileName(label);
+      setOneCItems(parsed);
+      runComparison(bankItems, parsed);
+      toast.success(`1C maʼlumotidan ${parsed.length} ta yozuv oʻqildi.`);
+    }
+    return true;
+  };
+
   const handleUploadFile = async (source: "bank" | "onec", file?: File) => {
     if (!file) return;
     try {
       const buffer = await file.arrayBuffer();
       const text = decodeBankFileBuffer(buffer);
       const parsed = parseStatementFile(text, file.name, currentEntity?.tinStir || "");
-
-      if (parsed.length === 0) {
-        toast.error(
-          `«${file.name}» faylidan operatsiyalar oʻqilmadi. 1C Client-Bank (.txt), XML yoki CSV formatidan foydalaning.`
-        );
-        return;
-      }
-
-      if (source === "bank") {
-        setBankFileName(file.name);
-        setBankItems(parsed);
-        runComparison(parsed, oneCItems);
-        toast.success(`Bank koʻchirmasidan ${parsed.length} ta operatsiya oʻqildi.`);
-      } else {
-        setOneCFileName(file.name);
-        setOneCItems(parsed);
-        runComparison(bankItems, parsed);
-        toast.success(`1C faylidan ${parsed.length} ta yozuv oʻqildi.`);
-      }
+      applyParsedSource(source, parsed, file.name);
     } catch (err: any) {
       toast.error("Faylni oʻqishda xatolik: " + (err?.message || "Nomaʼlum xato"));
     }
   };
 
+  const handleApplyPaste = () => {
+    if (!pasteTarget || !pasteText.trim()) {
+      toast.error("Avval Excel yoki Bank jadvalidan nusxalangan matnni joylashtiring");
+      return;
+    }
+    const parsed = parseStatementFile(
+      pasteText,
+      pasteTarget === "onec" ? "pasted_1c.csv" : "pasted_bank.csv",
+      currentEntity?.tinStir || ""
+    );
+    const label = pasteTarget === "bank" ? "Bank (Ctrl+V jadval)" : "1C (Ctrl+V jadval)";
+    if (applyParsedSource(pasteTarget, parsed, label)) {
+      setPasteTarget(null);
+      setPasteText("");
+    }
+  };
+
   const handleLoadDbAs1C = async () => {
     if (!currentEntity?.id) {
-      toast.error("Avval korxona tanlang yoki yarating");
+      toast.error("Avval korxona tanlang yoki tezkor qoʻshing");
       return;
     }
     try {
@@ -229,7 +283,30 @@ export default function ReconcilePage() {
     setRows([]);
     setSummary(null);
     setSelectedIds([]);
+    setSearchQuery("");
+    setActiveTab("all");
     setAiModeNote(null);
+  };
+
+  const handleChangeRowAccount = (rowId: string, nextCode: string) => {
+    const found = RECONCILE_ACCOUNT_OPTIONS.find((a) => a.code === nextCode);
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              suggestedAccountCode: nextCode,
+              suggestedAccountName: found?.name || nextCode,
+            }
+          : r
+      )
+    );
+  };
+
+  const handleToggleRowVat = (rowId: string) => {
+    setRows((prev) =>
+      prev.map((r) => (r.id === rowId ? { ...r, vatIncluded: !r.vatIncluded } : r))
+    );
   };
 
   const handleAiVerify = async () => {
@@ -275,19 +352,32 @@ export default function ReconcilePage() {
     }
   };
 
-  const handleExport1C = () => {
-    const itemsToExport = rows
-      .filter((r) => r.bankItem || r.oneCItem)
-      .map((r, i) => ({
-        id: String(i + 1),
-        date: r.date,
-        amount: r.bankAmount || r.oneCAmount,
-        type: r.type,
-        counterparty: sanitizeStringForAi(r.counterparty),
-        counterpartyStir: r.counterpartyStir,
-        description: `${sanitizeStringForAi(r.bankItem?.description || r.oneCItem?.description || "Operatsiya")} [Schyot: ${r.suggestedAccountCode}]`,
-        accountCode: r.suggestedAccountCode,
-      }));
+  const getRowsForExport = () => {
+    const selectedRows = rows.filter((r) => selectedIds.includes(r.id) && r.bankAmount > 0);
+    if (selectedRows.length > 0) return { targetRows: selectedRows, modeLabel: "tanlangan" };
+
+    const missingOnly = rows.filter((r) => r.status === "bank_only" && r.bankAmount > 0);
+    if (missingOnly.length > 0) return { targetRows: missingOnly, modeLabel: "1C da yoʻq" };
+
+    return {
+      targetRows: rows.filter((r) => r.bankItem || r.oneCItem),
+      modeLabel: "barcha",
+    };
+  };
+
+  const handleExport1CTxt = () => {
+    const { targetRows, modeLabel } = getRowsForExport();
+    const itemsToExport = targetRows.map((r, i) => ({
+      id: String(i + 1),
+      date: r.date,
+      amount: r.bankAmount || r.oneCAmount,
+      type: r.type,
+      counterparty: sanitizeStringForAi(r.counterparty),
+      counterpartyStir: r.counterpartyStir,
+      description: `${sanitizeStringForAi(r.bankItem?.description || r.oneCItem?.description || "Operatsiya")} [Schyot: ${r.suggestedAccountCode}${r.vatIncluded ? ", QQS 12%" : ""}]`,
+      accountCode: r.suggestedAccountCode,
+      documentNumber: r.bankItem?.documentNumber || r.oneCItem?.documentNumber,
+    }));
 
     if (itemsToExport.length === 0) {
       toast.error("Eksport uchun maʼlumot yoʻq");
@@ -299,38 +389,58 @@ export default function ReconcilePage() {
       inn: currentEntity?.tinStir || "300000000",
       account: "20208000000000000000",
       bank: "Tijorat banki",
+      openingBalance: 0,
     });
 
-    const blob = new Blob([txt], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kl_to_1c_reconciled_${new Date().toISOString().slice(0, 10)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success("1C uchun tayyor `kl_to_1c_reconciled.txt` fayli yuklandi!");
+    downloadFileBlob(
+      txt,
+      `kl_to_1c_${new Date().toISOString().slice(0, 10)}.txt`,
+      "text/plain;charset=utf-8"
+    );
+    toast.success(`${itemsToExport.length} ta (${modeLabel}) operatsiya 1C (.txt) fayliga yuklandi!`);
+  };
+
+  const handleExport1CXml = () => {
+    const { targetRows, modeLabel } = getRowsForExport();
+    if (targetRows.length === 0) {
+      toast.error("XML eksport uchun maʼlumot yoʻq");
+      return;
+    }
+
+    const entries = targetRows.map((r, idx) => {
+      const lines = buildReconcileJournalLines(r);
+      return {
+        entryNumber: r.bankItem?.documentNumber ? `REC-${r.bankItem.documentNumber}` : `REC-${idx + 1}`,
+        date: r.date,
+        description: sanitizeStringForAi(`${r.counterparty} — ${r.bankItem?.description || r.explanation}`).slice(0, 200),
+        totalDebit: roundMoney(lines.reduce((s, l) => s + l.debit, 0)),
+        lines,
+      };
+    });
+
+    const xml = generate1CEnterpriseDataXml(entries);
+    downloadFileBlob(
+      xml,
+      `1c_enterprise_reconciled_${new Date().toISOString().slice(0, 10)}.xml`,
+      "application/xml;charset=utf-8"
+    );
+    toast.success(`${entries.length} ta (${modeLabel}) provodka 1C EnterpriseData XML formatida yuklandi!`);
   };
 
   const handleDownloadCsv = () => {
     if (rows.length === 0) return;
     const csv = buildReconcileCsvReport(rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sverka_hisobot_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadFileBlob(
+      csv,
+      `sverka_hisobot_${new Date().toISOString().slice(0, 10)}.csv`,
+      "text/csv;charset=utf-8"
+    );
     toast.success("Excel/CSV Sverka dalolatnomasi yuklandi!");
   };
 
   const handlePostSelectedToLedger = async () => {
     if (!currentEntity?.id) {
-      toast.error("Bosh kitobga yozish uchun avval korxona tanlang");
+      toast.error("Bosh kitobga yozish uchun yuqoridagi tugma orqali korxonani tezkor ulang");
       return;
     }
     const chosen = rows.filter((r) => selectedIds.includes(r.id) && r.bankAmount > 0);
@@ -343,8 +453,7 @@ export default function ReconcilePage() {
     let successCount = 0;
     try {
       for (const item of chosen) {
-        const debitCode = item.type === "income" ? "5110" : item.suggestedAccountCode;
-        const creditCode = item.type === "income" ? item.suggestedAccountCode : "5110";
+        const lines = buildReconcileJournalLines(item);
         const safeDesc = sanitizeStringForAi(
           `${item.counterparty}: ${item.bankItem?.description || item.explanation}`
         ).slice(0, 240);
@@ -355,23 +464,14 @@ export default function ReconcilePage() {
           p_entry_date: item.date,
           p_description: safeDesc,
           p_source_type: "bank_statement",
-          p_idempotency_key: `idem-rec-${currentEntity.id}-${item.date}-${item.bankAmount}-${debitCode}-${creditCode}-${successCount}`,
-          p_lines: [
-            {
-              account_code: debitCode,
-              account_name: item.type === "income" ? "Hisob-kitob schyoti" : item.suggestedAccountName,
-              debit_amount: item.bankAmount,
-              credit_amount: 0,
-              memo: safeDesc,
-            },
-            {
-              account_code: creditCode,
-              account_name: item.type === "income" ? item.suggestedAccountName : "Hisob-kitob schyoti",
-              debit_amount: 0,
-              credit_amount: item.bankAmount,
-              memo: safeDesc,
-            },
-          ],
+          p_idempotency_key: `idem-rec-${currentEntity.id}-${item.date}-${item.bankAmount}-${item.suggestedAccountCode}-${item.vatIncluded ? "vat" : "novat"}-${successCount}`,
+          p_lines: lines.map((l) => ({
+            account_code: l.accountCode,
+            account_name: l.accountName,
+            debit_amount: l.debit,
+            credit_amount: l.credit,
+            memo: l.memo,
+          })),
         });
         if (error) throw error;
         successCount++;
@@ -386,10 +486,35 @@ export default function ReconcilePage() {
     }
   };
 
-  const filteredRows = rows.filter((r) => activeTab === "all" || r.status === activeTab);
+  const filteredRows = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (activeTab !== "all" && r.status !== activeTab) return false;
+      if (!q) return true;
+      return (
+        r.counterparty.toLowerCase().includes(q) ||
+        (r.counterpartyStir || "").includes(q) ||
+        r.suggestedAccountCode.includes(q) ||
+        r.explanation.toLowerCase().includes(q) ||
+        String(r.bankAmount || r.oneCAmount).includes(q)
+      );
+    });
+  }, [rows, activeTab, searchQuery]);
+
+  const selectableFilteredIds = useMemo(
+    () => filteredRows.filter((r) => r.bankAmount > 0).map((r) => r.id),
+    [filteredRows]
+  );
+
+  const allVisibleSelected =
+    selectableFilteredIds.length > 0 &&
+    selectableFilteredIds.every((id) => selectedIds.includes(id));
+
+  const incomeDiff = summary ? roundMoney(summary.bankTotalIncome - summary.oneCTotalIncome) : 0;
+  const expenseDiff = summary ? roundMoney(summary.bankTotalExpense - summary.oneCTotalExpense) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -397,7 +522,7 @@ export default function ReconcilePage() {
             Bank ↔ 1C AI Solishtirish (Sverka)
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Bank koʻchirmasi va 1C faylini yuklang — AI 5 soniyada solishtirib, farqlarni va 21-BHMS schyotlarini chiqarib beradi.
+            Bank koʻchirmasi va 1C faylini yuklang yoki Excel jadvalidan nusxalab qoʻying — AI 5 soniyada farqlarni va 21-BHMS provodkalarini tayyorlab beradi.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -427,20 +552,23 @@ export default function ReconcilePage() {
         </div>
       </div>
 
+      {/* 10-second Google-first Quick Entity Setup (renders only if logged in with 0 entities) */}
+      <QuickEntityBanner />
+
       {/* Two Upload Zones */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="border-dashed">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">1. Bankdan kelgan koʻchirma</CardTitle>
             <CardDescription className="text-xs">
-              1C Client-Bank (`.txt` UTF-8/Windows-1251) yoki bank `.csv` fayli
+              1C Client-Bank (`.txt` UTF-8/Win-1251), Bank `.csv`/`.tsv`, HTML `.xls` yoki Excel nusxa
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 text-xs">
+          <CardContent className="space-y-2.5 text-xs">
             <input
               ref={bankInputRef}
               type="file"
-              accept=".txt,.csv"
+              accept=".txt,.csv,.tsv,.xls"
               className="hidden"
               onChange={(e) => handleUploadFile("bank", e.target.files?.[0])}
             />
@@ -451,16 +579,28 @@ export default function ReconcilePage() {
               onClick={() => bankInputRef.current?.click()}
             >
               <Upload className="h-4 w-4 text-indigo-600" />
-              <span>{bankFileName || "Bank faylini tanlash (.txt, .csv)"}</span>
+              <span>{bankFileName || "Bank faylini tanlash (.txt, .csv, .xls)"}</span>
             </Button>
-            {bankItems.length > 0 && (
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground bg-muted/40 px-2.5 py-1.5 rounded">
-                <span>Oʻqildi: <strong className="text-foreground">{bankItems.length} ta</strong></span>
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setPasteTarget("bank");
+                  setPasteText("");
+                }}
+              >
+                <ClipboardPaste className="h-3 w-3" />
+                Jadvaldan nusxa qoʻyish (Ctrl+V)
+              </Button>
+              {bankItems.length > 0 && (
                 <Badge variant="outline" className="text-[10px]">
-                  Tayyor
+                  {bankItems.length} ta operatsiya
                 </Badge>
-              </div>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -468,14 +608,14 @@ export default function ReconcilePage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">2. 1C dan olingan fayl</CardTitle>
             <CardDescription className="text-xs">
-              1C EnterpriseData (`.xml`), Client-Bank (`.txt`) yoki 1C `.csv` eksport
+              1C EnterpriseData (`.xml`), Client-Bank (`.txt`), 1C `.csv`/`.xls` yoki Bosh kitob
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 text-xs">
+          <CardContent className="space-y-2.5 text-xs">
             <input
               ref={oneCInputRef}
               type="file"
-              accept=".xml,.txt,.csv"
+              accept=".xml,.txt,.csv,.tsv,.xls"
               className="hidden"
               onChange={(e) => handleUploadFile("onec", e.target.files?.[0])}
             />
@@ -486,19 +626,34 @@ export default function ReconcilePage() {
               onClick={() => oneCInputRef.current?.click()}
             >
               <Upload className="h-4 w-4 text-emerald-600" />
-              <span>{oneCFileName || "1C faylini tanlash (.xml, .txt, .csv)"}</span>
+              <span>{oneCFileName || "1C faylini tanlash (.xml, .txt, .csv, .xls)"}</span>
             </Button>
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
-                onClick={handleLoadDbAs1C}
-              >
-                <Database className="h-3 w-3" />
-                Saytdagi baza bilan solishtirish
-              </Button>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setPasteTarget("onec");
+                    setPasteText("");
+                  }}
+                >
+                  <ClipboardPaste className="h-3 w-3" />
+                  Nusxa qoʻyish
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
+                  onClick={handleLoadDbAs1C}
+                >
+                  <Database className="h-3 w-3" />
+                  Saytdagi baza
+                </Button>
+              </div>
               {oneCItems.length > 0 && (
                 <Badge variant="outline" className="text-[10px]">
                   {oneCItems.length} ta yozuv
@@ -512,6 +667,7 @@ export default function ReconcilePage() {
       {/* Results & Actions */}
       {summary && (
         <>
+          {/* Count KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Card className="cursor-pointer hover:border-emerald-500/50" onClick={() => setActiveTab("matched")}>
               <CardContent className="pt-4 pb-3 flex items-center justify-between">
@@ -551,16 +707,71 @@ export default function ReconcilePage() {
             </Card>
           </div>
 
-          {/* Action Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="h-8 text-xs">
-                <TabsTrigger value="all" className="text-xs px-2.5">Barchasi ({rows.length})</TabsTrigger>
-                <TabsTrigger value="bank_only" className="text-xs px-2.5">1C da yoʻq ({summary.bankOnlyCount})</TabsTrigger>
-                <TabsTrigger value="amount_mismatch" className="text-xs px-2.5">Farqlar ({summary.mismatchCount})</TabsTrigger>
-                <TabsTrigger value="matched" className="text-xs px-2.5">Mos ({summary.matchedCount})</TabsTrigger>
-              </TabsList>
-            </Tabs>
+          {/* Bank vs 1C Turnover Summary Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <Card className="bg-muted/20">
+              <CardContent className="py-3 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Jami Kirim (Bank vs 1C)</p>
+                  <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
+                    <span className="text-emerald-600">
+                      <Money amount={summary.bankTotalIncome} />
+                    </span>
+                    <span className="text-muted-foreground">/</span>
+                    <span>
+                      <Money amount={summary.oneCTotalIncome} />
+                    </span>
+                  </div>
+                </div>
+                <Badge variant={incomeDiff === 0 ? "success" : "warning"} className="font-mono text-[10px]">
+                  {incomeDiff === 0 ? "Kirim mos (0)" : `Farq: ${incomeDiff > 0 ? "+" : ""}${incomeDiff.toLocaleString("uz-UZ")}`}
+                </Badge>
+              </CardContent>
+            </Card>
+            <Card className="bg-muted/20">
+              <CardContent className="py-3 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Jami Chiqim (Bank vs 1C)</p>
+                  <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
+                    <span className="text-rose-600">
+                      <Money amount={summary.bankTotalExpense} />
+                    </span>
+                    <span className="text-muted-foreground">/</span>
+                    <span>
+                      <Money amount={summary.oneCTotalExpense} />
+                    </span>
+                  </div>
+                </div>
+                <Badge variant={expenseDiff === 0 ? "success" : "warning"} className="font-mono text-[10px]">
+                  {expenseDiff === 0 ? "Chiqim mos (0)" : `Farq: ${expenseDiff > 0 ? "+" : ""}${expenseDiff.toLocaleString("uz-UZ")}`}
+                </Badge>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Action & Filter Toolbar */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="h-8 text-xs flex-wrap">
+                  <TabsTrigger value="all" className="text-xs px-2.5">Barchasi ({rows.length})</TabsTrigger>
+                  <TabsTrigger value="bank_only" className="text-xs px-2.5">1C da yoʻq ({summary.bankOnlyCount})</TabsTrigger>
+                  <TabsTrigger value="amount_mismatch" className="text-xs px-2.5">Farqlar ({summary.mismatchCount})</TabsTrigger>
+                  <TabsTrigger value="one_c_only" className="text-xs px-2.5">Bankda yoʻq ({summary.oneCOnlyCount})</TabsTrigger>
+                  <TabsTrigger value="matched" className="text-xs px-2.5">Mos ({summary.matchedCount})</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <div className="relative w-full lg:w-64">
+                <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
+                <Input
+                  placeholder="Kontragent, STIR, summa qidirish..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-8 text-xs"
+                />
+              </div>
+            </div>
 
             <div className="flex items-center gap-2 flex-wrap">
               <Button
@@ -572,15 +783,19 @@ export default function ReconcilePage() {
                 {isAiChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 AI bilan tekshirish
               </Button>
-              <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleExport1C}>
+              <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleExport1CTxt}>
                 <Download className="h-3.5 w-3.5" />
                 1C ga yuklash (.txt)
+              </Button>
+              <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleExport1CXml}>
+                <FileCode className="h-3.5 w-3.5" />
+                1C Provodka (.xml)
               </Button>
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleDownloadCsv}>
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 CSV Hisobot
               </Button>
-              {currentEntity?.id && selectedIds.length > 0 && (
+              {selectedIds.length > 0 && (
                 <Button
                   size="sm"
                   variant="success"
@@ -604,75 +819,154 @@ export default function ReconcilePage() {
 
           {/* Diff Table */}
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-8" />
+                    <TableHead className="w-8">
+                      <Checkbox
+                        aria-label="Barchasini belgilash"
+                        checked={allVisibleSelected}
+                        disabled={selectableFilteredIds.length === 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedIds((prev) => Array.from(new Set([...prev, ...selectableFilteredIds])));
+                          } else {
+                            setSelectedIds((prev) => prev.filter((id) => !selectableFilteredIds.includes(id)));
+                          }
+                        }}
+                      />
+                    </TableHead>
                     <TableHead>Holat</TableHead>
                     <TableHead>Sana</TableHead>
                     <TableHead>Kontragent</TableHead>
                     <TableHead className="text-right">Bank summasi</TableHead>
                     <TableHead className="text-right">1C summasi</TableHead>
                     <TableHead>21-BHMS Schyot</TableHead>
+                    <TableHead>QQS 12%</TableHead>
                     <TableHead>AI Izoh va Tavsiya</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRows.map((row) => (
-                    <TableRow key={row.id} className="text-xs">
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIds.includes(row.id)}
-                          disabled={row.bankAmount <= 0}
-                          onCheckedChange={(checked) => {
-                            setSelectedIds((prev) =>
-                              checked ? [...prev, row.id] : prev.filter((id) => id !== row.id)
-                            );
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {row.status === "matched" && <Badge variant="success" className="text-[10px]">Mos</Badge>}
-                        {row.status === "amount_mismatch" && <Badge variant="warning" className="text-[10px]">Farq bor</Badge>}
-                        {row.status === "bank_only" && <Badge variant="destructive" className="text-[10px]">1C da yoʻq</Badge>}
-                        {row.status === "one_c_only" && <Badge variant="outline" className="text-[10px]">Bankda yoʻq</Badge>}
-                      </TableCell>
-                      <TableCell className="font-mono text-[11px] whitespace-nowrap">{row.date}</TableCell>
-                      <TableCell className="font-medium">
-                        <div>{row.counterparty}</div>
-                        {row.counterpartyStir && (
-                          <div className="text-[10px] font-mono text-muted-foreground">STIR: {row.counterpartyStir}</div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {row.bankAmount > 0 ? (
-                          <span className={row.type === "income" ? "text-emerald-600" : "text-foreground"}>
-                            <Money amount={row.bankAmount} />
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {row.oneCAmount > 0 ? <Money amount={row.oneCAmount} /> : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {row.suggestedAccountCode}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[300px] text-[11px] text-muted-foreground">
-                        {row.explanation}
+                  {filteredRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8 text-xs text-muted-foreground">
+                        Ushbu filtr boʻyicha yozuvlar topilmadi.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    filteredRows.map((row) => (
+                      <TableRow key={row.id} className="text-xs">
+                        <TableCell>
+                          <Checkbox
+                            aria-label={`${row.counterparty} tanlash`}
+                            checked={selectedIds.includes(row.id)}
+                            disabled={row.bankAmount <= 0}
+                            onCheckedChange={(checked) => {
+                              setSelectedIds((prev) =>
+                                checked ? [...prev, row.id] : prev.filter((id) => id !== row.id)
+                              );
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {row.status === "matched" && <Badge variant="success" className="text-[10px]">Mos</Badge>}
+                          {row.status === "amount_mismatch" && <Badge variant="warning" className="text-[10px]">Farq bor</Badge>}
+                          {row.status === "bank_only" && <Badge variant="destructive" className="text-[10px]">1C da yoʻq</Badge>}
+                          {row.status === "one_c_only" && <Badge variant="outline" className="text-[10px]">Bankda yoʻq</Badge>}
+                        </TableCell>
+                        <TableCell className="font-mono text-[11px] whitespace-nowrap">{row.date}</TableCell>
+                        <TableCell className="font-medium min-w-[160px]">
+                          <div>{row.counterparty}</div>
+                          {row.counterpartyStir && (
+                            <div className="text-[10px] font-mono text-muted-foreground">STIR: {row.counterpartyStir}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono whitespace-nowrap">
+                          {row.bankAmount > 0 ? (
+                            <span className={row.type === "income" ? "text-emerald-600" : "text-foreground"}>
+                              <Money amount={row.bankAmount} />
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono whitespace-nowrap">
+                          {row.oneCAmount > 0 ? <Money amount={row.oneCAmount} /> : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <select
+                            aria-label={`${row.counterparty} 21-BHMS schyoti`}
+                            value={row.suggestedAccountCode}
+                            onChange={(e) => handleChangeRowAccount(row.id, e.target.value)}
+                            className="h-7 rounded border border-input bg-background px-1.5 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            {RECONCILE_ACCOUNT_OPTIONS.map((opt) => (
+                              <option key={opt.code} value={opt.code}>
+                                {opt.code} — {opt.name.slice(0, 22)}
+                              </option>
+                            ))}
+                          </select>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRowVat(row.id)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
+                              row.vatIncluded
+                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                            }`}
+                            title="12% QQS ajratishni yoqish / o'chirish"
+                          >
+                            {row.vatIncluded ? "QQS 12%" : "QQSsiz"}
+                          </button>
+                        </TableCell>
+                        <TableCell className="max-w-[280px] text-[11px] text-muted-foreground">
+                          <div className="flex items-start gap-1">
+                            {row.aiVerified && <Sparkles className="h-3 w-3 text-indigo-500 shrink-0 mt-0.5" />}
+                            <span>{row.explanation}</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </>
       )}
+
+      {/* Clipboard Paste Dialog */}
+      <Dialog open={pasteTarget !== null} onOpenChange={(o) => !o && setPasteTarget(null)}>
+        <DialogContent className="sm:max-w-lg text-xs">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {pasteTarget === "bank" ? "Bank koʻchirmasini joylashtirish" : "1C jadvalini joylashtirish"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Excel jadvalidan yoki Bank kabinetidan qatorlarni belgilab nusxalang (`Ctrl+C`) va quyiga joylashtiring (`Ctrl+V`).
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            rows={8}
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            placeholder={"Sana\tKontragent\tSTIR\tПриход\tРасход\tНазначение\n15.11.2026\tOOO BARAKA\t305112233\t25 000 000,00\t0\tTovar uchun"}
+            className="w-full rounded-md border border-input bg-background p-2.5 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <DialogFooter>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setPasteTarget(null)}>
+              Bekor qilish
+            </Button>
+            <Button type="button" size="sm" onClick={handleApplyPaste} className="gap-1.5">
+              <ClipboardPaste className="h-3.5 w-3.5" />
+              Oʻqish va solishtirish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

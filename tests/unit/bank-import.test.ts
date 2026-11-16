@@ -68,4 +68,77 @@ describe("1C Client-Bank & CSV Statement Parsers", () => {
     expect(parsed[1].type).toBe("expense");
     expect(parsed[1].amount).toBe(8500000);
   });
+
+  it("auto-detects company direction in Client-Bank TXT without entity STIR using РасчСчет & ДатаПоступило/Списано", () => {
+    const sample = [
+      "1CClientBankExchange",
+      "РасчСчет=20208000999888777001",
+      "СекцияДокумент=Платежное поручение",
+      "Номер=55",
+      "Дата=02.11.2026",
+      "ДатаПоступило=02.11.2026",
+      "Сумма=9500000.00",
+      "Плательщик1=OOO SAMARQAND TEKSTIL",
+      "ПлательщикИНН=301555666",
+      "ПлательщикРасчСчет=20208000111222333001",
+      "Получатель1=OOO YANGI MIJOZ",
+      "ПолучательИНН=309123456",
+      "ПолучательРасчСчет=20208000999888777001",
+      "НазначениеПлатежа=Shartnoma 88 tolov",
+      "КонецДокумента",
+      "СекцияДокумент=Платежное поручение",
+      "Номер=56",
+      "Дата=03.11.2026",
+      "ДатаСписано=03.11.2026",
+      "Сумма=150000.00",
+      "Плательщик1=OOO YANGI MIJOZ",
+      "ПлательщикИНН=309123456",
+      "ПлательщикРасчСчет=20208000999888777001",
+      "Получатель1=ATB KAPITALBANK",
+      "ПолучательИНН=201020304",
+      "ПолучательРасчСчет=16103000111111111001",
+      "НазначениеПлатежа=Bank RKO komissiyasi",
+      "КонецДокумента",
+    ].join("\r\n");
+
+    const parsed = parse1CClientBankText(sample, "");
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].type).toBe("income");
+    expect(parsed[0].counterparty).toBe("OOO SAMARQAND TEKSTIL");
+    expect(parsed[1].type).toBe("expense");
+    expect(parsed[1].counterparty).toBe("ATB KAPITALBANK");
+  });
+
+  it("parses real bank CSV/TSV & Excel HTML tables with Russian headers, Дебет/Кредит, and formatted numbers", () => {
+    const bankCsv = [
+      "Выписка по счету 20208000...",
+      "Дата\tНомер\tКонтрагент\tИНН\tДебет\tКредит\tНазначение платежа",
+      '14.11.2026\t701\t"OOO, BARAKA GROUP"\t304112233\t0\t"12 500 000,50"\tTovar uchun tushum',
+      "15.11.2026\t702\tATB HAMKORBANK\t200445566\t450 000,00\t0\tKomissiya RKO",
+    ].join("\n");
+
+    const csvParsed = parseBankCsv(bankCsv);
+    expect(csvParsed).toHaveLength(2);
+    expect(csvParsed[0]).toMatchObject({
+      date: "2026-11-14",
+      type: "income",
+      amount: 12500000.5,
+      counterparty: "OOO, BARAKA GROUP",
+      documentNumber: "701",
+    });
+    expect(csvParsed[1]).toMatchObject({
+      date: "2026-11-15",
+      type: "expense",
+      amount: 450000,
+    });
+
+    const htmlXls = `<html><body><table>
+      <tr><th>Sana</th><th>Kontragent</th><th>Kirim</th><th>Chiqim</th><th>Izoh</th></tr>
+      <tr><td>16.11.2026</td><td>OOO NAVOIY</td><td>3&nbsp;200&nbsp;000,00</td><td>0</td><td>Avans tolov</td></tr>
+    </table></body></html>`;
+    const xlsParsed = parseBankCsv(htmlXls);
+    expect(xlsParsed).toHaveLength(1);
+    expect(xlsParsed[0].amount).toBe(3200000);
+    expect(xlsParsed[0].type).toBe("income");
+  });
 });

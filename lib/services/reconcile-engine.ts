@@ -4,6 +4,28 @@ import { sanitizeStringForAi } from "@/lib/utils/privacy";
 
 export type ReconcileStatus = "matched" | "amount_mismatch" | "bank_only" | "one_c_only";
 
+export const RECONCILE_ACCOUNT_OPTIONS: Array<{ code: string; name: string }> = [
+  { code: "4010", name: "Xaridorlar va buyurtmachilardan olinadigan schyotlar" },
+  { code: "4310", name: "Yetkazib beruvchilarga berilgan boʻnaklar" },
+  { code: "4410", name: "Budjetga oldindan toʻlangan soliqlar (QQS)" },
+  { code: "4510", name: "Mehnat haqi boʻyicha berilgan boʻnaklar" },
+  { code: "5010", name: "Kassadagi pul mablagʻlari" },
+  { code: "5110", name: "Hisob-kitob schyoti (Milliy valyutada)" },
+  { code: "5210", name: "Valyuta hisobvaragʻi" },
+  { code: "6010", name: "Mol yetkazib beruvchilarga toʻlanadigan schyotlar" },
+  { code: "6310", name: "Xaridorlardan olingan boʻnaklar" },
+  { code: "6410", name: "Budjetga toʻlovlar boʻyicha qarzlar (Soliqlar)" },
+  { code: "6520", name: "Maqsadli davlat jamgʻarmalariga toʻlovlar" },
+  { code: "6710", name: "Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar" },
+  { code: "6810", name: "Qisqa muddatli bank kreditlari" },
+  { code: "9010", name: "Tayyor mahsulot sotishdan daromadlar" },
+  { code: "9020", name: "Tovarlar sotishdan daromadlar" },
+  { code: "9030", name: "Xizmatlar koʻrsatishdan daromadlar" },
+  { code: "9410", name: "Sotish xarajatlari" },
+  { code: "9420", name: "Maʼmuriy xarajatlar" },
+  { code: "9430", name: "Boshqa operatsion xarajatlar" },
+];
+
 export interface ReconcileRow {
   id: string;
   status: ReconcileStatus;
@@ -21,6 +43,13 @@ export interface ReconcileRow {
   suggestedAccountName: string;
   explanation: string;
   aiVerified?: boolean;
+  vatIncluded?: boolean;
+}
+
+export function detectVatIncluded(description: string): boolean {
+  const lower = description.toLowerCase();
+  if (/(qqssiz|без\s+ндс|без\s+nds|no\s+vat)/i.test(lower)) return false;
+  return /(qqs|ндс|\bnds\b|vat|12%)/i.test(lower);
 }
 
 export interface ReconcileSummary {
@@ -39,6 +68,17 @@ export interface ReconcileSummary {
  * Auto-falls back to windows-1251 if UTF-8 yields replacement characters (\uFFFD).
  */
 export function decodeBankFileBuffer(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    try {
+      return new TextDecoder("utf-16le").decode(buffer);
+    } catch {}
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    try {
+      return new TextDecoder("utf-16be").decode(buffer);
+    } catch {}
+  }
   const utf8Text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
   if (utf8Text.includes("\uFFFD")) {
     try {
@@ -59,19 +99,28 @@ function extractXmlTag(block: string, tags: string[]): string {
   return "";
 }
 
+function normalizeXmlDate(dateRaw: string): string {
+  const clean = dateRaw.trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  const dmy = clean.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  return new Date().toISOString().split("T")[0];
+}
+
 /**
  * Parses 1C EnterpriseData XML (<Operation>) or generic 1C payment XML blocks.
  */
 export function parse1CEnterpriseXml(xmlText: string): ParsedBankTransaction[] {
   const results: ParsedBankTransaction[] = [];
-  const opBlocks = xmlText.match(/<Operation\b[^>]*>[\s\S]*?<\/Operation>/gi) || [];
+  let opBlocks = xmlText.match(/<Operation\b[^>]*>[\s\S]*?<\/Operation>/gi) || [];
+  if (opBlocks.length === 0) {
+    opBlocks = xmlText.match(/<(?:Document|Документ)\b[^>]*>[\s\S]*?<\/(?:Document|Документ)>/gi) || [];
+  }
 
   for (const op of opBlocks) {
     const dateRaw = extractXmlTag(op, ["Date", "Дата"]);
-    const date = /^\d{4}-\d{2}-\d{2}/.test(dateRaw)
-      ? dateRaw.slice(0, 10)
-      : new Date().toISOString().split("T")[0];
-    const comment = extractXmlTag(op, ["Comment", "НазначениеПлатежа", "Memo"]) || "1C operatsiya";
+    const date = normalizeXmlDate(dateRaw);
+    const comment = extractXmlTag(op, ["Comment", "НазначениеПлатежа", "Memo", "Содержание"]) || "1C operatsiya";
     const docNum = extractXmlTag(op, ["Number", "Номер"]);
 
     const lines = op.match(/<Line\b[^>]*>[\s\S]*?<\/Line>/gi) || [];
@@ -84,8 +133,8 @@ export function parse1CEnterpriseXml(xmlText: string): ParsedBankTransaction[] {
       for (const l of lines) {
         const code = extractXmlTag(l, ["AccountCode"]);
         const name = extractXmlTag(l, ["AccountName"]);
-        const dt = parseFloat(extractXmlTag(l, ["Debit"]) || "0") || 0;
-        const ct = parseFloat(extractXmlTag(l, ["Credit"]) || "0") || 0;
+        const dt = parseFloat((extractXmlTag(l, ["Debit"]) || "0").replace(/\s/g, "").replace(",", ".")) || 0;
+        const ct = parseFloat((extractXmlTag(l, ["Credit"]) || "0").replace(/\s/g, "").replace(",", ".")) || 0;
 
         if (code.startsWith("51") || code.startsWith("52") || code.startsWith("50")) {
           bankDebit += dt;
@@ -99,7 +148,7 @@ export function parse1CEnterpriseXml(xmlText: string): ParsedBankTransaction[] {
       const amountRaw =
         bankDebit > 0 || bankCredit > 0
           ? Math.max(bankDebit, bankCredit)
-          : parseFloat(extractXmlTag(op, ["Amount", "Сумма"]) || "0") || 0;
+          : parseFloat((extractXmlTag(op, ["Amount", "Сумма"]) || "0").replace(/\s/g, "").replace(",", ".")) || 0;
 
       if (amountRaw > 0) {
         const type: "income" | "expense" = bankCredit > bankDebit ? "expense" : "income";
@@ -116,7 +165,7 @@ export function parse1CEnterpriseXml(xmlText: string): ParsedBankTransaction[] {
         });
       }
     } else {
-      const amount = parseFloat(extractXmlTag(op, ["Amount", "Сумма"]) || "0") || 0;
+      const amount = parseFloat((extractXmlTag(op, ["Amount", "Сумма"]) || "0").replace(/\s/g, "").replace(",", ".")) || 0;
       if (amount > 0) {
         results.push({
           date,
@@ -143,7 +192,7 @@ export function parseStatementFile(
 ): ParsedBankTransaction[] {
   const lower = fileName.toLowerCase();
   if (rawText.includes("1CClientBankExchange") || rawText.includes("СекцияДокумент=") || lower.endsWith(".txt")) {
-    const parsedTxt = parse1CClientBankText(rawText, ourEntityStir || "308554433");
+    const parsedTxt = parse1CClientBankText(rawText, ourEntityStir);
     if (parsedTxt.length > 0) return parsedTxt;
   }
   if (lower.endsWith(".xml") || rawText.includes("<EnterpriseData") || rawText.includes("<Operation")) {
@@ -323,6 +372,9 @@ export function reconcileBankAnd1C(
     }
 
     const cls = classify21BhmsAccount(b);
+    const vatAuto =
+      detectVatIncluded(b.description) &&
+      !["6410", "6520", "6710", "9420"].includes(cls.accountCode);
 
     if (bestIdx !== -1 && isExactMatch) {
       usedOneC.add(bestIdx);
@@ -343,6 +395,7 @@ export function reconcileBankAnd1C(
         suggestedAccountCode: c.accountCode || cls.accountCode,
         suggestedAccountName: c.accountName || cls.accountName,
         explanation: "Bank koʻchirmasi va 1C yozuvi sana, kontragent hamda summa boʻyicha 100% mos.",
+        vatIncluded: vatAuto,
       });
     } else if (bestIdx !== -1) {
       usedOneC.add(bestIdx);
@@ -367,6 +420,7 @@ export function reconcileBankAnd1C(
           diff !== 0
             ? `Summa tafovuti: Bank (${b.amount.toLocaleString("uz-UZ")}) vs 1C (${c.amount.toLocaleString("uz-UZ")}), farq = ${diff.toLocaleString("uz-UZ")} soʻm.`
             : `Sana tafovuti: Bank (${b.date}) vs 1C (${c.date}).`,
+        vatIncluded: vatAuto,
       });
     } else {
       rows.push({
@@ -384,6 +438,7 @@ export function reconcileBankAnd1C(
         suggestedAccountCode: cls.accountCode,
         suggestedAccountName: cls.accountName,
         explanation: `1C faylida topilmadi. AI taklifi: ${cls.accountCode} (${cls.reason})`,
+        vatIncluded: vatAuto,
       });
     }
   }
@@ -406,6 +461,7 @@ export function reconcileBankAnd1C(
       suggestedAccountCode: c.accountCode || (c.type === "income" ? "4010" : "6010"),
       suggestedAccountName: c.accountName || "Kontragent",
       explanation: "1C da mavjud, lekin bank koʻchirmasida oʻtmagan (kutilayotgan toʻlov yoki 1C dublikati boʻlishi mumkin).",
+      vatIncluded: detectVatIncluded(c.description),
     });
   }
 
@@ -421,6 +477,76 @@ export function reconcileBankAnd1C(
   };
 
   return { rows, summary };
+}
+
+export interface ReconcileJournalLine {
+  accountCode: string;
+  accountName: string;
+  debit: number;
+  credit: number;
+  memo: string;
+}
+
+/**
+ * Builds balanced 21-BHMS double-entry lines (2-line or 3-line 12% VAT split) for a reconciled bank row.
+ */
+export function buildReconcileJournalLines(row: ReconcileRow): ReconcileJournalLine[] {
+  const gross = roundMoney(row.bankAmount || row.oneCAmount);
+  if (gross <= 0) return [];
+
+  const safeDesc = sanitizeStringForAi(
+    `${row.counterparty}: ${row.bankItem?.description || row.oneCItem?.description || row.explanation}`
+  ).slice(0, 220);
+
+  const bankName = "Hisob-kitob schyoti (5110)";
+  const accountCode = row.suggestedAccountCode || (row.type === "income" ? "4010" : "6010");
+  const accountName =
+    row.suggestedAccountName ||
+    RECONCILE_ACCOUNT_OPTIONS.find((a) => a.code === accountCode)?.name ||
+    accountCode;
+
+  const canSplitVat = Boolean(row.vatIncluded) && accountCode !== "4410" && accountCode !== "6410" && accountCode !== "5110";
+
+  if (canSplitVat) {
+    const vat = roundMoney((gross * 12) / 112);
+    const net = roundMoney(gross - vat);
+    if (vat > 0 && net > 0) {
+      if (row.type === "income") {
+        return [
+          { accountCode: "5110", accountName: bankName, debit: gross, credit: 0, memo: safeDesc },
+          { accountCode, accountName, debit: 0, credit: net, memo: `${safeDesc} (QQSsiz)` },
+          {
+            accountCode: "6410",
+            accountName: "Budjetga toʻlovlar boʻyicha qarzlar (QQS 12%)",
+            debit: 0,
+            credit: vat,
+            memo: `QQS 12%: ${row.counterparty}`,
+          },
+        ];
+      }
+      return [
+        { accountCode, accountName, debit: net, credit: 0, memo: `${safeDesc} (QQSsiz)` },
+        {
+          accountCode: "4410",
+          accountName: "Budjetga oldindan toʻlangan soliqlar (QQS 12%)",
+          debit: vat,
+          credit: 0,
+          memo: `Zachyot QQS 12%: ${row.counterparty}`,
+        },
+        { accountCode: "5110", accountName: bankName, debit: 0, credit: gross, memo: safeDesc },
+      ];
+    }
+  }
+
+  return row.type === "income"
+    ? [
+        { accountCode: "5110", accountName: bankName, debit: gross, credit: 0, memo: safeDesc },
+        { accountCode, accountName, debit: 0, credit: gross, memo: safeDesc },
+      ]
+    : [
+        { accountCode, accountName, debit: gross, credit: 0, memo: safeDesc },
+        { accountCode: "5110", accountName: bankName, debit: 0, credit: gross, memo: safeDesc },
+      ];
 }
 
 /**
@@ -445,7 +571,7 @@ export function buildSafeAiReconcileInput(rows: ReconcileRow[]) {
 }
 
 export function buildReconcileCsvReport(rows: ReconcileRow[]): string {
-  const header = "Holat;Sana;Turi;Kontragent;STIR;Bank summasi;1C summasi;Farq;21-BHMS Schyot;Izoh";
+  const header = "Holat;Sana;Turi;Kontragent;STIR;Bank summasi;1C summasi;Farq;21-BHMS Schyot;QQS 12%;Izoh";
   const labelMap: Record<ReconcileStatus, string> = {
     matched: "MOS",
     amount_mismatch: "FARQ_BOR",
@@ -463,6 +589,7 @@ export function buildReconcileCsvReport(rows: ReconcileRow[]): string {
       r.oneCAmount,
       r.diffAmount,
       r.suggestedAccountCode,
+      r.vatIncluded ? "Ha (12%)" : "Yo'q",
       `"${r.explanation.replace(/"/g, '""')}"`,
     ].join(";")
   );
