@@ -2328,3 +2328,204 @@ export async function deleteWorkBatch(batchId: string) {
     .eq("id", batchId);
   if (error) throw error;
 }
+
+// ==========================================
+// 11. AI CHAT THREADS HISTORY (PII-SAFE)
+// ==========================================
+export interface StoredAiChatMessage {
+  id: string;
+  sender: "user" | "ai";
+  text: string;
+  time?: string;
+  actionProposed?: any;
+  actionStatus?: "pending" | "approved" | "rejected";
+  scanResult?: any;
+  scanBatchId?: string | null;
+  scanDuplicate?: boolean;
+  scanPosted?: boolean;
+}
+
+export interface AiChatThreadMeta {
+  id: string;
+  businessEntityId?: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiChatThreadDetail extends AiChatThreadMeta {
+  messages: StoredAiChatMessage[];
+}
+
+const AI_CHAT_THREAD_META_COLUMNS =
+  "id,business_entity_id,title,created_at,updated_at";
+
+function sanitizeChatMessagesForStorage(messages: StoredAiChatMessage[]): StoredAiChatMessage[] {
+  return messages.slice(-60).map((m) => ({
+    id: String(m.id || ""),
+    sender: m.sender === "user" ? "user" : "ai",
+    text: sanitizeStringForAi(String(m.text || "")).slice(0, 6000),
+    time: m.time ? String(m.time).slice(0, 20) : undefined,
+    ...(m.actionProposed ? { actionProposed: depersonalizeForAi(m.actionProposed), actionStatus: m.actionStatus } : {}),
+    ...(m.scanResult
+      ? {
+          scanResult: depersonalizeForAi(m.scanResult),
+          scanBatchId: m.scanBatchId || null,
+          scanDuplicate: Boolean(m.scanDuplicate),
+          scanPosted: Boolean(m.scanPosted),
+        }
+      : {}),
+  }));
+}
+
+export async function fetchAiChatThreadsPaginated(params: {
+  entityId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ data: AiChatThreadMeta[]; count: number }> {
+  try {
+    const page = Math.max(1, params.page || 1);
+    const pageSize = Math.min(50, Math.max(1, params.pageSize || 10));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from("ai_chat_threads")
+      .select(AI_CHAT_THREAD_META_COLUMNS, { count: "exact" })
+      .order("updated_at", { ascending: false });
+
+    if (params.entityId && isValidUuid(params.entityId)) {
+      query = query.or(`business_entity_id.eq.${params.entityId},business_entity_id.is.null`);
+    }
+    if (params.search && params.search.trim()) {
+      const q = params.search.trim().replace(/[,%()]/g, "");
+      query = query.ilike("title", `%${q}%`);
+    }
+
+    const { data, error, count } = await query.range(from, to);
+    if (error) throw error;
+
+    return {
+      data: (data || []).map((r: any) => ({
+        id: r.id,
+        businessEntityId: r.business_entity_id || undefined,
+        title: r.title || "Suhbat",
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      })),
+      count: count ?? 0,
+    };
+  } catch (err) {
+    console.error("fetchAiChatThreadsPaginated error:", err);
+    return { data: [], count: 0 };
+  }
+}
+
+export async function fetchAiChatThreadById(threadId: string): Promise<AiChatThreadDetail | null> {
+  if (!isValidUuid(threadId)) return null;
+  const { data, error } = await supabase
+    .from("ai_chat_threads")
+    .select("*")
+    .eq("id", threadId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    businessEntityId: data.business_entity_id || undefined,
+    title: data.title || "Suhbat",
+    messages: Array.isArray(data.messages_json) ? data.messages_json : [],
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
+export async function upsertAiChatThread(input: {
+  threadId?: string | null;
+  entityId?: string;
+  title?: string;
+  messages: StoredAiChatMessage[];
+}): Promise<AiChatThreadMeta | null> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const cleanMessages = sanitizeChatMessagesForStorage(input.messages);
+    const firstUserText = cleanMessages.find((m) => m.sender === "user")?.text || "Yangi suhbat";
+    const safeTitle = sanitizeStringForAi(input.title || firstUserText)
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80) || "Yangi suhbat";
+
+    if (input.threadId && isValidUuid(input.threadId)) {
+      const { data, error } = await supabase
+        .from("ai_chat_threads")
+        .update({
+          messages_json: cleanMessages,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", input.threadId)
+        .select(AI_CHAT_THREAD_META_COLUMNS)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        return {
+          id: data.id,
+          businessEntityId: data.business_entity_id || undefined,
+          title: data.title,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        };
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("ai_chat_threads")
+      .insert({
+        user_id: user.id,
+        business_entity_id: input.entityId && isValidUuid(input.entityId) ? input.entityId : null,
+        title: safeTitle,
+        messages_json: cleanMessages,
+      })
+      .select(AI_CHAT_THREAD_META_COLUMNS)
+      .single();
+
+    if (error) throw error;
+    return {
+      id: data.id,
+      businessEntityId: data.business_entity_id || undefined,
+      title: data.title,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  } catch (err) {
+    console.warn("upsertAiChatThread warning:", err);
+    return null;
+  }
+}
+
+export async function renameAiChatThread(threadId: string, nextTitle: string) {
+  if (!isValidUuid(threadId)) return;
+  const cleanTitle = sanitizeStringForAi(nextTitle).replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!cleanTitle) return;
+  const { error } = await supabase
+    .from("ai_chat_threads")
+    .update({ title: cleanTitle })
+    .eq("id", threadId);
+  if (error) throw error;
+}
+
+export async function deleteAiChatThread(threadId: string) {
+  if (!isValidUuid(threadId)) return;
+  const { error } = await supabase
+    .from("ai_chat_threads")
+    .delete()
+    .eq("id", threadId);
+  if (error) throw error;
+}

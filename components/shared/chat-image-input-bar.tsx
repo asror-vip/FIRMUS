@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
-import { Paperclip, ArrowUp, Loader2, X, Image as ImageIcon } from "lucide-react";
+import { Paperclip, ArrowUp, Square, X, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -18,7 +18,9 @@ interface ChatImageInputBarProps {
   attachedImage: CompressedImageResult | null;
   onAttachImage: (img: CompressedImageResult | null) => void;
   isSending: boolean;
+  isStreaming?: boolean;
   onSubmit: () => void;
+  onStop?: () => void;
   placeholder?: string;
   compact?: boolean;
 }
@@ -29,7 +31,9 @@ export function ChatImageInputBar({
   attachedImage,
   onAttachImage,
   isSending,
+  isStreaming = false,
   onSubmit,
+  onStop,
   placeholder = "Xabar yozing...",
   compact = false,
 }: ChatImageInputBarProps) {
@@ -77,13 +81,18 @@ export function ChatImageInputBar({
     }
   };
 
-  const canSend = !isSending && Boolean(value.trim() || attachedImage);
+  const isBusy = isSending || isStreaming;
+  const canSend = !isBusy && Boolean(value.trim() || attachedImage);
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (canSend) onSubmit();
+        if (isBusy && onStop) {
+          onStop();
+        } else if (canSend) {
+          onSubmit();
+        }
       }}
       className={cn(
         "rounded-2xl border border-border/80 bg-muted/35 focus-within:bg-background focus-within:border-indigo-500/60 focus-within:shadow-md transition-all",
@@ -155,19 +164,20 @@ export function ChatImageInputBar({
 
         <button
           type="submit"
-          disabled={!canSend}
-          aria-label="Yuborish"
+          disabled={isBusy ? !onStop : !canSend}
+          aria-label={isBusy ? "Toʻxtatish" : "Yuborish"}
+          title={isBusy ? "Toʻxtatish" : "Yuborish"}
           className={cn(
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-150",
-            isSending
-              ? "bg-indigo-600/90 text-white cursor-wait"
+            isBusy
+              ? "bg-foreground text-background hover:opacity-85 shadow-sm"
               : canSend
               ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm hover:scale-105 active:scale-95"
               : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
           )}
         >
-          {isSending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+          {isBusy ? (
+            <Square className="h-3 w-3 fill-current" />
           ) : (
             <ArrowUp className="h-4 w-4 stroke-[2.5]" />
           )}

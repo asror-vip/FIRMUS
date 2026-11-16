@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { Sparkles, Copy, Check } from "lucide-react";
+import { Sparkles, Copy, Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export function AiEmptyHero({
@@ -150,13 +150,17 @@ function FormattedAiText({ text }: { text: string }) {
 export function AiStreamingMessage({
   text,
   animate = false,
+  stopSignal = 0,
   onTickScroll,
   onStreamDone,
+  onRegenerate,
 }: {
   text: string;
   animate?: boolean;
+  stopSignal?: number;
   onTickScroll?: () => void;
   onStreamDone?: () => void;
+  onRegenerate?: () => void;
 }) {
   const [visibleLen, setVisibleLen] = useState<number>(animate ? 0 : text.length);
   const [isDone, setIsDone] = useState<boolean>(!animate);
@@ -168,6 +172,13 @@ export function AiStreamingMessage({
     tickScrollRef.current = onTickScroll;
     streamDoneRef.current = onStreamDone;
   }, [onTickScroll, onStreamDone]);
+
+  useEffect(() => {
+    if (stopSignal > 0 && !isDone) {
+      setIsDone(true);
+      streamDoneRef.current?.();
+    }
+  }, [stopSignal, isDone]);
 
   useEffect(() => {
     if (!animate) {
@@ -205,7 +216,7 @@ export function AiStreamingMessage({
     return () => window.clearInterval(timer);
   }, [text, animate]);
 
-  const shownText = isDone ? text : text.slice(0, visibleLen);
+  const shownText = isDone ? text.slice(0, visibleLen || text.length) : text.slice(0, visibleLen);
 
   const handleCopy = async () => {
     try {
@@ -227,7 +238,18 @@ export function AiStreamingMessage({
       </div>
 
       {isDone && text.trim().length > 0 && (
-        <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
+        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-0.5">
+          {onRegenerate && (
+            <button
+              type="button"
+              onClick={onRegenerate}
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/70 transition-colors"
+              title="Qayta javob olish"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Qayta</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handleCopy}

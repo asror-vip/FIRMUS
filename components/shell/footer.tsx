@@ -9,8 +9,8 @@ export function Footer() {
   const { t } = useTranslation();
 
   return (
-    <footer className="mt-10 border-t border-border/60 py-4 text-[11px] text-muted-foreground">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <footer className="mt-auto shrink-0 border-t border-border bg-card/30 px-4 sm:px-6 lg:px-8 py-3.5 text-[11px] text-muted-foreground">
+      <div className="mx-auto max-w-[1400px] w-full flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="font-semibold text-foreground tracking-tight text-xs">FIRMUS</span>
           <span className="text-border">•</span>

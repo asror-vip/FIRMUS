@@ -6,16 +6,21 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, X, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Sparkles, X, CheckCircle2, XCircle, Loader2, History, SquarePen } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ChatImageInputBar } from "@/components/shared/chat-image-input-bar";
 import { ChatScanCard } from "@/components/shared/chat-scan-card";
+import { AiThreadHistoryPanel } from "@/components/shared/ai-thread-history-panel";
 import {
   AiEmptyHero,
   AiThinkingBubble,
   AiStreamingMessage,
 } from "@/components/shared/ai-chat-visuals";
+import {
+  upsertAiChatThread,
+  type AiChatThreadDetail,
+} from "@/lib/services/supabase-service";
 import {
   AI_IMAGE_FORMAT_ERROR,
   compressImageForAi,
@@ -50,12 +55,19 @@ export function AiDrawer() {
   const { isAiDrawerOpen, setIsAiDrawerOpen, currentEntity } = useAppState();
   const { t } = useTranslation();
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const abortCtrlRef = useRef<AbortController | null>(null);
+
   const [input, setInput] = useState("");
   const [attachedImage, setAttachedImage] = useState<CompressedImageResult | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [stopSignal, setStopSignal] = useState(0);
   const [executingMsgId, setExecutingMsgId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [isHistoryView, setIsHistoryView] = useState(false);
+
+  const isStreaming = messages.some((m) => m.isFresh);
 
   const scrollToBottom = useCallback(() => {
     const el = scrollAreaRef.current;
@@ -69,12 +81,62 @@ export function AiDrawer() {
   }, [messages.length, isSending, scrollToBottom]);
 
   useEffect(() => {
+    abortCtrlRef.current?.abort();
     setMessages([]);
+    setActiveThreadId(null);
     setInput("");
     setAttachedImage(null);
+    setIsHistoryView(false);
   }, [currentEntity?.id]);
 
+  const persistThread = async (
+    nextMessages: ChatMessage[],
+    threadIdOverride?: string | null
+  ) => {
+    const saved = await upsertAiChatThread({
+      threadId: threadIdOverride !== undefined ? threadIdOverride : activeThreadId,
+      entityId: currentEntity?.id,
+      messages: nextMessages,
+    });
+    if (saved) {
+      setActiveThreadId(saved.id);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("firmus:ai-threads-updated"));
+      }
+    }
+  };
+
   if (!isAiDrawerOpen) return null;
+
+  const handleNewChat = () => {
+    abortCtrlRef.current?.abort();
+    setIsSending(false);
+    setMessages([]);
+    setActiveThreadId(null);
+    setInput("");
+    setAttachedImage(null);
+    setIsHistoryView(false);
+  };
+
+  const handleSelectThread = (thread: AiChatThreadDetail) => {
+    abortCtrlRef.current?.abort();
+    setIsSending(false);
+    setActiveThreadId(thread.id);
+    setMessages(
+      (thread.messages || []).map((m) => ({
+        ...m,
+        time: m.time || "",
+        isFresh: false,
+      }))
+    );
+    setIsHistoryView(false);
+  };
+
+  const handleStop = () => {
+    abortCtrlRef.current?.abort();
+    setIsSending(false);
+    setStopSignal((s) => s + 1);
+  };
 
   const handleDropFile = async (file?: File | null) => {
     setIsDraggingOver(false);
@@ -91,27 +153,47 @@ export function AiDrawer() {
     }
   };
 
-  const sendMessageText = async (userText: string, imgOverride?: CompressedImageResult | null) => {
-    const imgToSend = imgOverride !== undefined ? imgOverride : attachedImage;
+  const sendMessageText = async (
+    userText: string,
+    options?: {
+      imgOverride?: CompressedImageResult | null;
+      baseMessages?: ChatMessage[];
+      clearComposer?: boolean;
+    }
+  ) => {
+    const imgToSend = options?.imgOverride !== undefined ? options.imgOverride : attachedImage;
     if ((!userText.trim() && !imgToSend) || isSending) return;
-    const nowStr = new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
 
-    const newMsg: ChatMessage = {
-      id: `m-u-${Date.now()}`,
-      sender: "user",
-      text: userText.trim() || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
-      time: nowStr,
-      imagePreviewUrl: imgToSend?.dataUrl,
-    };
-    const historySnapshot = messages
-      .filter((m) => m.id !== "m-init" && m.text.trim().length > 0)
+    const nowStr = new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+    const baseList = options?.baseMessages ?? messages;
+    const isRegen = Boolean(options?.baseMessages);
+
+    const nextUserMsg: ChatMessage | null = isRegen
+      ? null
+      : {
+          id: `m-u-${Date.now()}`,
+          sender: "user",
+          text: userText.trim() || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
+          time: nowStr,
+          imagePreviewUrl: imgToSend?.dataUrl,
+        };
+
+    const nextList = nextUserMsg ? [...baseList, nextUserMsg] : [...baseList];
+    const historySnapshot = baseList
+      .filter((m) => m.text.trim().length > 0)
       .slice(-8)
       .map((m) => ({ sender: m.sender, text: m.text.slice(0, 1500) }));
 
-    setMessages((prev) => [...prev, newMsg]);
-    setInput("");
-    setAttachedImage(null);
+    setMessages(nextList);
+    if (options?.clearComposer !== false && !isRegen) {
+      setInput("");
+      setAttachedImage(null);
+    }
     setIsSending(true);
+    setIsHistoryView(false);
+
+    const ctrl = new AbortController();
+    abortCtrlRef.current = ctrl;
 
     try {
       if (imgToSend) {
@@ -123,29 +205,30 @@ export function AiDrawer() {
           entityId: currentEntity?.id,
         });
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `m-a-${Date.now()}`,
-            sender: "ai",
-            text:
-              `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
-              (scan.provodkaExplanation || "Provodka tayyorlandi."),
-            time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
-            mode: scan.mode,
-            modelUsed: scan.modelUsed,
-            scanResult: scan,
-            scanBatchId: savedBatchId,
-            scanDuplicate: isDuplicate,
-            scanPosted: false,
-            isFresh: true,
-          },
-        ]);
+        const aiScanMsg: ChatMessage = {
+          id: `m-a-${Date.now()}`,
+          sender: "ai",
+          text:
+            `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
+            (scan.provodkaExplanation || "Provodka tayyorlandi."),
+          time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
+          mode: scan.mode,
+          modelUsed: scan.modelUsed,
+          scanResult: scan,
+          scanBatchId: savedBatchId,
+          scanDuplicate: isDuplicate,
+          scanPosted: false,
+          isFresh: true,
+        };
+        const completed = [...nextList, aiScanMsg];
+        setMessages(completed);
+        await persistThread(completed);
         return;
       }
 
       const res = await fetch("/api/ai-copilot", {
         method: "POST",
+        signal: ctrl.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userText,
@@ -171,8 +254,11 @@ export function AiDrawer() {
         actionProposed: data.actionProposed,
         isFresh: true,
       };
-      setMessages((prev) => [...prev, aiReply]);
+      const completed = [...nextList, aiReply];
+      setMessages(completed);
+      await persistThread(completed);
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       toast.error("AI Copilot xatosi: " + err.message);
       setMessages((prev) => [
         ...prev,
@@ -188,6 +274,17 @@ export function AiDrawer() {
     }
   };
 
+  const handleRegenerate = async (aiIdx: number) => {
+    const prevUser = [...messages.slice(0, aiIdx)].reverse().find((m) => m.sender === "user");
+    if (!prevUser) return;
+    const trimmed = messages.slice(0, aiIdx);
+    await sendMessageText(prevUser.text, {
+      imgOverride: null,
+      baseMessages: trimmed,
+      clearComposer: false,
+    });
+  };
+
   const handlePostScanMessage = async (msg: ChatMessage, editedScan: ScannedDocResult) => {
     if (!currentEntity?.id) {
       toast.error("Bosh kitobga yozish uchun avval korxona tanlang");
@@ -199,9 +296,11 @@ export function AiDrawer() {
         scan: editedScan,
         batchId: msg.scanBatchId,
       });
-      setMessages((prev) =>
-        prev.map((m) => (m.id === msg.id ? { ...m, scanPosted: true, scanResult: editedScan } : m))
+      const updated = messages.map((m) =>
+        m.id === msg.id ? { ...m, scanPosted: true, scanResult: editedScan } : m
       );
+      setMessages(updated);
+      await persistThread(updated);
       toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
     } catch (err: any) {
       toast.error("Bosh kitobga yozishda xatolik: " + err.message);
@@ -235,13 +334,13 @@ export function AiDrawer() {
         })
       );
 
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msg.id
-            ? { ...m, actionStatus: decision === "approve" ? "approved" : "rejected" }
-            : m
-        )
+      const updated: ChatMessage[] = messages.map((m) =>
+        m.id === msg.id
+          ? { ...m, actionStatus: decision === "approve" ? "approved" : "rejected" }
+          : m
       );
+      setMessages(updated);
+      await persistThread(updated);
       toast.success(
         data.message ||
           (decision === "approve"
@@ -275,205 +374,254 @@ export function AiDrawer() {
       )}
     >
       {/* Header */}
-      <div className="flex h-14 items-center justify-between border-b border-border px-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+      <div className="flex h-14 items-center justify-between border-b border-border px-4 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
             <Sparkles className="h-4 w-4" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-foreground">{t.aiDrawer.title}</span>
             </div>
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              {currentEntity?.tradeName || currentEntity?.name}
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1 truncate">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="truncate">{currentEntity?.tradeName || currentEntity?.name || "Shaxsiy"}</span>
             </span>
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => setIsAiDrawerOpen(false)}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Messages area */}
-      <div
-        ref={scrollAreaRef}
-        className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4 text-xs"
-      >
-        {messages.length === 0 && !isSending ? (
-          <AiEmptyHero greeting={t.aiDrawer.greeting} compact />
-        ) : (
-          messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn(
-              "flex flex-col max-w-[94%] animate-in fade-in slide-in-from-bottom-1 duration-200",
-              msg.sender === "user" ? "ml-auto items-end" : "mr-auto items-start"
-            )}
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Yangi chat"
+            aria-label="Yangi chat"
+            onClick={handleNewChat}
           >
-            {msg.sender === "user" ? (
-              <div className="rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-white leading-relaxed shadow-sm whitespace-pre-line">
-                {msg.imagePreviewUrl && (
-                  <img
-                    src={msg.imagePreviewUrl}
-                    alt="Yuborilgan chek"
-                    className="mb-2 max-h-40 rounded-lg border border-white/20 object-contain"
-                  />
-                )}
-                <p>{msg.text}</p>
-              </div>
+            <SquarePen className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant={isHistoryView ? "secondary" : "ghost"}
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Chatlar tarixi"
+            aria-label="Chatlar tarixi"
+            onClick={() => setIsHistoryView((v) => !v)}
+          >
+            <History className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => setIsAiDrawerOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Body: Thread History OR Active Chat */}
+      {isHistoryView ? (
+        <div className="flex-1 overflow-hidden">
+          <AiThreadHistoryPanel
+            entityId={currentEntity?.id}
+            activeThreadId={activeThreadId}
+            onSelectThread={handleSelectThread}
+            onNewChat={handleNewChat}
+            onDeletedThread={(deletedId) => {
+              if (activeThreadId === deletedId) handleNewChat();
+            }}
+            compact
+          />
+        </div>
+      ) : (
+        <>
+          {/* Messages area */}
+          <div
+            ref={scrollAreaRef}
+            className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4 text-xs"
+          >
+            {messages.length === 0 && !isSending ? (
+              <AiEmptyHero greeting={t.aiDrawer.greeting} compact />
             ) : (
-              <div className="flex items-start gap-2.5 w-full">
-                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
-                  <Sparkles className="h-3 w-3" />
-                </div>
-                <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-muted/50 border border-border/70 px-3.5 py-2.5 shadow-sm">
-                  <AiStreamingMessage
-                    text={msg.text}
-                    animate={Boolean(msg.isFresh)}
-                    onTickScroll={scrollToBottom}
-                    onStreamDone={() =>
-                      setMessages((prev) =>
-                        prev.map((m) => (m.id === msg.id ? { ...m, isFresh: false } : m))
-                      )
-                    }
-                  />
-
-                  {/* Chat OCR Scan Result Card */}
-                  {msg.scanResult && !msg.isFresh && (
-                    <ChatScanCard
-                      scan={msg.scanResult}
-                      isDuplicate={msg.scanDuplicate}
-                      posted={msg.scanPosted}
-                      canPost={Boolean(currentEntity?.id)}
-                      onPostToLedger={(edited) => handlePostScanMessage(msg, edited)}
-                    />
+              messages.map((msg, idx) => (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    "flex flex-col max-w-[94%] animate-in fade-in slide-in-from-bottom-1 duration-200",
+                    msg.sender === "user" ? "ml-auto items-end" : "mr-auto items-start"
                   )}
-
-                  {/* Proposed Action Card */}
-                  {msg.actionProposed && !msg.isFresh && (
-                <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="font-semibold text-foreground text-[11px]">
-                      {msg.actionProposed.title}
-                    </span>
-                    <Badge
-                      variant={
-                        msg.actionStatus === "approved"
-                          ? "success"
-                          : msg.actionStatus === "rejected"
-                          ? "destructive"
-                          : "warning"
-                      }
-                      className="text-[9px] px-1.5 py-0 h-4 shrink-0"
-                    >
-                      {msg.actionStatus === "approved"
-                        ? "Tasdiqlandi"
-                        : msg.actionStatus === "rejected"
-                        ? "Rad etildi"
-                        : t.common.pending}
-                    </Badge>
-                  </div>
-
-                  {"summary" in msg.actionProposed && msg.actionProposed.summary && (
-                    <div className="text-[10px] text-muted-foreground mb-1">
-                      {msg.actionProposed.summary}
+                >
+                  {msg.sender === "user" ? (
+                    <div className="rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-white leading-relaxed shadow-sm whitespace-pre-line">
+                      {msg.imagePreviewUrl && (
+                        <img
+                          src={msg.imagePreviewUrl}
+                          alt="Yuborilgan chek"
+                          className="mb-2 max-h-40 rounded-lg border border-white/20 object-contain"
+                        />
+                      )}
+                      <p>{msg.text}</p>
                     </div>
-                  )}
+                  ) : (
+                    <div className="flex items-start gap-2.5 w-full">
+                      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
+                        <Sparkles className="h-3 w-3" />
+                      </div>
+                      <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-muted/50 border border-border/70 px-3.5 py-2.5 shadow-sm">
+                        <AiStreamingMessage
+                          text={msg.text}
+                          animate={Boolean(msg.isFresh)}
+                          stopSignal={stopSignal}
+                          onTickScroll={scrollToBottom}
+                          onStreamDone={() =>
+                            setMessages((prev) =>
+                              prev.map((m) => (m.id === msg.id ? { ...m, isFresh: false } : m))
+                            )
+                          }
+                          onRegenerate={
+                            !msg.scanResult ? () => handleRegenerate(idx) : undefined
+                          }
+                        />
 
-                  {"amount" in msg.actionProposed && msg.actionProposed.amount && (
-                    <div className="text-[11px] font-mono text-muted-foreground">
-                      {t.common.amount}:{" "}
-                      <span className="font-semibold text-foreground">{msg.actionProposed.amount}</span>
-                    </div>
-                  )}
-
-                  {"accounts" in msg.actionProposed && msg.actionProposed.accounts && (
-                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                      {t.pages.accounting.code}: {msg.actionProposed.accounts}
-                    </div>
-                  )}
-
-                  {/* Multi-line preview for 21-BHMS Journal Entry */}
-                  {msg.actionProposed.type === "journal_entry" && (
-                    <div className="mt-2 rounded border border-border/60 bg-background/80 p-1.5 space-y-1 font-mono text-[10px]">
-                      {msg.actionProposed.payload.lines.map((line, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-2">
-                          <span className="truncate">
-                            {line.account_code} {line.account_name}
-                          </span>
-                          <span className="shrink-0 font-semibold">
-                            {line.debit_amount > 0
-                              ? `Dt ${line.debit_amount.toLocaleString("uz-UZ")}`
-                              : `Kt ${line.credit_amount.toLocaleString("uz-UZ")}`}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {msg.actionStatus === "pending" && (
-                    <div className="mt-2.5 flex items-center gap-1.5 pt-1">
-                      <Button
-                        size="sm"
-                        variant="success"
-                        className="h-7 px-2.5 text-[11px]"
-                        disabled={executingMsgId === msg.id}
-                        onClick={() => handleProposedAction(msg, "approve")}
-                      >
-                        {executingMsgId === msg.id ? (
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                        {msg.scanResult && !msg.isFresh && (
+                          <ChatScanCard
+                            scan={msg.scanResult}
+                            isDuplicate={msg.scanDuplicate}
+                            posted={msg.scanPosted}
+                            canPost={Boolean(currentEntity?.id)}
+                            onPostToLedger={(edited) => handlePostScanMessage(msg, edited)}
+                          />
                         )}
-                        {t.aiDrawer.approveAction}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-[11px]"
-                        disabled={executingMsgId === msg.id}
-                        onClick={() => handleProposedAction(msg, "reject")}
-                      >
-                        <XCircle className="mr-1 h-3 w-3" />
-                        {t.aiDrawer.rejectAction}
-                      </Button>
+
+                        {msg.actionProposed && !msg.isFresh && (
+                          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="font-semibold text-foreground text-[11px]">
+                                {msg.actionProposed.title}
+                              </span>
+                              <Badge
+                                variant={
+                                  msg.actionStatus === "approved"
+                                    ? "success"
+                                    : msg.actionStatus === "rejected"
+                                    ? "destructive"
+                                    : "warning"
+                                }
+                                className="text-[9px] px-1.5 py-0 h-4 shrink-0"
+                              >
+                                {msg.actionStatus === "approved"
+                                  ? "Tasdiqlandi"
+                                  : msg.actionStatus === "rejected"
+                                  ? "Rad etildi"
+                                  : t.common.pending}
+                              </Badge>
+                            </div>
+
+                            {"summary" in msg.actionProposed && msg.actionProposed.summary && (
+                              <div className="text-[10px] text-muted-foreground mb-1">
+                                {msg.actionProposed.summary}
+                              </div>
+                            )}
+
+                            {"amount" in msg.actionProposed && msg.actionProposed.amount && (
+                              <div className="text-[11px] font-mono text-muted-foreground">
+                                {t.common.amount}:{" "}
+                                <span className="font-semibold text-foreground">{msg.actionProposed.amount}</span>
+                              </div>
+                            )}
+
+                            {"accounts" in msg.actionProposed && msg.actionProposed.accounts && (
+                              <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                                {t.pages.accounting.code}: {msg.actionProposed.accounts}
+                              </div>
+                            )}
+
+                            {msg.actionProposed.type === "journal_entry" && (
+                              <div className="mt-2 rounded border border-border/60 bg-background/80 p-1.5 space-y-1 font-mono text-[10px]">
+                                {msg.actionProposed.payload.lines.map((line, lineIdx) => (
+                                  <div key={lineIdx} className="flex items-center justify-between gap-2">
+                                    <span className="truncate">
+                                      {line.account_code} {line.account_name}
+                                    </span>
+                                    <span className="shrink-0 font-semibold">
+                                      {line.debit_amount > 0
+                                        ? `Dt ${line.debit_amount.toLocaleString("uz-UZ")}`
+                                        : `Kt ${line.credit_amount.toLocaleString("uz-UZ")}`}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {msg.actionStatus === "pending" && (
+                              <div className="mt-2.5 flex items-center gap-1.5 pt-1">
+                                <Button
+                                  size="sm"
+                                  variant="success"
+                                  className="h-7 px-2.5 text-[11px]"
+                                  disabled={executingMsgId === msg.id}
+                                  onClick={() => handleProposedAction(msg, "approve")}
+                                >
+                                  {executingMsgId === msg.id ? (
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                                  )}
+                                  {t.aiDrawer.approveAction}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px]"
+                                  disabled={executingMsgId === msg.id}
+                                  onClick={() => handleProposedAction(msg, "reject")}
+                                >
+                                  <XCircle className="mr-1 h-3 w-3" />
+                                  {t.aiDrawer.rejectAction}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                </div>
+
+                  {msg.time && (
+                    <span className="text-[10px] text-muted-foreground px-1 mt-1">
+                      {msg.time}
+                    </span>
                   )}
                 </div>
-              </div>
+              ))
             )}
 
-            <span className="text-[10px] text-muted-foreground px-1 mt-1">
-              {msg.time}
-            </span>
+            {isSending && <AiThinkingBubble />}
           </div>
-        )))}
 
-        {isSending && <AiThinkingBubble />}
-      </div>
-
-      {/* Input area */}
-      <div className="border-t border-border p-3 bg-card">
-        <ChatImageInputBar
-          value={input}
-          onChange={setInput}
-          attachedImage={attachedImage}
-          onAttachImage={setAttachedImage}
-          isSending={isSending}
-          compact
-          placeholder="Xabar yozing..."
-          onSubmit={() => sendMessageText(input)}
-        />
-      </div>
+          {/* Input area */}
+          <div className="border-t border-border p-3 bg-card shrink-0">
+            <ChatImageInputBar
+              value={input}
+              onChange={setInput}
+              attachedImage={attachedImage}
+              onAttachImage={setAttachedImage}
+              isSending={isSending}
+              isStreaming={isStreaming}
+              onStop={handleStop}
+              compact
+              placeholder="Xabar yozing..."
+              onSubmit={() => sendMessageText(input)}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

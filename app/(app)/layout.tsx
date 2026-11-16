@@ -14,11 +14,11 @@ export default function AppLayout({
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-[1400px] w-full">
+        <main className="flex-1 overflow-y-auto flex flex-col">
+          <div className="flex-1 mx-auto max-w-[1400px] w-full p-4 sm:p-6 lg:p-8">
             {children}
-            <Footer />
           </div>
+          <Footer />
         </main>
       </div>
       <FirstLoginNotice />

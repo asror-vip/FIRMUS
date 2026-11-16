@@ -13,6 +13,7 @@ import {
   AiThinkingBubble,
   AiStreamingMessage,
 } from "@/components/shared/ai-chat-visuals";
+import { AiThreadHistoryPanel } from "@/components/shared/ai-thread-history-panel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,9 @@ import {
   fetchWorkBatchById,
   saveWorkBatch,
   deleteWorkBatch,
+  upsertAiChatThread,
   type WorkBatchRecord,
+  type AiChatThreadDetail,
 } from "@/lib/services/supabase-service";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import {
@@ -57,6 +60,8 @@ import {
   History,
   FolderOpen,
   Trash2,
+  PanelLeft,
+  SquarePen,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -93,12 +98,18 @@ export default function AssistantPage() {
 
   // 1. AI Chat state
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatAbortRef = useRef<AbortController | null>(null);
   const [chatInput, setChatInput] = useState("");
   const [attachedChatImage, setAttachedChatImage] = useState<CompressedImageResult | null>(null);
   const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [stopSignal, setStopSignal] = useState(0);
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatTurn[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [showChatSidebar, setShowChatSidebar] = useState(true);
+
+  const isChatStreaming = messages.some((m) => m.isFresh);
 
   const scrollChatToBottom = useCallback(() => {
     const el = chatScrollRef.current;
@@ -108,6 +119,12 @@ export default function AssistantPage() {
   useEffect(() => {
     scrollChatToBottom();
   }, [messages.length, isSending, scrollChatToBottom]);
+
+  useEffect(() => {
+    chatAbortRef.current?.abort();
+    setMessages([]);
+    setActiveThreadId(null);
+  }, [currentEntity?.id]);
 
   // 2. Document / Invoice Vision Scanner state (paginated 10 per page from DB)
   const scanFileRef = useRef<HTMLInputElement | null>(null);
@@ -255,28 +272,80 @@ export default function AssistantPage() {
     }
   };
 
-  const handleSendChat = async (textToSend?: string) => {
+  const persistChatThread = async (nextMessages: ChatTurn[]) => {
+    const saved = await upsertAiChatThread({
+      threadId: activeThreadId,
+      entityId: currentEntity?.id,
+      messages: nextMessages,
+    });
+    if (saved) {
+      setActiveThreadId(saved.id);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("firmus:ai-threads-updated"));
+      }
+    }
+  };
+
+  const handleNewChat = () => {
+    chatAbortRef.current?.abort();
+    setIsSending(false);
+    setMessages([]);
+    setActiveThreadId(null);
+    setChatInput("");
+    setAttachedChatImage(null);
+  };
+
+  const handleSelectChatThread = (thread: AiChatThreadDetail) => {
+    chatAbortRef.current?.abort();
+    setIsSending(false);
+    setActiveThreadId(thread.id);
+    setMessages((thread.messages || []).map((m) => ({ ...m, isFresh: false })));
+  };
+
+  const handleStopChat = () => {
+    chatAbortRef.current?.abort();
+    setIsSending(false);
+    setStopSignal((s) => s + 1);
+  };
+
+  const handleSendChat = async (
+    textToSend?: string,
+    options?: {
+      imgOverride?: CompressedImageResult | null;
+      baseMessages?: ChatTurn[];
+      clearComposer?: boolean;
+    }
+  ) => {
     const query = (textToSend ?? chatInput).trim();
-    const imgToSend = textToSend ? null : attachedChatImage;
+    const imgToSend = options?.imgOverride !== undefined ? options.imgOverride : textToSend ? null : attachedChatImage;
     if ((!query && !imgToSend) || isSending) return;
 
-    const userTurn: ChatTurn = {
-      id: `u-${Date.now()}`,
-      sender: "user",
-      text: query || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
-      imagePreviewUrl: imgToSend?.dataUrl,
-    };
-    const historySnapshot = messages
-      .filter((m) => m.id !== "welcome" && m.text.trim().length > 0)
+    const baseList = options?.baseMessages ?? messages;
+    const isRegen = Boolean(options?.baseMessages);
+
+    const userTurn: ChatTurn | null = isRegen
+      ? null
+      : {
+          id: `u-${Date.now()}`,
+          sender: "user",
+          text: query || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
+          imagePreviewUrl: imgToSend?.dataUrl,
+        };
+    const nextList = userTurn ? [...baseList, userTurn] : [...baseList];
+    const historySnapshot = baseList
+      .filter((m) => m.text.trim().length > 0)
       .slice(-6)
       .map((m) => ({ sender: m.sender, text: m.text.slice(0, 1200) }));
 
-    setMessages((prev) => [...prev, userTurn]);
-    if (!textToSend) {
+    setMessages(nextList);
+    if (options?.clearComposer !== false && !textToSend && !isRegen) {
       setChatInput("");
       setAttachedChatImage(null);
     }
     setIsSending(true);
+
+    const ctrl = new AbortController();
+    chatAbortRef.current = ctrl;
 
     try {
       if (imgToSend) {
@@ -288,27 +357,28 @@ export default function AssistantPage() {
           entityId: currentEntity?.id,
         });
         await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `a-${Date.now()}`,
-            sender: "ai",
-            text:
-              `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
-              (scan.provodkaExplanation || "Provodka tayyorlandi."),
-            modelUsed: scan.modelUsed,
-            scanResult: scan,
-            scanBatchId: savedBatchId,
-            scanDuplicate: isDuplicate,
-            scanPosted: false,
-            isFresh: true,
-          },
-        ]);
+        const aiScanTurn: ChatTurn = {
+          id: `a-${Date.now()}`,
+          sender: "ai",
+          text:
+            `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
+            (scan.provodkaExplanation || "Provodka tayyorlandi."),
+          modelUsed: scan.modelUsed,
+          scanResult: scan,
+          scanBatchId: savedBatchId,
+          scanDuplicate: isDuplicate,
+          scanPosted: false,
+          isFresh: true,
+        };
+        const completed = [...nextList, aiScanTurn];
+        setMessages(completed);
+        await persistChatThread(completed);
         return;
       }
 
       const res = await fetch("/api/ai-copilot", {
         method: "POST",
+        signal: ctrl.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: query,
@@ -319,23 +389,34 @@ export default function AssistantPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "AI javob qaytarmadi");
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          sender: "ai",
-          text: data.reply,
-          modelUsed: data.modelUsed,
-          actionProposed: data.actionProposed,
-          actionStatus: data.actionProposed ? "pending" : undefined,
-          isFresh: true,
-        },
-      ]);
+      const aiTurn: ChatTurn = {
+        id: `a-${Date.now()}`,
+        sender: "ai",
+        text: data.reply,
+        modelUsed: data.modelUsed,
+        actionProposed: data.actionProposed,
+        actionStatus: data.actionProposed ? "pending" : undefined,
+        isFresh: true,
+      };
+      const completed = [...nextList, aiTurn];
+      setMessages(completed);
+      await persistChatThread(completed);
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       toast.error("AI javobida xatolik: " + err.message);
     } finally {
       setIsSending(false);
     }
+  };
+
+  const handleRegenerateTurn = async (aiIdx: number) => {
+    const prevUser = [...messages.slice(0, aiIdx)].reverse().find((m) => m.sender === "user");
+    if (!prevUser) return;
+    await handleSendChat(prevUser.text, {
+      imgOverride: null,
+      baseMessages: messages.slice(0, aiIdx),
+      clearComposer: false,
+    });
   };
 
   const handlePostChatScan = async (turn: ChatTurn, editedScan: ScannedDocResult) => {
@@ -349,10 +430,11 @@ export default function AssistantPage() {
         scan: editedScan,
         batchId: turn.scanBatchId,
       });
-      setMessages((prev) =>
-        prev.map((m) => (m.id === turn.id ? { ...m, scanPosted: true, scanResult: editedScan } : m))
+      const updated = messages.map((m) =>
+        m.id === turn.id ? { ...m, scanPosted: true, scanResult: editedScan } : m
       );
-      await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
+      setMessages(updated);
+      await Promise.all([loadSavedScans(), loadUnifiedHistory(), persistChatThread(updated)]);
       toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
     } catch (err: any) {
       toast.error("Bosh kitobga yozishda xatolik: " + err.message);
@@ -374,13 +456,13 @@ export default function AssistantPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Amalni bajarib boʻlmadi");
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === turn.id
-            ? { ...m, actionStatus: decision === "approve" ? "approved" : "rejected" }
-            : m
-        )
+      const updated: ChatTurn[] = messages.map((m) =>
+        m.id === turn.id
+          ? { ...m, actionStatus: decision === "approve" ? "approved" : "rejected" }
+          : m
       );
+      setMessages(updated);
+      await persistChatThread(updated);
       if (decision === "approve") {
         window.dispatchEvent(new CustomEvent("firmus:refresh-data", { detail: { entityId: currentEntity.id } }));
         toast.success(data.message || "Provodka Bosh kitobga yozildi!");
@@ -684,114 +766,171 @@ export default function AssistantPage() {
               e.preventDefault();
               handleDropImageToChat(e.dataTransfer?.files?.[0]);
             }}
-            className={isDraggingOverChat ? "border-indigo-500 ring-2 ring-indigo-500/30" : undefined}
+            className={`overflow-hidden ${isDraggingOverChat ? "border-indigo-500 ring-2 ring-indigo-500/30" : ""}`}
           >
-            <CardContent className="pt-4 space-y-3 flex flex-col justify-between min-h-[420px]">
-              <div
-                ref={chatScrollRef}
-                className="flex-1 flex flex-col space-y-4 max-h-[480px] overflow-y-auto pr-1"
-              >
-                {messages.length === 0 && !isSending ? (
-                  <AiEmptyHero greeting="Xush kelibsiz. Nima yordam bera olaman?" />
-                ) : (
-                  messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`flex flex-col animate-in fade-in slide-in-from-bottom-1 duration-200 ${
-                      m.sender === "user" ? "items-end" : "items-start"
-                    }`}
-                  >
-                    {m.sender === "user" ? (
-                      <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-xs text-white whitespace-pre-wrap leading-relaxed shadow-sm">
-                        {m.imagePreviewUrl && (
-                          <img
-                            src={m.imagePreviewUrl}
-                            alt="Yuklangan rasm"
-                            className="mb-2 max-h-44 rounded-lg border border-white/20 object-contain"
-                          />
-                        )}
-                        {m.text}
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-2.5 max-w-[90%]">
-                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div className="rounded-2xl rounded-tl-sm bg-muted/50 border border-border/70 px-3.5 py-2.5 shadow-sm">
-                            <AiStreamingMessage
-                              text={m.text}
-                              animate={Boolean(m.isFresh)}
-                              onTickScroll={scrollChatToBottom}
-                              onStreamDone={() =>
-                                setMessages((prev) =>
-                                  prev.map((turn) => (turn.id === m.id ? { ...turn, isFresh: false } : turn))
-                                )
-                              }
-                            />
-                          </div>
+            <div className="flex flex-col md:flex-row min-h-[480px]">
+              {/* Collapsible Chat History Sidebar */}
+              {showChatSidebar && (
+                <div className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-border/70 bg-muted/15 max-h-[260px] md:max-h-[540px] flex flex-col">
+                  <AiThreadHistoryPanel
+                    entityId={currentEntity?.id}
+                    activeThreadId={activeThreadId}
+                    onSelectThread={(thread) => {
+                      handleSelectChatThread(thread);
+                    }}
+                    onNewChat={handleNewChat}
+                    onDeletedThread={(deletedId) => {
+                      if (activeThreadId === deletedId) handleNewChat();
+                    }}
+                  />
+                </div>
+              )}
 
-                          {m.scanResult && !m.isFresh && (
-                            <ChatScanCard
-                              scan={m.scanResult}
-                              isDuplicate={m.scanDuplicate}
-                              posted={m.scanPosted}
-                              canPost={Boolean(currentEntity?.id)}
-                              onPostToLedger={(edited) => handlePostChatScan(m, edited)}
-                            />
-                          )}
-                          {m.actionProposed && !m.isFresh && (
-                            <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 text-xs space-y-2 animate-in fade-in duration-200">
-                              <div className="font-semibold text-foreground">{m.actionProposed.title}</div>
-                              <p className="text-[11px] text-muted-foreground">{m.actionProposed.summary}</p>
-                              {m.actionStatus === "pending" ? (
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="success"
-                                    className="h-7 text-[11px]"
-                                    disabled={executingId === m.id}
-                                    onClick={() => handleChatProposal(m, "approve")}
-                                  >
-                                    {executingId === m.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                                    Tasdiqlash
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 text-[11px]"
-                                    disabled={executingId === m.id}
-                                    onClick={() => handleChatProposal(m, "reject")}
-                                  >
-                                    Rad etish
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Badge variant={m.actionStatus === "approved" ? "success" : "outline"} className="text-[10px]">
-                                  {m.actionStatus === "approved" ? "Bosh kitobga yozildi" : "Bekor qilindi"}
-                                </Badge>
+              {/* Active Conversation Area */}
+              <div className="flex-1 flex flex-col min-w-0">
+                <div className="flex items-center justify-between px-3.5 py-2 border-b border-border/60 bg-card/50">
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                      title={showChatSidebar ? "Chatlar tarixini yopish" : "Chatlar tarixini ochish"}
+                      onClick={() => setShowChatSidebar((s) => !s)}
+                    >
+                      <PanelLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {activeThreadId ? "Saqlangan suhbat" : "Yangi suhbat"}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                    onClick={handleNewChat}
+                  >
+                    <SquarePen className="h-3.5 w-3.5" />
+                    <span>Yangi chat</span>
+                  </Button>
+                </div>
+
+                <CardContent className="pt-4 space-y-3 flex-1 flex flex-col justify-between min-h-[420px]">
+                  <div
+                    ref={chatScrollRef}
+                    className="flex-1 flex flex-col space-y-4 max-h-[440px] overflow-y-auto pr-1"
+                  >
+                    {messages.length === 0 && !isSending ? (
+                      <AiEmptyHero greeting="Xush kelibsiz. Nima yordam bera olaman?" />
+                    ) : (
+                      messages.map((m, idx) => (
+                        <div
+                          key={m.id}
+                          className={`flex flex-col animate-in fade-in slide-in-from-bottom-1 duration-200 ${
+                            m.sender === "user" ? "items-end" : "items-start"
+                          }`}
+                        >
+                          {m.sender === "user" ? (
+                            <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-xs text-white whitespace-pre-wrap leading-relaxed shadow-sm">
+                              {m.imagePreviewUrl && (
+                                <img
+                                  src={m.imagePreviewUrl}
+                                  alt="Yuklangan rasm"
+                                  className="mb-2 max-h-44 rounded-lg border border-white/20 object-contain"
+                                />
                               )}
+                              {m.text}
+                            </div>
+                          ) : (
+                            <div className="flex items-start gap-2.5 max-w-[90%]">
+                              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
+                                <Sparkles className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-2">
+                                <div className="rounded-2xl rounded-tl-sm bg-muted/50 border border-border/70 px-3.5 py-2.5 shadow-sm">
+                                  <AiStreamingMessage
+                                    text={m.text}
+                                    animate={Boolean(m.isFresh)}
+                                    stopSignal={stopSignal}
+                                    onTickScroll={scrollChatToBottom}
+                                    onStreamDone={() =>
+                                      setMessages((prev) =>
+                                        prev.map((turn) => (turn.id === m.id ? { ...turn, isFresh: false } : turn))
+                                      )
+                                    }
+                                    onRegenerate={
+                                      !m.scanResult ? () => handleRegenerateTurn(idx) : undefined
+                                    }
+                                  />
+                                </div>
+
+                                {m.scanResult && !m.isFresh && (
+                                  <ChatScanCard
+                                    scan={m.scanResult}
+                                    isDuplicate={m.scanDuplicate}
+                                    posted={m.scanPosted}
+                                    canPost={Boolean(currentEntity?.id)}
+                                    onPostToLedger={(edited) => handlePostChatScan(m, edited)}
+                                  />
+                                )}
+                                {m.actionProposed && !m.isFresh && (
+                                  <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3 text-xs space-y-2 animate-in fade-in duration-200">
+                                    <div className="font-semibold text-foreground">{m.actionProposed.title}</div>
+                                    <p className="text-[11px] text-muted-foreground">{m.actionProposed.summary}</p>
+                                    {m.actionStatus === "pending" ? (
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="success"
+                                          className="h-7 text-[11px]"
+                                          disabled={executingId === m.id}
+                                          onClick={() => handleChatProposal(m, "approve")}
+                                        >
+                                          {executingId === m.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                                          Tasdiqlash
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 text-[11px]"
+                                          disabled={executingId === m.id}
+                                          onClick={() => handleChatProposal(m, "reject")}
+                                        >
+                                          Rad etish
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Badge variant={m.actionStatus === "approved" ? "success" : "outline"} className="text-[10px]">
+                                        {m.actionStatus === "approved" ? "Bosh kitobga yozildi" : "Bekor qilindi"}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
-                      </div>
+                      ))
                     )}
+                    {isSending && <AiThinkingBubble />}
                   </div>
-                )))}
-                {isSending && <AiThinkingBubble />}
-              </div>
 
-              <div className="pt-2">
-                <ChatImageInputBar
-                  value={chatInput}
-                  onChange={setChatInput}
-                  attachedImage={attachedChatImage}
-                  onAttachImage={setAttachedChatImage}
-                  isSending={isSending}
-                  onSubmit={() => handleSendChat()}
-                />
+                  <div className="pt-2">
+                    <ChatImageInputBar
+                      value={chatInput}
+                      onChange={setChatInput}
+                      attachedImage={attachedChatImage}
+                      onAttachImage={setAttachedChatImage}
+                      isSending={isSending}
+                      isStreaming={isChatStreaming}
+                      onStop={handleStopChat}
+                      onSubmit={() => handleSendChat()}
+                    />
+                  </div>
+                </CardContent>
               </div>
-            </CardContent>
+            </div>
           </Card>
         </TabsContent>
 
