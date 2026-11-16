@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  fetchExceptions,
+  fetchExceptionsPaginated,
+  fetchExceptionSummaryCounts,
+  fetchAiActionLogsPaginated,
   resolveExceptionInDb,
   createJournalEntryRecord,
   isValidUuid,
 } from "@/lib/services/supabase-service";
-import { createClient } from "@/lib/supabase/client";
 import { useAppState } from "@/lib/context/app-state";
 import { ExceptionItem } from "@/lib/types/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
+import { PaginationBar } from "@/components/shared/pagination-bar";
 import {
   ShieldAlert,
   Sparkles,
@@ -54,19 +56,35 @@ function AiAuditorContent() {
   const { t } = useTranslation();
 
   const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
+  const [totalExceptionsCount, setTotalExceptionsCount] = useState(0);
+  const [excPage, setExcPage] = useState(1);
+  const [excCounts, setExcCounts] = useState({ open: 0, critical: 0, resolved: 0, total: 0 });
   const [selectedExc, setSelectedExc] = useState<ExceptionItem | null>(null);
   const [actionLogs, setActionLogs] = useState<AiActionLog[]>([]);
+  const [totalLogsCount, setTotalLogsCount] = useState(0);
+  const [logsPage, setLogsPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const PAGE_SIZE = 10;
 
   const loadExceptions = useCallback(async (entityId: string) => {
     setIsLoading(true);
     try {
-      const data = await fetchExceptions(entityId);
+      const [{ data, count }, summaryCounts] = await Promise.all([
+        fetchExceptionsPaginated(entityId, {
+          page: excPage,
+          pageSize: PAGE_SIZE,
+          severity: filterSeverity,
+          search,
+        }),
+        fetchExceptionSummaryCounts(entityId),
+      ]);
       setExceptions(data);
+      setTotalExceptionsCount(count);
+      setExcCounts(summaryCounts);
       if (targetExcId) {
         const match = data.find((e) => e.id === targetExcId);
         setSelectedExc(match || data[0] || null);
@@ -78,31 +96,33 @@ function AiAuditorContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [targetExcId]);
+  }, [targetExcId, excPage, filterSeverity, search]);
 
   const loadActionLogs = useCallback(async (entityId: string) => {
     if (!isValidUuid(entityId)) return;
     setIsLoadingLogs(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("ai_action_logs")
-        .select("*")
-        .eq("business_entity_id", entityId)
-        .order("created_at", { ascending: false })
-        .limit(25);
-
-      if (error) {
-        console.error("Error loading ai_action_logs:", error);
-      } else if (data) {
-        setActionLogs(data as AiActionLog[]);
-      }
+      const { data, count } = await fetchAiActionLogsPaginated(entityId, {
+        page: logsPage,
+        pageSize: PAGE_SIZE,
+      });
+      setActionLogs(data as AiActionLog[]);
+      setTotalLogsCount(count);
     } catch (err) {
       console.error("Failed to fetch ai action logs:", err);
     } finally {
       setIsLoadingLogs(false);
     }
-  }, []);
+  }, [logsPage]);
+
+  useEffect(() => {
+    setExcPage(1);
+    setLogsPage(1);
+  }, [currentEntity?.id]);
+
+  useEffect(() => {
+    setExcPage(1);
+  }, [filterSeverity, search]);
 
   useEffect(() => {
     if (!currentEntity?.id) return;
@@ -125,32 +145,11 @@ function AiAuditorContent() {
   const handleRecheck = async () => {
     if (!currentEntity?.id) return;
     loadActionLogs(currentEntity.id);
-    setIsLoading(true);
-    try {
-      const data = await fetchExceptions(currentEntity.id);
-      setExceptions(data);
-      if (data.length > 0 && !data.some((d) => d.id === selectedExc?.id)) {
-        setSelectedExc(data[0]);
-      }
-      const openCnt = data.filter((e) => e.status === "open").length;
-      toast.success(`AI Auditor tekshiruvi yakunlandi: ${openCnt} ta ochiq va ${data.length} ta jami yozuv aniqlandi.`);
-    } catch (err: any) {
-      toast.error("Tekshiruv xatosi: " + err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    await loadExceptions(currentEntity.id);
+    toast.success(`AI Auditor tekshiruvi yakunlandi: ${excCounts.open} ta ochiq va ${excCounts.total} ta jami yozuv aniqlandi.`);
   };
 
-  const filtered = exceptions.filter((exc) => {
-    if (filterSeverity !== "all" && exc.severity !== filterSeverity) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!exc.title.toLowerCase().includes(q) && !exc.description.toLowerCase().includes(q)) {
-        return false;
-      }
-    }
-    return true;
-  });
+  const filtered = exceptions;
 
   const handleResolve = async (exc: ExceptionItem, action: "approve" | "reject", customLabel?: string) => {
     if (isMutating) return;
@@ -182,6 +181,9 @@ function AiAuditorContent() {
         prev.map((e) => (e.id === exc.id ? { ...e, status: nextStatus } : e))
       );
       setSelectedExc((prev) => (prev?.id === exc.id ? { ...prev, status: nextStatus } : prev));
+      if (currentEntity?.id) {
+        fetchExceptionSummaryCounts(currentEntity.id).then(setExcCounts);
+      }
 
       toast.success(
         customLabel ||
@@ -196,9 +198,9 @@ function AiAuditorContent() {
     }
   };
 
-  const openCount = exceptions.filter((e) => e.status === "open").length;
-  const critCount = exceptions.filter((e) => e.severity === "critical").length;
-  const resolvedCount = exceptions.filter((e) => e.status === "resolved").length;
+  const openCount = excCounts.open;
+  const critCount = excCounts.critical;
+  const resolvedCount = excCounts.resolved;
 
   return (
     <div className="space-y-6">
@@ -337,6 +339,15 @@ function AiAuditorContent() {
               </div>
             )}
           </div>
+          <PaginationBar
+            page={excPage}
+            pageSize={PAGE_SIZE}
+            totalCount={totalExceptionsCount}
+            isLoading={isLoading}
+            itemLabel="shubha"
+            className="rounded-lg border border-border bg-card"
+            onPageChange={setExcPage}
+          />
         </div>
 
         {/* Right Detail Panel */}
@@ -557,6 +568,15 @@ function AiAuditorContent() {
               </table>
             </div>
           )}
+          <PaginationBar
+            page={logsPage}
+            pageSize={PAGE_SIZE}
+            totalCount={totalLogsCount}
+            isLoading={isLoadingLogs}
+            itemLabel="harakat"
+            className="mt-2"
+            onPageChange={setLogsPage}
+          />
         </CardContent>
       </Card>
     </div>

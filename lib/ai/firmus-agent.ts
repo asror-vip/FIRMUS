@@ -108,7 +108,7 @@ function buildFirmusSystemInstruction(params: {
     coaSummary,
     "",
     "QAT'IY BUXGALTERIYA VA XAVFSIZLIK QOIDALARI (BUZISH TAQIQLANADI):",
-    "1. HECH QACHON raqam, summa, schyot qoldig'i, hujjat yoki shartnoma ma'lumotini o'zingizdan to'qib chiqarmang. Foydalanuvchi raqam so'rasa, albatta read tool (get_financial_overview, get_trial_balance, get_general_ledger, list_recent_journal_entries, search_business_records) chaqiring.",
+    "1. HECH QACHON raqam, summa, schyot qoldig'i, hujjat yoki shartnoma ma'lumotini o'zingizdan to'qib chiqarmang. Foydalanuvchi raqam yoki yuklangan fayllar haqida so'rasa, albatta read tool (get_financial_overview, get_trial_balance, get_general_ledger, list_recent_journal_entries, list_work_batches, search_business_records) chaqiring.",
     "2. HECH QACHON schyotlar rejasida (yuqoridagi ro'yxatda) mavjud bo'lmagan schyot kodini ishlatmang.",
     "3. IKKIYOQLAMA YOZUV QONUNI: Har bir provodkada Debet jami == Kredit jami (aniq 2 xonagacha), bir qatorda ham debit > 0 ham credit > 0 bo'lmasligi, va summalar > 0 bo'lishi shart.",
     "4. O'ZBEKISTON SOLIQ FORMULALARI VA QONUNCHILIK HAVOLALARI:",
@@ -171,9 +171,30 @@ const GEMINI_TOOL_DECLARATIONS = [
     },
   },
   {
+    name: "list_work_batches",
+    description:
+      "Korxonaning saqlangan ishlar tarixi (work_batches — yuklangan bank/1C fayllari, chek/faktura skanerlari va shartnoma tahlillari) ro'yxatini oy va holat bo'yicha qaytaradi.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        period_month: { type: "STRING", description: "Ixtiyoriy oy YYYY-MM, masalan 2026-11" },
+        batch_type: {
+          type: "STRING",
+          enum: ["reconcile", "document_scan", "contract_risk"],
+          description: "Ixtiyoriy ish turi",
+        },
+        status: {
+          type: "STRING",
+          enum: ["reviewed", "posted_to_ledger"],
+          description: "Ixtiyoriy holat",
+        },
+      },
+    },
+  },
+  {
     name: "search_business_records",
     description:
-      "Korxonaning faol jadvallaridan haqiqiy yozuvlarni qidiradi (tax_records, transactions, exceptions, chart_of_accounts).",
+      "Korxonaning faol jadvallaridan haqiqiy yozuvlarni qidiradi (tax_records, transactions, exceptions, chart_of_accounts, documents, work_batches).",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -184,6 +205,8 @@ const GEMINI_TOOL_DECLARATIONS = [
             "transactions",
             "exceptions",
             "chart_of_accounts",
+            "documents",
+            "work_batches",
           ],
           description: "Qidirililadigan jadval turi",
         },
@@ -287,12 +310,13 @@ async function runToolCall(
 
   // Read-only tools
   if (name === "get_financial_overview") {
-    const [txRes, excRes, docRes, bankRes, tbRes] = await Promise.all([
+    const [txRes, excRes, docRes, bankRes, tbRes, batchRes] = await Promise.all([
       supabase.from("transactions").select("id, date, amount, type, counterparty, status").eq("business_entity_id", entity.id).order("date", { ascending: false }).limit(30),
       supabase.from("exceptions").select("id, title, severity, status, amount, ai_suggestion").eq("business_entity_id", entity.id).order("created_at", { ascending: false }).limit(20),
       supabase.from("documents").select("id, document_number, type, counterparty, amount, status, date").eq("business_entity_id", entity.id).order("date", { ascending: false }).limit(20),
       supabase.from("bank_accounts").select("id, bank_name, account_number, currency, balance").eq("business_entity_id", entity.id),
       supabase.rpc("get_trial_balance", { p_entity_id: entity.id, p_from_date: "1970-01-01", p_to_date: "2099-12-31" }),
+      supabase.from("work_batches").select("id, batch_type, period_month, status, title").eq("business_entity_id", entity.id).order("created_at", { ascending: false }).limit(30),
     ]);
 
     const txs = txRes.data || [];
@@ -300,6 +324,7 @@ async function runToolCall(
     const docs = docRes.data || [];
     const banks = bankRes.data || [];
     const tb = tbRes.data || [];
+    const batches = batchRes.data || [];
 
     const totalBankBalance = banks.reduce((s: number, b: any) => s + Number(b.balance || 0), 0);
     const row6410 = tb.find((r: any) => r.account_code === "6410");
@@ -316,6 +341,12 @@ async function runToolCall(
         pending_transactions: txs.filter((t: any) => t.status === "pending"),
         open_exceptions: excs.filter((e: any) => e.status === "open" || e.status === "in_review"),
         unsigned_documents: docs.filter((d: any) => d.status === "pending_signature"),
+        work_batches_summary: {
+          recent_count: batches.length,
+          reviewed_not_posted: batches.filter((b: any) => b.status === "reviewed").length,
+          posted_to_ledger: batches.filter((b: any) => b.status === "posted_to_ledger").length,
+          recent_titles: batches.slice(0, 8),
+        },
         vat_output_6410: vatOutput,
         vat_input_4410: vatInput,
         net_vat_payable: Math.max(0, roundMoney(vatOutput - vatInput)),
@@ -363,6 +394,54 @@ async function runToolCall(
     return { result: { ok: true, entries: data || [] } };
   }
 
+  if (name === "list_work_batches") {
+    let query = supabase
+      .from("work_batches")
+      .select(
+        "id, batch_type, period_month, title, bank_file_name, onec_file_name, row_count, total_income, total_expense, status, summary_json, created_at",
+        { count: "exact" }
+      )
+      .eq("business_entity_id", entity.id)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (typeof args.period_month === "string" && /^\d{4}-\d{2}$/.test(args.period_month)) {
+      query = query.eq("period_month", args.period_month);
+    }
+    if (
+      typeof args.batch_type === "string" &&
+      ["reconcile", "document_scan", "contract_risk"].includes(args.batch_type)
+    ) {
+      query = query.eq("batch_type", args.batch_type);
+    }
+    if (
+      typeof args.status === "string" &&
+      ["reviewed", "posted_to_ledger"].includes(args.status)
+    ) {
+      query = query.eq("status", args.status);
+    }
+
+    const { data, count, error } = await query;
+    if (error) return { result: { ok: false, error: error.message } };
+
+    const batches = data || [];
+    const totalIncome = batches.reduce((s: number, b: any) => s + Number(b.total_income || 0), 0);
+    const totalExpense = batches.reduce((s: number, b: any) => s + Number(b.total_expense || 0), 0);
+
+    return {
+      result: {
+        ok: true,
+        total_count: count ?? batches.length,
+        shown_count: batches.length,
+        total_income_uzs: roundMoney(totalIncome),
+        total_expense_uzs: roundMoney(totalExpense),
+        reviewed_count: batches.filter((b: any) => b.status === "reviewed").length,
+        posted_count: batches.filter((b: any) => b.status === "posted_to_ledger").length,
+        batches: depersonalizeForAi(batches),
+      },
+    };
+  }
+
   if (name === "search_business_records") {
     const table = String(args.record_type || "");
     const allowed = new Set([
@@ -370,13 +449,19 @@ async function runToolCall(
       "transactions",
       "exceptions",
       "chart_of_accounts",
+      "documents",
+      "work_batches",
     ]);
     if (!allowed.has(table)) {
       return { result: { ok: false, error: "Noto'g'ri record_type" } };
     }
+    const selectCols =
+      table === "work_batches"
+        ? "id, batch_type, period_month, title, bank_file_name, onec_file_name, row_count, total_income, total_expense, status, summary_json, created_at"
+        : "*";
     const { data, error } = await supabase
       .from(table)
-      .select("*")
+      .select(selectCols)
       .eq("business_entity_id", entity.id)
       .limit(30);
     if (error) return { result: { ok: false, error: error.message } };

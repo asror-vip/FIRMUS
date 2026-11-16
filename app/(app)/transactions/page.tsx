@@ -52,7 +52,7 @@ function TransactionsContent() {
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 25;
+  const pageSize = 10;
 
   // Extended Filter Bar state
   const [isFilterOpen, setIsFilterOpen] = useState(false);

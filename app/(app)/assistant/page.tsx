@@ -1,9 +1,13 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
 import { Money } from "@/components/shared/money";
+import { PaginationBar } from "@/components/shared/pagination-bar";
+import { ChatImageInputBar } from "@/components/shared/chat-image-input-bar";
+import { ChatScanCard } from "@/components/shared/chat-scan-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,19 +22,28 @@ import {
   calculateTurnoverTaxUz,
   calculateVacationPayUz,
 } from "@/lib/services/uz-tax-calculator";
-import { roundMoney } from "@/lib/utils/finance";
-import { supabase } from "@/lib/supabase/client";
 import {
-  fetchWorkBatches,
+  AI_IMAGE_FORMAT_ERROR,
+  compressImageForAi,
+  isSupportedAiImageFile,
+  type CompressedImageResult,
+} from "@/lib/utils/image-compression";
+import {
+  postScannedDocToLedger,
+  scanCompressedImageAndSave,
+  type ScannedDocResult,
+} from "@/lib/services/doc-scan-client";
+import {
+  fetchWorkBatchesPaginated,
+  fetchWorkBatchMonths,
+  fetchWorkBatchById,
   saveWorkBatch,
-  markWorkBatchPosted,
   deleteWorkBatch,
   type WorkBatchRecord,
 } from "@/lib/services/supabase-service";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import {
   Sparkles,
-  Send,
   Loader2,
   Camera,
   Calculator,
@@ -49,54 +62,34 @@ interface ChatTurn {
   id: string;
   sender: "user" | "ai";
   text: string;
+  imagePreviewUrl?: string;
   modelUsed?: string;
   actionProposed?: AgentActionProposal;
   actionStatus?: "pending" | "approved" | "rejected";
-}
-
-interface ScannedDocResult {
-  mode: string;
-  modelUsed: string;
-  documentType: string;
-  documentNumber: string;
-  date: string;
-  counterparty: string;
-  counterpartyStir: string;
-  direction: "income" | "expense";
-  totalAmount: number;
-  vatAmount: number;
-  netAmount: number;
-  items: Array<{
-    name: string;
-    mxikHint: string;
-    qty: number;
-    unit: string;
-    price: number;
-    total: number;
-    vatRate: number;
-  }>;
-  suggestedDebitCode: string;
-  suggestedCreditCode: string;
-  vatAccountCode: string;
-  provodkaExplanation: string;
-  risks: string[];
+  scanResult?: ScannedDocResult;
+  scanBatchId?: string | null;
+  scanDuplicate?: boolean;
+  scanPosted?: boolean;
 }
 
 const QUICK_PROMPTS = [
+  "Bu oy yuklangan barcha fayllar va tarix boʻyicha hisobot ber",
   "4 500 000 so'm oylikdan xodim qo'liga qancha tegadi? Provodkasini yoz",
-  "Ta'lim xizmatlari QQSdan ozodmi? Soliq kodeksi moddasi bilan tushuntir",
   "11 200 000 so'm QQS 12% bilan tovar sotilganda 21-BHMS provodkasi qanday?",
   "Aylanmadan soliq 4% qachon va qaysi schyotda hisoblanadi?",
 ];
 
+const HISTORY_PAGE_SIZE = 10;
+
 export default function AssistantPage() {
+  const router = useRouter();
   const { currentEntity } = useAppState();
   const [activeTab, setActiveTab] = useState("chat");
 
   useEffect(() => {
     try {
       const tabParam = new URLSearchParams(window.location.search).get("tab");
-      if (tabParam && ["chat", "scan", "calc", "contract"].includes(tabParam)) {
+      if (tabParam && ["chat", "scan", "calc", "contract", "history"].includes(tabParam)) {
         setActiveTab(tabParam);
       }
     } catch {}
@@ -104,17 +97,19 @@ export default function AssistantPage() {
 
   // 1. AI Chat state
   const [chatInput, setChatInput] = useState("");
+  const [attachedChatImage, setAttachedChatImage] = useState<CompressedImageResult | null>(null);
+  const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [executingId, setExecutingId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatTurn[]>([
     {
       id: "welcome",
       sender: "ai",
-      text: "Assalomu alaykum! Men FIRMUS AI Hamkasbman. Oʻzbekiston Soliq kodeksi moddalari (lex.uz), 21-son BHMS provodkalari, ish haqi va QQS hisoblash boʻyicha savolingizni yozing.",
+      text: "Assalomu alaykum! Men FIRMUS AI Hamkasbman. Oʻzbekiston Soliq kodeksi, 21-son BHMS provodkalari va saqlangan fayllaringiz boʻyicha savol bering yoki skrepkadan / Ctrl+V bilan chek-faktura rasmini tashlang.",
     },
   ]);
 
-  // 2. Document / Invoice Vision Scanner state
+  // 2. Document / Invoice Vision Scanner state (paginated 10 per page from DB)
   const scanFileRef = useRef<HTMLInputElement | null>(null);
   const [scanFileName, setScanFileName] = useState("");
   const [scanPreviewUrl, setScanPreviewUrl] = useState<string | null>(null);
@@ -124,23 +119,87 @@ export default function AssistantPage() {
   const [scanResult, setScanResult] = useState<ScannedDocResult | null>(null);
   const [isPostingDoc, setIsPostingDoc] = useState(false);
   const [savedScans, setSavedScans] = useState<WorkBatchRecord[]>([]);
+  const [savedScansCount, setSavedScansCount] = useState(0);
+  const [savedScansPage, setSavedScansPage] = useState(1);
+  const [isLoadingScans, setIsLoadingScans] = useState(false);
   const [activeScanBatchId, setActiveScanBatchId] = useState<string | null>(null);
+
+  // 5. Unified Tarix tab state (paginated 10 per page from DB)
+  const [allHistory, setAllHistory] = useState<WorkBatchRecord[]>([]);
+  const [allHistoryCount, setAllHistoryCount] = useState(0);
+  const [allHistoryPage, setAllHistoryPage] = useState(1);
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<
+    "all" | "reconcile" | "document_scan" | "contract_risk"
+  >("all");
+  const [historyMonthFilter, setHistoryMonthFilter] = useState<string>("all");
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [openingBatchId, setOpeningBatchId] = useState<string | null>(null);
 
   const loadSavedScans = useCallback(async () => {
     if (!currentEntity?.id) {
       setSavedScans([]);
+      setSavedScansCount(0);
       return;
     }
-    const items = await fetchWorkBatches({
-      entityId: currentEntity.id,
-      batchType: "document_scan",
-    });
-    setSavedScans(items);
+    setIsLoadingScans(true);
+    try {
+      const { data, count } = await fetchWorkBatchesPaginated({
+        entityId: currentEntity.id,
+        batchType: "document_scan",
+        page: savedScansPage,
+        pageSize: HISTORY_PAGE_SIZE,
+      });
+      setSavedScans(data);
+      setSavedScansCount(count);
+    } finally {
+      setIsLoadingScans(false);
+    }
+  }, [currentEntity?.id, savedScansPage]);
+
+  const loadUnifiedHistory = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setAllHistory([]);
+      setAllHistoryCount(0);
+      setAvailableMonths([]);
+      return;
+    }
+    setIsLoadingHistory(true);
+    try {
+      const [{ data, count }, months] = await Promise.all([
+        fetchWorkBatchesPaginated({
+          entityId: currentEntity.id,
+          batchType: historyTypeFilter === "all" ? undefined : historyTypeFilter,
+          periodMonth: historyMonthFilter === "all" ? undefined : historyMonthFilter,
+          page: allHistoryPage,
+          pageSize: HISTORY_PAGE_SIZE,
+        }),
+        fetchWorkBatchMonths(
+          currentEntity.id,
+          historyTypeFilter === "all" ? undefined : historyTypeFilter
+        ),
+      ]);
+      setAllHistory(data);
+      setAllHistoryCount(count);
+      setAvailableMonths(months);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [currentEntity?.id, historyTypeFilter, historyMonthFilter, allHistoryPage]);
+
+  useEffect(() => {
+    setSavedScansPage(1);
+    setAllHistoryPage(1);
+    setHistoryMonthFilter("all");
   }, [currentEntity?.id]);
 
   useEffect(() => {
     loadSavedScans();
   }, [loadSavedScans]);
+
+  useEffect(() => {
+    loadUnifiedHistory();
+  }, [loadUnifiedHistory]);
 
   // 3. Calculator state
   const [calcSalaryAmount, setCalcSalaryAmount] = useState("5000000");
@@ -181,21 +240,72 @@ export default function AssistantPage() {
     [calcSalaryAmount, calcVacationDays]
   );
 
+  const handleDropImageToChat = async (file?: File | null) => {
+    setIsDraggingOverChat(false);
+    if (!file) return;
+    if (!isSupportedAiImageFile(file)) {
+      toast.error(AI_IMAGE_FORMAT_ERROR);
+      return;
+    }
+    try {
+      const compressed = await compressImageForAi(file);
+      setAttachedChatImage(compressed);
+    } catch (err: any) {
+      toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
+    }
+  };
+
   const handleSendChat = async (textToSend?: string) => {
     const query = (textToSend ?? chatInput).trim();
-    if (!query || isSending) return;
+    const imgToSend = textToSend ? null : attachedChatImage;
+    if ((!query && !imgToSend) || isSending) return;
 
-    const userTurn: ChatTurn = { id: `u-${Date.now()}`, sender: "user", text: query };
+    const userTurn: ChatTurn = {
+      id: `u-${Date.now()}`,
+      sender: "user",
+      text: query || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
+      imagePreviewUrl: imgToSend?.dataUrl,
+    };
     const historySnapshot = messages
       .filter((m) => m.id !== "welcome" && m.text.trim().length > 0)
       .slice(-6)
       .map((m) => ({ sender: m.sender, text: m.text.slice(0, 1200) }));
 
     setMessages((prev) => [...prev, userTurn]);
-    if (!textToSend) setChatInput("");
+    if (!textToSend) {
+      setChatInput("");
+      setAttachedChatImage(null);
+    }
     setIsSending(true);
 
     try {
+      if (imgToSend) {
+        const { scan, savedBatchId, isDuplicate } = await scanCompressedImageAndSave({
+          dataUrl: imgToSend.dataUrl,
+          mimeType: imgToSend.mimeType,
+          fileName: imgToSend.fileName,
+          userNote: query,
+          entityId: currentEntity?.id,
+        });
+        await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            sender: "ai",
+            text:
+              `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
+              (scan.provodkaExplanation || "21-BHMS boʻyicha provodka tayyorlandi."),
+            modelUsed: scan.modelUsed,
+            scanResult: scan,
+            scanBatchId: savedBatchId,
+            scanDuplicate: isDuplicate,
+            scanPosted: false,
+          },
+        ]);
+        return;
+      }
+
       const res = await fetch("/api/ai-copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -223,6 +333,27 @@ export default function AssistantPage() {
       toast.error("AI javobida xatolik: " + err.message);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePostChatScan = async (turn: ChatTurn, editedScan: ScannedDocResult) => {
+    if (!currentEntity?.id) {
+      toast.error("Bosh kitobga yozish uchun yuqoridan korxona qoʻshing");
+      return;
+    }
+    try {
+      await postScannedDocToLedger({
+        entityId: currentEntity.id,
+        scan: editedScan,
+        batchId: turn.scanBatchId,
+      });
+      setMessages((prev) =>
+        prev.map((m) => (m.id === turn.id ? { ...m, scanPosted: true, scanResult: editedScan } : m))
+      );
+      await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
+      toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
+    } catch (err: any) {
+      toast.error("Bosh kitobga yozishda xatolik: " + err.message);
     }
   };
 
@@ -271,16 +402,31 @@ export default function AssistantPage() {
 
   const handleSelectScanFile = async (file?: File) => {
     if (!file) return;
-    if (file.size > 6 * 1024 * 1024) {
-      toast.error("Fayl hajmi 6 MB dan oshmasligi kerak");
-      return;
-    }
     try {
-      const dataUrl = await readFileAsBase64(file);
-      setScanFileName(file.name);
-      setScanMimeType(file.type || "image/jpeg");
-      setScanBase64(dataUrl);
-      setScanPreviewUrl(file.type.startsWith("image/") ? dataUrl : null);
+      if (file.type === "application/pdf") {
+        if (file.size > 6 * 1024 * 1024) {
+          toast.error("PDF hajmi 6 MB dan oshmasligi kerak");
+          return;
+        }
+        const dataUrl = await readFileAsBase64(file);
+        setScanFileName(file.name);
+        setScanMimeType("application/pdf");
+        setScanBase64(dataUrl);
+        setScanPreviewUrl(null);
+        setScanResult(null);
+        return;
+      }
+
+      if (!isSupportedAiImageFile(file)) {
+        toast.error("Rasm yoki PDF formati notoʻgʻri. PNG, JPG, WEBP yoki PDF yuklang.");
+        return;
+      }
+
+      const compressed = await compressImageForAi(file);
+      setScanFileName(compressed.fileName);
+      setScanMimeType(compressed.mimeType);
+      setScanBase64(compressed.dataUrl);
+      setScanPreviewUrl(compressed.dataUrl);
       setScanResult(null);
     } catch (err: any) {
       toast.error(err.message);
@@ -323,13 +469,14 @@ export default function AssistantPage() {
             status: "reviewed",
             summaryJson: {
               date: data.date,
+              documentNumber: data.documentNumber,
               totalAmount: data.totalAmount,
               vatAmount: data.vatAmount,
             },
             sanitizedPayload: data,
           });
           setActiveScanBatchId(saved.id);
-          await loadSavedScans();
+          await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
         } catch (saveErr) {
           console.warn("Could not auto-save scan batch:", saveErr);
         }
@@ -354,55 +501,12 @@ export default function AssistantPage() {
     }
     setIsPostingDoc(true);
     try {
-      const gross = roundMoney(scanResult.totalAmount);
-      const vat = roundMoney(scanResult.vatAmount);
-      const net = roundMoney(gross - vat);
-      const safeDesc = `${scanResult.documentType} ${scanResult.documentNumber ? `№${scanResult.documentNumber} ` : ""}(${scanResult.counterparty})`.slice(0, 220);
-
-      let lines: Array<{
-        account_code: string;
-        account_name: string;
-        debit_amount: number;
-        credit_amount: number;
-        memo: string;
-      }> = [];
-
-      if (vat > 0 && net > 0) {
-        if (scanResult.direction === "income") {
-          lines = [
-            { account_code: scanResult.suggestedDebitCode || "4010", account_name: scanResult.suggestedDebitCode || "4010", debit_amount: gross, credit_amount: 0, memo: safeDesc },
-            { account_code: scanResult.suggestedCreditCode || "9030", account_name: scanResult.suggestedCreditCode || "9030", debit_amount: 0, credit_amount: net, memo: `${safeDesc} (QQSsiz)` },
-            { account_code: "6410", account_name: "Chiquvchi QQS 12%", debit_amount: 0, credit_amount: vat, memo: "QQS 12%" },
-          ];
-        } else {
-          lines = [
-            { account_code: scanResult.suggestedDebitCode || "6010", account_name: scanResult.suggestedDebitCode || "6010", debit_amount: net, credit_amount: 0, memo: `${safeDesc} (QQSsiz)` },
-            { account_code: "4410", account_name: "Kiruvchi QQS 12%", debit_amount: vat, credit_amount: 0, memo: "QQS 12% zachyot" },
-            { account_code: scanResult.suggestedCreditCode || "5110", account_name: scanResult.suggestedCreditCode || "5110", debit_amount: 0, credit_amount: gross, memo: safeDesc },
-          ];
-        }
-      } else {
-        lines = [
-          { account_code: scanResult.suggestedDebitCode, account_name: scanResult.suggestedDebitCode, debit_amount: gross, credit_amount: 0, memo: safeDesc },
-          { account_code: scanResult.suggestedCreditCode, account_name: scanResult.suggestedCreditCode, debit_amount: 0, credit_amount: gross, memo: safeDesc },
-        ];
-      }
-
-      const { error } = await supabase.rpc("create_journal_entry_atomic", {
-        p_business_entity_id: currentEntity.id,
-        p_entry_number: `JE-OCR-${Date.now().toString().slice(-5)}`,
-        p_entry_date: scanResult.date,
-        p_description: safeDesc,
-        p_source_type: "ocr_scan",
-        p_idempotency_key: `idem-ocr-${currentEntity.id}-${scanResult.date}-${gross}-${scanResult.documentNumber || "doc"}`,
-        p_lines: lines,
+      await postScannedDocToLedger({
+        entityId: currentEntity.id,
+        scan: scanResult,
+        batchId: activeScanBatchId,
       });
-      if (error) throw error;
-      if (activeScanBatchId) {
-        await markWorkBatchPosted(activeScanBatchId);
-        await loadSavedScans();
-      }
-      window.dispatchEvent(new CustomEvent("firmus:refresh-data", { detail: { entityId: currentEntity.id } }));
+      await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
       toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
     } catch (err: any) {
       toast.error("Bosh kitobga yozishda xatolik: " + err.message);
@@ -413,16 +517,35 @@ export default function AssistantPage() {
 
   const handleSelectContractFile = async (file?: File) => {
     if (!file) return;
-    if (file.size > 6 * 1024 * 1024) {
-      toast.error("Fayl hajmi 6 MB dan oshmasligi kerak");
-      return;
+    try {
+      if (file.type === "application/pdf") {
+        if (file.size > 6 * 1024 * 1024) {
+          toast.error("PDF hajmi 6 MB dan oshmasligi kerak");
+          return;
+        }
+        const dataUrl = await readFileAsBase64(file);
+        setContractFileInfo({
+          name: file.name,
+          mimeType: "application/pdf",
+          base64: dataUrl,
+        });
+        return;
+      }
+
+      if (!isSupportedAiImageFile(file)) {
+        toast.error("Shartnoma uchun faqat PNG, JPG, WEBP rasm yoki PDF fayl yuklang.");
+        return;
+      }
+
+      const compressed = await compressImageForAi(file);
+      setContractFileInfo({
+        name: compressed.fileName,
+        mimeType: compressed.mimeType,
+        base64: compressed.dataUrl,
+      });
+    } catch (err: any) {
+      toast.error(err.message);
     }
-    const dataUrl = await readFileAsBase64(file);
-    setContractFileInfo({
-      name: file.name,
-      mimeType: file.type || "application/pdf",
-      base64: dataUrl,
-    });
   };
 
   const handleAnalyzeContract = async () => {
@@ -446,11 +569,66 @@ export default function AssistantPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Shartnomani tahlil qilib boʻlmadi");
       setContractResult(data);
+
+      if (currentEntity?.id) {
+        try {
+          await saveWorkBatch({
+            entityId: currentEntity.id,
+            batchType: "contract_risk",
+            title: `Shartnoma: ${contractFileInfo?.name || data.counterparty || "Matnli tekshiruv"}`.slice(0, 180),
+            bankFileName: contractFileInfo?.name,
+            rowCount: Array.isArray(data.risks) ? data.risks.length : 0,
+            totalIncome: 0,
+            totalExpense: Number(data.totalAmount || 0),
+            status: "reviewed",
+            summaryJson: {
+              riskCount: Array.isArray(data.risks) ? data.risks.length : 0,
+              date: data.date,
+            },
+            sanitizedPayload: data,
+          });
+          await loadUnifiedHistory();
+        } catch (saveErr) {
+          console.warn("Could not save contract_risk batch:", saveErr);
+        }
+      }
+
       toast.success("Shartnoma xatarlari tahlil qilindi!");
     } catch (err: any) {
       toast.error("Tahlilda xatolik: " + err.message);
     } finally {
       setIsCheckingContract(false);
+    }
+  };
+
+  const handleOpenHistoryBatch = async (batch: WorkBatchRecord) => {
+    if (batch.batchType === "reconcile") {
+      router.push(`/reconcile?batchId=${encodeURIComponent(batch.id)}`);
+      return;
+    }
+    setOpeningBatchId(batch.id);
+    try {
+      const full = await fetchWorkBatchById(batch.id);
+      if (!full?.sanitizedPayload) {
+        toast.error("Saqlangan hujjat maʼlumoti topilmadi");
+        return;
+      }
+      if (batch.batchType === "document_scan") {
+        setScanResult(full.sanitizedPayload as ScannedDocResult);
+        setScanFileName(full.bankFileName || full.title);
+        setScanPreviewUrl(null);
+        setActiveScanBatchId(full.id);
+        setActiveTab("scan");
+        toast.success("Saqlangan hujjat ochildi");
+      } else {
+        setContractResult(full.sanitizedPayload as ScannedDocResult);
+        setActiveTab("contract");
+        toast.success("Saqlangan shartnoma tahlili ochildi");
+      }
+    } catch (err: any) {
+      toast.error("Ochishda xatolik: " + err.message);
+    } finally {
+      setOpeningBatchId(null);
     }
   };
 
@@ -501,11 +679,15 @@ export default function AssistantPage() {
             <FileWarning className="h-3.5 w-3.5" />
             Shartnoma Xavf Tekshiruvi
           </TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5 text-xs">
+            <History className="h-3.5 w-3.5" />
+            Tarix ({allHistoryCount})
+          </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: AI CHAT */}
         <TabsContent value="chat" className="space-y-3">
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {QUICK_PROMPTS.map((qp) => (
               <button
                 key={qp}
@@ -518,7 +700,21 @@ export default function AssistantPage() {
             ))}
           </div>
 
-          <Card>
+          <Card
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingOverChat(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setIsDraggingOverChat(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDropImageToChat(e.dataTransfer?.files?.[0]);
+            }}
+            className={isDraggingOverChat ? "border-indigo-500 ring-2 ring-indigo-500/30" : undefined}
+          >
             <CardContent className="pt-4 space-y-3">
               <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                 {messages.map((m) => (
@@ -533,8 +729,24 @@ export default function AssistantPage() {
                           : "bg-muted/60 text-foreground border border-border"
                       }`}
                     >
+                      {m.imagePreviewUrl && (
+                        <img
+                          src={m.imagePreviewUrl}
+                          alt="Yuklangan rasm"
+                          className="mb-2 max-h-44 rounded-lg border border-white/20 object-contain"
+                        />
+                      )}
                       {m.text}
                     </div>
+                    {m.scanResult && (
+                      <ChatScanCard
+                        scan={m.scanResult}
+                        isDuplicate={m.scanDuplicate}
+                        posted={m.scanPosted}
+                        canPost={Boolean(currentEntity?.id)}
+                        onPostToLedger={(edited) => handlePostChatScan(m, edited)}
+                      />
+                    )}
                     {m.actionProposed && (
                       <div className="mt-2 max-w-[85%] rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 text-xs space-y-2">
                         <div className="font-semibold text-foreground">{m.actionProposed.title}</div>
@@ -581,24 +793,16 @@ export default function AssistantPage() {
                 )}
               </div>
 
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendChat();
-                }}
-                className="flex gap-2 pt-2 border-t border-border"
-              >
-                <Input
+              <div className="pt-2 border-t border-border">
+                <ChatImageInputBar
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Soliq kodeksi, provodka, QQS yoki maosh haqida yozing..."
-                  className="h-9 text-xs"
+                  onChange={setChatInput}
+                  attachedImage={attachedChatImage}
+                  onAttachImage={setAttachedChatImage}
+                  isSending={isSending}
+                  onSubmit={() => handleSendChat()}
                 />
-                <Button type="submit" size="sm" disabled={isSending || !chatInput.trim()} className="h-9 px-4 gap-1.5">
-                  <Send className="h-3.5 w-3.5" />
-                  Yuborish
-                </Button>
-              </form>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -628,7 +832,7 @@ export default function AssistantPage() {
                   onClick={() => scanFileRef.current?.click()}
                 >
                   <Upload className="h-5 w-5 text-indigo-600" />
-                  <span>{scanFileName || "Rasm yoki PDF tanlash (maks. 6 MB)"}</span>
+                  <span>{scanFileName || "Rasm (PNG/JPG/WEBP, 25 MB gacha — avtomatik siqiladi) yoki PDF"}</span>
                 </Button>
                 {scanPreviewUrl && (
                   <div className="rounded-md border border-border overflow-hidden max-h-48 flex justify-center bg-muted/30">
@@ -739,81 +943,90 @@ export default function AssistantPage() {
             </Card>
           </div>
 
-          {currentEntity?.id && savedScans.length > 0 && (
+          {currentEntity?.id && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <History className="h-4 w-4 text-muted-foreground" />
-                  Saqlangan hujjatlar ({savedScans.length})
+                  Saqlangan hujjatlar ({savedScansCount})
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Oy</TableHead>
-                      <TableHead>Hujjat / Kontragent</TableHead>
-                      <TableHead className="text-right">Summa</TableHead>
-                      <TableHead>Holat</TableHead>
-                      <TableHead className="text-right">Amal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {savedScans.map((s) => (
-                      <TableRow key={s.id} className="text-xs">
-                        <TableCell className="font-mono text-[11px]">{s.periodMonth}</TableCell>
-                        <TableCell className="font-medium max-w-[260px] truncate">{s.title}</TableCell>
-                        <TableCell className="text-right font-mono">
-                          <Money amount={Number(s.summaryJson?.totalAmount || s.totalExpense || s.totalIncome || 0)} />
-                        </TableCell>
-                        <TableCell>
-                          {s.status === "posted_to_ledger" ? (
-                            <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-[11px] gap-1 px-2"
-                              onClick={() => {
-                                if (s.sanitizedPayload) {
-                                  setScanResult(s.sanitizedPayload as ScannedDocResult);
-                                  setScanFileName(s.bankFileName || s.title);
-                                  setScanPreviewUrl(null);
-                                  setActiveScanBatchId(s.id);
-                                  toast.success("Saqlangan hujjat ochildi");
-                                }
-                              }}
-                            >
-                              <FolderOpen className="h-3 w-3" />
-                              Ochish
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                              aria-label="Oʻchirish"
-                              onClick={async () => {
-                                await deleteWorkBatch(s.id);
-                                if (activeScanBatchId === s.id) setActiveScanBatchId(null);
-                                await loadSavedScans();
-                                toast.success("Tarixdan oʻchirildi");
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                {savedScans.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-muted-foreground">
+                    {isLoadingScans ? "Yuklanmoqda..." : "Hali saqlangan chek yoki fakturalar yoʻq."}
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Oy</TableHead>
+                        <TableHead>Hujjat / Kontragent</TableHead>
+                        <TableHead className="text-right">Summa</TableHead>
+                        <TableHead>Holat</TableHead>
+                        <TableHead className="text-right">Amal</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {savedScans.map((s) => (
+                        <TableRow key={s.id} className="text-xs">
+                          <TableCell className="font-mono text-[11px]">{s.periodMonth}</TableCell>
+                          <TableCell className="font-medium max-w-[260px] truncate">{s.title}</TableCell>
+                          <TableCell className="text-right font-mono">
+                            <Money amount={Number(s.summaryJson?.totalAmount || s.totalExpense || s.totalIncome || 0)} />
+                          </TableCell>
+                          <TableCell>
+                            {s.status === "posted_to_ledger" ? (
+                              <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px] gap-1 px-2"
+                                disabled={openingBatchId === s.id}
+                                onClick={async () => {
+                                  await handleOpenHistoryBatch(s);
+                                }}
+                              >
+                                <FolderOpen className="h-3 w-3" />
+                                Ochish
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                aria-label="Oʻchirish"
+                                onClick={async () => {
+                                  await deleteWorkBatch(s.id);
+                                  if (activeScanBatchId === s.id) setActiveScanBatchId(null);
+                                  await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
+                                  toast.success("Tarixdan oʻchirildi");
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+                <PaginationBar
+                  page={savedScansPage}
+                  pageSize={HISTORY_PAGE_SIZE}
+                  totalCount={savedScansCount}
+                  isLoading={isLoadingScans}
+                  itemLabel="hujjat"
+                  onPageChange={setSavedScansPage}
+                />
               </CardContent>
             </Card>
           )}
@@ -1071,6 +1284,192 @@ export default function AssistantPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* TAB 5: UNIFIED WORK BATCHES HISTORY (10 PER PAGE FROM DB) */}
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardHeader className="pb-3 flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <History className="h-4 w-4 text-indigo-500" />
+                    Saqlangan ishlar tarixi ({allHistoryCount})
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Korxona va oy kesimida barcha yuklangan bank/1C fayllari, chek skanerlari va shartnomalar (sahifada 10 tadan bazadan yuklanadi).
+                  </CardDescription>
+                </div>
+
+                <div className="flex items-center gap-1 flex-wrap">
+                  {[
+                    { key: "all", label: "Barchasi" },
+                    { key: "reconcile", label: "Bank ↔ 1C" },
+                    { key: "document_scan", label: "Chek / Faktura" },
+                    { key: "contract_risk", label: "Shartnoma" },
+                  ].map((opt) => (
+                    <Button
+                      key={opt.key}
+                      type="button"
+                      size="sm"
+                      variant={historyTypeFilter === opt.key ? "default" : "outline"}
+                      className="h-7 text-[11px] px-2.5"
+                      onClick={() => {
+                        setHistoryTypeFilter(opt.key as typeof historyTypeFilter);
+                        setAllHistoryPage(1);
+                      }}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {availableMonths.length > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] text-muted-foreground mr-1">Oy:</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={historyMonthFilter === "all" ? "default" : "outline"}
+                    className="h-6 text-[11px] px-2"
+                    onClick={() => {
+                      setHistoryMonthFilter("all");
+                      setAllHistoryPage(1);
+                    }}
+                  >
+                    Barchasi
+                  </Button>
+                  {availableMonths.map((m) => (
+                    <Button
+                      key={m}
+                      type="button"
+                      size="sm"
+                      variant={historyMonthFilter === m ? "default" : "outline"}
+                      className="h-6 text-[11px] px-2 font-mono"
+                      onClick={() => {
+                        setHistoryMonthFilter(m);
+                        setAllHistoryPage(1);
+                      }}
+                    >
+                      {m}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </CardHeader>
+
+            <CardContent className="p-0 overflow-x-auto">
+              {!currentEntity?.id ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  Tarixni koʻrish uchun yuqoridan korxona tanlang.
+                </div>
+              ) : isLoadingHistory ? (
+                <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                  Tarix yuklanmoqda...
+                </div>
+              ) : allHistory.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  Hozircha saqlangan ishlar tarixi yoʻq. Chek rasmini yuboring yoki Bank ↔ 1C fayl yuklang.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Oy</TableHead>
+                      <TableHead>Turi</TableHead>
+                      <TableHead>Nomi / Fayl</TableHead>
+                      <TableHead className="text-right">Summa</TableHead>
+                      <TableHead>Holat</TableHead>
+                      <TableHead className="text-right">Amal</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allHistory.map((item) => {
+                      const typeLabel =
+                        item.batchType === "reconcile"
+                          ? "Bank ↔ 1C"
+                          : item.batchType === "contract_risk"
+                          ? "Shartnoma"
+                          : "Chek / Faktura";
+                      const amountVal =
+                        item.batchType === "reconcile"
+                          ? item.totalIncome + item.totalExpense
+                          : Number(item.summaryJson?.totalAmount || item.totalExpense || item.totalIncome || 0);
+                      return (
+                        <TableRow key={item.id} className="text-xs">
+                          <TableCell className="font-mono text-[11px] whitespace-nowrap">
+                            {item.periodMonth}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-[10px]">
+                              {typeLabel}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-medium max-w-[260px] truncate">{item.title}</TableCell>
+                          <TableCell className="text-right font-mono">
+                            <Money amount={amountVal} />
+                          </TableCell>
+                          <TableCell>
+                            {item.status === "posted_to_ledger" ? (
+                              <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-[11px] gap-1 px-2"
+                                disabled={openingBatchId === item.id}
+                                onClick={() => handleOpenHistoryBatch(item)}
+                              >
+                                {openingBatchId === item.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <FolderOpen className="h-3 w-3" />
+                                )}
+                                Ochish
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                aria-label="Oʻchirish"
+                                onClick={async () => {
+                                  await deleteWorkBatch(item.id);
+                                  if (activeScanBatchId === item.id) setActiveScanBatchId(null);
+                                  await Promise.all([loadUnifiedHistory(), loadSavedScans()]);
+                                  toast.success("Tarixdan oʻchirildi");
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+              {currentEntity?.id && (
+                <PaginationBar
+                  page={allHistoryPage}
+                  pageSize={HISTORY_PAGE_SIZE}
+                  totalCount={allHistoryCount}
+                  isLoading={isLoadingHistory}
+                  itemLabel="ish"
+                  onPageChange={setAllHistoryPage}
+                />
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

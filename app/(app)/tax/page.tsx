@@ -6,10 +6,11 @@ import {
   fetchTrialBalance,
   createJournalEntryRecord,
   createTransaction,
-  fetchTaxRecords,
-  fetchTaxDeadlines,
+  fetchTaxRecordsPaginated,
+  fetchTaxDeadlinesPaginated,
   payTaxRecordInDb,
 } from "@/lib/services/supabase-service";
+import { PaginationBar } from "@/components/shared/pagination-bar";
 import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,12 @@ export default function TaxPage() {
   const { currentEntity } = useAppState();
   const { t } = useTranslation();
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
+  const [totalTaxCount, setTotalTaxCount] = useState(0);
+  const [taxPage, setTaxPage] = useState(1);
   const [deadlines, setDeadlines] = useState<any[]>([]);
+  const [totalDeadlinesCount, setTotalDeadlinesCount] = useState(0);
+  const [deadlinesPage, setDeadlinesPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTax, setSelectedTax] = useState<TaxRecord | null>(null);
   const [isCalcModalOpen, setIsCalcModalOpen] = useState(false);
@@ -46,7 +52,9 @@ export default function TaxPage() {
   const loadTaxData = useCallback(async () => {
     if (!currentEntity?.id) {
       setTaxRecords([]);
+      setTotalTaxCount(0);
       setDeadlines([]);
+      setTotalDeadlinesCount(0);
       setVatOutput6410(0);
       setVatInput4410(0);
       setLiveSocialTax(0);
@@ -57,10 +65,10 @@ export default function TaxPage() {
 
     setIsLoading(true);
     try {
-      const [tb, dbTaxRecords, dbDeadlines] = await Promise.all([
+      const [tb, dbTaxPage, dbDeadlinesPage] = await Promise.all([
         fetchTrialBalance(currentEntity.id),
-        fetchTaxRecords(currentEntity.id),
-        fetchTaxDeadlines(currentEntity.id),
+        fetchTaxRecordsPaginated(currentEntity.id, { page: taxPage, pageSize: PAGE_SIZE }),
+        fetchTaxDeadlinesPaginated(currentEntity.id, { page: deadlinesPage, pageSize: PAGE_SIZE }),
       ]);
 
       const row6410 = (tb || []).find((r: any) => r.account_code === "6410");
@@ -80,14 +88,21 @@ export default function TaxPage() {
         : 0;
       setLiveJshds(jshds);
 
-      setTaxRecords((dbTaxRecords || []) as TaxRecord[]);
-      setDeadlines(dbDeadlines || []);
+      setTaxRecords((dbTaxPage.data || []) as TaxRecord[]);
+      setTotalTaxCount(dbTaxPage.count);
+      setDeadlines(dbDeadlinesPage.data || []);
+      setTotalDeadlinesCount(dbDeadlinesPage.count);
     } catch (err) {
       console.error("Soliq ma'lumotlarini yuklashda xatolik:", err);
       toast.error("Soliq ma'lumotlarini bazadan yuklab boʻlmadi");
     } finally {
       setIsLoading(false);
     }
+  }, [currentEntity?.id, taxPage, deadlinesPage]);
+
+  useEffect(() => {
+    setTaxPage(1);
+    setDeadlinesPage(1);
   }, [currentEntity?.id]);
 
   useEffect(() => {
@@ -403,6 +418,17 @@ export default function TaxPage() {
               ))}
             </div>
           )}
+          {totalDeadlinesCount > PAGE_SIZE && (
+            <PaginationBar
+              page={deadlinesPage}
+              pageSize={PAGE_SIZE}
+              totalCount={totalDeadlinesCount}
+              isLoading={isLoading}
+              itemLabel="muddat"
+              className="mt-3 rounded-lg border border-border"
+              onPageChange={setDeadlinesPage}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -472,6 +498,14 @@ export default function TaxPage() {
               )}
             </TableBody>
           </Table>
+          <PaginationBar
+            page={taxPage}
+            pageSize={PAGE_SIZE}
+            totalCount={totalTaxCount}
+            isLoading={isLoading}
+            itemLabel="soliq"
+            onPageChange={setTaxPage}
+          />
         </CardContent>
       </Card>
 

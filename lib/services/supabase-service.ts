@@ -267,7 +267,7 @@ export async function fetchTransactionsPaginated(
     return { data: [], count: 0 };
   }
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(100, Math.max(1, options.pageSize || 25));
+  const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -299,6 +299,58 @@ export async function fetchTransactionsPaginated(
     data: (data || []).map(mapTransactionRow),
     count: count ?? 0,
   };
+}
+
+export async function fetchRecentTransactions(entityId: string, limit = 120) {
+  if (!isValidUuid(entityId)) return [];
+  try {
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("business_entity_id", entityId)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(Math.max(1, Math.min(250, limit)));
+
+    if (error) throw error;
+    return (data || []).map(mapTransactionRow);
+  } catch (err) {
+    console.error("fetchRecentTransactions error:", err);
+    return [];
+  }
+}
+
+export async function fetchTransactionCounts(entityId: string) {
+  if (!isValidUuid(entityId)) {
+    return { total: 0, posted: 0, pending: 0 };
+  }
+  try {
+    const [totalRes, postedRes, pendingRes] = await Promise.all([
+      supabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("business_entity_id", entityId),
+      supabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("business_entity_id", entityId)
+        .eq("status", "posted"),
+      supabase
+        .from("transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("business_entity_id", entityId)
+        .eq("status", "pending"),
+    ]);
+
+    return {
+      total: totalRes.count ?? 0,
+      posted: postedRes.count ?? 0,
+      pending: pendingRes.count ?? 0,
+    };
+  } catch (err) {
+    console.error("fetchTransactionCounts error:", err);
+    return { total: 0, posted: 0, pending: 0 };
+  }
 }
 
 export async function createTransaction(tx: {
@@ -543,7 +595,7 @@ export async function fetchDocumentsPaginated(
 ) {
   if (entityId && !isValidUuid(entityId)) return { data: [], count: 0 };
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(100, Math.max(1, options.pageSize || 25));
+  const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -1031,6 +1083,29 @@ export async function createEmployee(emp: {
 // ==========================================
 // 7. EXCEPTIONS (AI Auditor)
 // ==========================================
+function mapExceptionRow(exc: any) {
+  return {
+    id: exc.id,
+    entityId: exc.business_entity_id,
+    entityName: exc.entity_name || "Korxona",
+    severity: exc.severity || "warning",
+    status: exc.status || "open",
+    category: exc.category || "unmatched_payment",
+    title: exc.title,
+    description: exc.description,
+    date: exc.date,
+    amount: exc.amount ? Number(exc.amount) : undefined,
+    counterparty: exc.counterparty || exc.source_system || "Kontragent",
+    evidence: {
+      sourceSystem: exc.source_system || "Tizim",
+      referenceId: exc.reference_id || "ID-101",
+      details: exc.details || "Tafsilotlar",
+    },
+    aiSuggestion: exc.ai_suggestion || "Avtomatik tahlil tavsiyasi",
+    aiConfidence: Number(exc.ai_confidence || 95),
+  };
+}
+
 export async function fetchExceptions(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
@@ -1046,29 +1121,91 @@ export async function fetchExceptions(entityId?: string) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return (data || []).map((exc: any) => ({
-      id: exc.id,
-      entityId: exc.business_entity_id,
-      entityName: exc.entity_name || "Korxona",
-      severity: exc.severity || "warning",
-      status: exc.status || "open",
-      category: exc.category || "unmatched_payment",
-      title: exc.title,
-      description: exc.description,
-      date: exc.date,
-      amount: exc.amount ? Number(exc.amount) : undefined,
-      counterparty: exc.counterparty || exc.source_system || "Kontragent",
-      evidence: {
-        sourceSystem: exc.source_system || "Tizim",
-        referenceId: exc.reference_id || "ID-101",
-        details: exc.details || "Tafsilotlar",
-      },
-      aiSuggestion: exc.ai_suggestion || "Avtomatik tahlil tavsiyasi",
-      aiConfidence: Number(exc.ai_confidence || 95),
-    }));
+    return (data || []).map(mapExceptionRow);
   } catch (err) {
     console.error("fetchExceptions error:", err);
     return [];
+  }
+}
+
+export async function fetchExceptionsPaginated(
+  entityId: string | undefined,
+  options: {
+    page?: number;
+    pageSize?: number;
+    severity?: string;
+    search?: string;
+  } = {}
+) {
+  if (entityId && !isValidUuid(entityId)) {
+    return { data: [], count: 0 };
+  }
+  const page = Math.max(1, options.page || 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("exceptions")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false });
+
+  if (entityId) {
+    query = query.eq("business_entity_id", entityId);
+  }
+  if (options.severity && options.severity !== "all") {
+    query = query.eq("severity", options.severity);
+  }
+  if (options.search && options.search.trim()) {
+    const q = options.search.trim().replace(/[,%()]/g, "");
+    query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%,counterparty.ilike.%${q}%`);
+  }
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+
+  return {
+    data: (data || []).map(mapExceptionRow),
+    count: count ?? 0,
+  };
+}
+
+export async function fetchExceptionSummaryCounts(entityId: string) {
+  if (!isValidUuid(entityId)) {
+    return { open: 0, critical: 0, resolved: 0, total: 0 };
+  }
+  try {
+    const [openRes, critRes, resolvedRes, totalRes] = await Promise.all([
+      supabase
+        .from("exceptions")
+        .select("id", { count: "exact", head: true })
+        .eq("business_entity_id", entityId)
+        .in("status", ["open", "in_review"]),
+      supabase
+        .from("exceptions")
+        .select("id", { count: "exact", head: true })
+        .eq("business_entity_id", entityId)
+        .eq("severity", "critical")
+        .neq("status", "resolved"),
+      supabase
+        .from("exceptions")
+        .select("id", { count: "exact", head: true })
+        .eq("business_entity_id", entityId)
+        .eq("status", "resolved"),
+      supabase
+        .from("exceptions")
+        .select("id", { count: "exact", head: true })
+        .eq("business_entity_id", entityId),
+    ]);
+    return {
+      open: openRes.count ?? 0,
+      critical: critRes.count ?? 0,
+      resolved: resolvedRes.count ?? 0,
+      total: totalRes.count ?? 0,
+    };
+  } catch (err) {
+    console.error("fetchExceptionSummaryCounts error:", err);
+    return { open: 0, critical: 0, resolved: 0, total: 0 };
   }
 }
 
@@ -1374,7 +1511,7 @@ export async function fetchJournalEntriesPaginated(
 ) {
   if (entityId && !isValidUuid(entityId)) return { data: [], count: 0 };
   const page = Math.max(1, options.page || 1);
-  const pageSize = Math.min(100, Math.max(1, options.pageSize || 25));
+  const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -1508,6 +1645,19 @@ export async function fetchGeneralLedger(entityId: string, accountCode: string, 
 // ==========================================
 // 9B. TAX RECORDS & DEADLINES
 // ==========================================
+function mapTaxRecordRow(r: any) {
+  return {
+    id: r.id,
+    entityId: r.business_entity_id,
+    type: r.type,
+    period: r.period,
+    calculatedAmount: Number(r.calculated_amount || 0),
+    paidAmount: Number(r.paid_amount || 0),
+    deadline: r.deadline,
+    status: r.status,
+  };
+}
+
 export async function fetchTaxRecords(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
@@ -1523,20 +1673,39 @@ export async function fetchTaxRecords(entityId?: string) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return (data || []).map((r: any) => ({
-      id: r.id,
-      entityId: r.business_entity_id,
-      type: r.type,
-      period: r.period,
-      calculatedAmount: Number(r.calculated_amount || 0),
-      paidAmount: Number(r.paid_amount || 0),
-      deadline: r.deadline,
-      status: r.status,
-    }));
+    return (data || []).map(mapTaxRecordRow);
   } catch (err) {
     console.error("fetchTaxRecords error:", err);
     return [];
   }
+}
+
+export async function fetchTaxRecordsPaginated(
+  entityId: string | undefined,
+  options: { page?: number; pageSize?: number } = {}
+) {
+  if (entityId && !isValidUuid(entityId)) return { data: [], count: 0 };
+  const page = Math.max(1, options.page || 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("tax_records")
+    .select("*", { count: "exact" })
+    .order("deadline", { ascending: false });
+
+  if (entityId) {
+    query = query.eq("business_entity_id", entityId);
+  }
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+
+  return {
+    data: (data || []).map(mapTaxRecordRow),
+    count: count ?? 0,
+  };
 }
 
 export async function fetchTaxDeadlines(entityId?: string) {
@@ -1558,6 +1727,30 @@ export async function fetchTaxDeadlines(entityId?: string) {
     console.error("fetchTaxDeadlines error:", err);
     return [];
   }
+}
+
+export async function fetchTaxDeadlinesPaginated(
+  entityId: string | undefined,
+  options: { page?: number; pageSize?: number } = {}
+) {
+  if (entityId && !isValidUuid(entityId)) return { data: [], count: 0 };
+  const page = Math.max(1, options.page || 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("tax_deadlines")
+    .select("*", { count: "exact" })
+    .order("date", { ascending: true });
+
+  if (entityId) {
+    query = query.eq("business_entity_id", entityId);
+  }
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+  return { data: data || [], count: count ?? 0 };
 }
 
 export async function payTaxRecordInDb(taxRecordId: string, fullCalculatedAmount: number) {
@@ -1824,6 +2017,30 @@ export async function fetchAiActionLogs(entityId?: string) {
   }
 }
 
+export async function fetchAiActionLogsPaginated(
+  entityId: string | undefined,
+  options: { page?: number; pageSize?: number } = {}
+) {
+  if (entityId && !isValidUuid(entityId)) return { data: [], count: 0 };
+  const page = Math.max(1, options.page || 1);
+  const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("ai_action_logs")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false });
+
+  if (entityId) {
+    query = query.eq("business_entity_id", entityId);
+  }
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+  return { data: data || [], count: count ?? 0 };
+}
+
 // ==========================================
 // 10. PII-SAFE WORK BATCHES HISTORY
 // ==========================================
@@ -1844,6 +2061,28 @@ export interface WorkBatchRecord {
   createdAt: string;
 }
 
+const WORK_BATCH_META_COLUMNS =
+  "id,business_entity_id,batch_type,period_month,title,bank_file_name,onec_file_name,row_count,total_income,total_expense,status,summary_json,created_at";
+
+function mapWorkBatchRow(row: any): WorkBatchRecord {
+  return {
+    id: row.id,
+    businessEntityId: row.business_entity_id,
+    batchType: row.batch_type,
+    periodMonth: row.period_month,
+    title: row.title,
+    bankFileName: row.bank_file_name || undefined,
+    oneCFileName: row.onec_file_name || undefined,
+    rowCount: Number(row.row_count || 0),
+    totalIncome: Number(row.total_income || 0),
+    totalExpense: Number(row.total_expense || 0),
+    status: row.status === "posted_to_ledger" ? "posted_to_ledger" : "reviewed",
+    summaryJson: row.summary_json || {},
+    sanitizedPayload: row.sanitized_payload ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
 export async function fetchWorkBatches(params: {
   entityId: string;
   periodMonth?: string;
@@ -1854,10 +2093,10 @@ export async function fetchWorkBatches(params: {
   try {
     let query = supabase
       .from("work_batches")
-      .select("*")
+      .select(WORK_BATCH_META_COLUMNS)
       .eq("business_entity_id", params.entityId)
       .order("created_at", { ascending: false })
-      .limit(params.limit ?? 60);
+      .limit(params.limit ?? 10);
 
     if (params.periodMonth && /^\d{4}-\d{2}$/.test(params.periodMonth)) {
       query = query.eq("period_month", params.periodMonth);
@@ -1869,25 +2108,137 @@ export async function fetchWorkBatches(params: {
     const { data, error } = await query;
     if (error) throw error;
 
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      businessEntityId: row.business_entity_id,
-      batchType: row.batch_type,
-      periodMonth: row.period_month,
-      title: row.title,
-      bankFileName: row.bank_file_name || undefined,
-      oneCFileName: row.onec_file_name || undefined,
-      rowCount: Number(row.row_count || 0),
-      totalIncome: Number(row.total_income || 0),
-      totalExpense: Number(row.total_expense || 0),
-      status: row.status === "posted_to_ledger" ? "posted_to_ledger" : "reviewed",
-      summaryJson: row.summary_json || {},
-      sanitizedPayload: row.sanitized_payload || [],
-      createdAt: row.created_at,
-    }));
+    return (data || []).map(mapWorkBatchRow);
   } catch (err) {
     console.error("fetchWorkBatches error:", err);
     return [];
+  }
+}
+
+export async function fetchWorkBatchesPaginated(params: {
+  entityId: string;
+  periodMonth?: string;
+  batchType?: "reconcile" | "document_scan" | "contract_risk";
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ data: WorkBatchRecord[]; count: number }> {
+  if (!isValidUuid(params.entityId)) return { data: [], count: 0 };
+  const page = Math.max(1, params.page || 1);
+  const pageSize = Math.min(100, Math.max(1, params.pageSize || 10));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("work_batches")
+    .select(WORK_BATCH_META_COLUMNS, { count: "exact" })
+    .eq("business_entity_id", params.entityId)
+    .order("created_at", { ascending: false });
+
+  if (params.periodMonth && /^\d{4}-\d{2}$/.test(params.periodMonth)) {
+    query = query.eq("period_month", params.periodMonth);
+  }
+  if (params.batchType) {
+    query = query.eq("batch_type", params.batchType);
+  }
+  if (params.search && params.search.trim()) {
+    const q = params.search.trim().replace(/[,%()]/g, "");
+    query = query.or(`title.ilike.%${q}%,bank_file_name.ilike.%${q}%,onec_file_name.ilike.%${q}%`);
+  }
+
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+
+  return {
+    data: (data || []).map(mapWorkBatchRow),
+    count: count ?? 0,
+  };
+}
+
+export async function fetchWorkBatchMonths(
+  entityId: string,
+  batchType?: "reconcile" | "document_scan" | "contract_risk"
+): Promise<string[]> {
+  if (!isValidUuid(entityId)) return [];
+  try {
+    let query = supabase
+      .from("work_batches")
+      .select("period_month")
+      .eq("business_entity_id", entityId)
+      .order("period_month", { ascending: false })
+      .limit(200);
+
+    if (batchType) {
+      query = query.eq("batch_type", batchType);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const months = new Set<string>();
+    for (const r of data || []) {
+      if (r.period_month) months.add(r.period_month);
+    }
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  } catch (err) {
+    console.error("fetchWorkBatchMonths error:", err);
+    return [];
+  }
+}
+
+export async function fetchWorkBatchById(batchId: string): Promise<WorkBatchRecord | null> {
+  if (!isValidUuid(batchId)) return null;
+  const { data, error } = await supabase
+    .from("work_batches")
+    .select("*")
+    .eq("id", batchId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return mapWorkBatchRow(data);
+}
+
+export async function findDuplicateScanBatch(params: {
+  entityId: string;
+  date: string;
+  totalAmount: number;
+  documentNumber?: string;
+}): Promise<WorkBatchRecord | null> {
+  if (!isValidUuid(params.entityId) || params.totalAmount <= 0) return null;
+  try {
+    const periodMonth = /^\d{4}-\d{2}/.test(params.date) ? params.date.slice(0, 7) : undefined;
+    let query = supabase
+      .from("work_batches")
+      .select(WORK_BATCH_META_COLUMNS)
+      .eq("business_entity_id", params.entityId)
+      .eq("batch_type", "document_scan")
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (periodMonth) {
+      query = query.eq("period_month", periodMonth);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const targetAmount = Math.round(Number(params.totalAmount) * 100);
+    const docNum = (params.documentNumber || "").trim().toLowerCase();
+
+    for (const row of data || []) {
+      const s = row.summary_json || {};
+      const rowTotal = Math.round(Number(s.totalAmount || row.total_expense || row.total_income || 0) * 100);
+      const sameAmount = rowTotal === targetAmount;
+      const sameDate = !s.date || s.date === params.date;
+      const sameDocNum = docNum && s.documentNumber && String(s.documentNumber).trim().toLowerCase() === docNum;
+      if (sameAmount && (sameDate || sameDocNum)) {
+        return mapWorkBatchRow(row);
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error("findDuplicateScanBatch error:", err);
+    return null;
   }
 }
 

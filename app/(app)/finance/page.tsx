@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { fetchTrialBalance, fetchTransactions } from "@/lib/services/supabase-service";
+import { fetchTrialBalance, fetchRecentTransactions } from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ export default function FinancePage() {
 
     Promise.all([
       fetchTrialBalance(currentEntity.id),
-      fetchTransactions(currentEntity.id),
+      fetchRecentTransactions(currentEntity.id, 150),
     ]).then(([tb, tx]) => {
       if (!isMounted) return;
       setTrialBalance(tb || []);

@@ -5,28 +5,47 @@ import { useAppState } from "@/lib/context/app-state";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, X, Send, CheckCircle2, XCircle, Loader2, ShieldCheck } from "lucide-react";
+import { Sparkles, X, CheckCircle2, XCircle, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ChatImageInputBar } from "@/components/shared/chat-image-input-bar";
+import { ChatScanCard } from "@/components/shared/chat-scan-card";
+import {
+  AI_IMAGE_FORMAT_ERROR,
+  compressImageForAi,
+  isSupportedAiImageFile,
+  type CompressedImageResult,
+} from "@/lib/utils/image-compression";
+import {
+  postScannedDocToLedger,
+  scanCompressedImageAndSave,
+  type ScannedDocResult,
+} from "@/lib/services/doc-scan-client";
 
 interface ChatMessage {
   id: string;
   sender: "user" | "ai";
   text: string;
   time: string;
+  imagePreviewUrl?: string;
   toolCalls?: string[];
   mode?: string;
   modelUsed?: string;
   actionStatus?: "pending" | "approved" | "rejected";
   actionProposed?: AgentActionProposal;
+  scanResult?: ScannedDocResult;
+  scanBatchId?: string | null;
+  scanDuplicate?: boolean;
+  scanPosted?: boolean;
 }
 
 export function AiDrawer() {
   const { isAiDrawerOpen, setIsAiDrawerOpen, currentEntity } = useAppState();
   const { t } = useTranslation();
   const [input, setInput] = useState("");
+  const [attachedImage, setAttachedImage] = useState<CompressedImageResult | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [executingMsgId, setExecutingMsgId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -48,19 +67,37 @@ export function AiDrawer() {
       },
     ]);
     setInput("");
+    setAttachedImage(null);
   }, [currentEntity?.id, t.aiDrawer.greeting]);
 
   if (!isAiDrawerOpen) return null;
 
-  const sendMessageText = async (userText: string) => {
-    if (!userText.trim() || isSending) return;
+  const handleDropFile = async (file?: File | null) => {
+    setIsDraggingOver(false);
+    if (!file) return;
+    if (!isSupportedAiImageFile(file)) {
+      toast.error(AI_IMAGE_FORMAT_ERROR);
+      return;
+    }
+    try {
+      const compressed = await compressImageForAi(file);
+      setAttachedImage(compressed);
+    } catch (err: any) {
+      toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
+    }
+  };
+
+  const sendMessageText = async (userText: string, imgOverride?: CompressedImageResult | null) => {
+    const imgToSend = imgOverride !== undefined ? imgOverride : attachedImage;
+    if ((!userText.trim() && !imgToSend) || isSending) return;
     const nowStr = new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
 
     const newMsg: ChatMessage = {
       id: `m-u-${Date.now()}`,
       sender: "user",
-      text: userText,
+      text: userText.trim() || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
       time: nowStr,
+      imagePreviewUrl: imgToSend?.dataUrl,
     };
     const historySnapshot = messages
       .filter((m) => m.id !== "m-init" && m.text.trim().length > 0)
@@ -69,9 +106,39 @@ export function AiDrawer() {
 
     setMessages((prev) => [...prev, newMsg]);
     setInput("");
+    setAttachedImage(null);
     setIsSending(true);
 
     try {
+      if (imgToSend) {
+        const { scan, savedBatchId, isDuplicate } = await scanCompressedImageAndSave({
+          dataUrl: imgToSend.dataUrl,
+          mimeType: imgToSend.mimeType,
+          fileName: imgToSend.fileName,
+          userNote: userText.trim(),
+          entityId: currentEntity?.id,
+        });
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `m-a-${Date.now()}`,
+            sender: "ai",
+            text:
+              `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
+              (scan.provodkaExplanation || "21-BHMS boʻyicha provodka tayyorlandi."),
+            time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
+            mode: scan.mode,
+            modelUsed: scan.modelUsed,
+            scanResult: scan,
+            scanBatchId: savedBatchId,
+            scanDuplicate: isDuplicate,
+            scanPosted: false,
+          },
+        ]);
+        return;
+      }
+
       const res = await fetch("/api/ai-copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,6 +179,26 @@ export function AiDrawer() {
       ]);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handlePostScanMessage = async (msg: ChatMessage, editedScan: ScannedDocResult) => {
+    if (!currentEntity?.id) {
+      toast.error("Bosh kitobga yozish uchun avval korxona tanlang");
+      return;
+    }
+    try {
+      await postScannedDocToLedger({
+        entityId: currentEntity.id,
+        scan: editedScan,
+        batchId: msg.scanBatchId,
+      });
+      setMessages((prev) =>
+        prev.map((m) => (m.id === msg.id ? { ...m, scanPosted: true, scanResult: editedScan } : m))
+      );
+      toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
+    } catch (err: any) {
+      toast.error("Bosh kitobga yozishda xatolik: " + err.message);
     }
   };
 
@@ -163,7 +250,24 @@ export function AiDrawer() {
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col border-l border-border bg-card shadow-2xl duration-200 animate-in slide-in-from-right">
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setIsDraggingOver(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        setIsDraggingOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        handleDropFile(e.dataTransfer?.files?.[0]);
+      }}
+      className={cn(
+        "fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col border-l bg-card shadow-2xl duration-200 animate-in slide-in-from-right",
+        isDraggingOver ? "border-indigo-500 ring-2 ring-indigo-500/40" : "border-border"
+      )}
+    >
       {/* Header */}
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2">
@@ -204,7 +308,7 @@ export function AiDrawer() {
             t.aiDrawer.prompts.exceptions,
             t.aiDrawer.prompts.bank,
             t.aiDrawer.prompts.tax,
-            "Oborot-saldovaya vedomostni koʻrsat",
+            "Yuklangan fayllar va tarix hisoboti",
           ].map((prompt, i) => (
             <button
               key={i}
@@ -236,7 +340,25 @@ export function AiDrawer() {
                   : "bg-muted/70 border border-border text-foreground"
               )}
             >
+              {msg.imagePreviewUrl && (
+                <img
+                  src={msg.imagePreviewUrl}
+                  alt="Yuborilgan chek"
+                  className="mb-2 max-h-40 rounded-lg border border-white/20 object-contain"
+                />
+              )}
               <p>{msg.text}</p>
+
+              {/* Chat OCR Scan Result Card */}
+              {msg.scanResult && (
+                <ChatScanCard
+                  scan={msg.scanResult}
+                  isDuplicate={msg.scanDuplicate}
+                  posted={msg.scanPosted}
+                  canPost={Boolean(currentEntity?.id)}
+                  onPostToLedger={(edited) => handlePostScanMessage(msg, edited)}
+                />
+              )}
 
               {/* Verified Mode & Tool Calls */}
               {msg.toolCalls && msg.toolCalls.length > 0 && (
@@ -363,24 +485,16 @@ export function AiDrawer() {
 
       {/* Input area */}
       <div className="border-t border-border p-3 bg-card">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendMessageText(input);
-          }}
-          className="flex items-center gap-2"
-        >
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={t.aiDrawer.inputPlaceholder}
-            className="text-xs h-9"
-            disabled={isSending}
-          />
-          <Button type="submit" size="sm" className="h-9 px-3 shrink-0" disabled={isSending}>
-            {isSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-          </Button>
-        </form>
+        <ChatImageInputBar
+          value={input}
+          onChange={setInput}
+          attachedImage={attachedImage}
+          onAttachImage={setAttachedImage}
+          isSending={isSending}
+          compact
+          placeholder="Savol yozing, Ctrl+V yoki skrepka (faqat rasm)..."
+          onSubmit={() => sendMessageText(input)}
+        />
       </div>
     </div>
   );

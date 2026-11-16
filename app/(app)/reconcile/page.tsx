@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Money } from "@/components/shared/money";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
+import { PaginationBar } from "@/components/shared/pagination-bar";
 import {
   RECONCILE_ACCOUNT_OPTIONS,
   parseStatementFile,
@@ -34,8 +35,10 @@ import {
 import type { ParsedBankTransaction } from "@/lib/services/bank-import";
 import { generate1CClientBankText, generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
 import {
-  fetchTransactions,
-  fetchWorkBatches,
+  fetchRecentTransactions,
+  fetchWorkBatchesPaginated,
+  fetchWorkBatchMonths,
+  fetchWorkBatchById,
   saveWorkBatch,
   markWorkBatchPosted,
   deleteWorkBatch,
@@ -97,11 +100,20 @@ export default function ReconcilePage() {
   const [aiModeNote, setAiModeNote] = useState<string | null>(null);
   const [isPostingLedger, setIsPostingLedger] = useState(false);
 
-  // Saved batch history state
+  // Saved batch history state (10 per page from DB, lightweight metadata)
+  const historyCardRef = useRef<HTMLDivElement | null>(null);
   const [savedBatches, setSavedBatches] = useState<WorkBatchRecord[]>([]);
+  const [savedBatchesCount, setSavedBatchesCount] = useState(0);
+  const [historyMonths, setHistoryMonths] = useState<string[]>([]);
   const [historyMonth, setHistoryMonth] = useState<string>("all");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [isSavingBatch, setIsSavingBatch] = useState(false);
+  const [openingBatchId, setOpeningBatchId] = useState<string | null>(null);
+  const [rowsPage, setRowsPage] = useState(1);
+  const HISTORY_PAGE_SIZE = 10;
+  const ROWS_PAGE_SIZE = 10;
 
   // Paste dialog state
   const [pasteTarget, setPasteTarget] = useState<"bank" | "onec" | null>(null);
@@ -110,18 +122,76 @@ export default function ReconcilePage() {
   const loadHistory = useCallback(async () => {
     if (!currentEntity?.id) {
       setSavedBatches([]);
+      setSavedBatchesCount(0);
+      setHistoryMonths([]);
       return;
     }
-    const items = await fetchWorkBatches({
-      entityId: currentEntity.id,
-      batchType: "reconcile",
-    });
-    setSavedBatches(items);
+    setIsLoadingHistory(true);
+    try {
+      const [{ data, count }, months] = await Promise.all([
+        fetchWorkBatchesPaginated({
+          entityId: currentEntity.id,
+          batchType: "reconcile",
+          periodMonth: historyMonth === "all" ? undefined : historyMonth,
+          page: historyPage,
+          pageSize: HISTORY_PAGE_SIZE,
+        }),
+        fetchWorkBatchMonths(currentEntity.id, "reconcile"),
+      ]);
+      setSavedBatches(data);
+      setSavedBatchesCount(count);
+      setHistoryMonths(months);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [currentEntity?.id, historyMonth, historyPage]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+    setHistoryMonth("all");
   }, [currentEntity?.id]);
 
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  const handleOpenBatch = useCallback(async (batch: WorkBatchRecord | string) => {
+    const id = typeof batch === "string" ? batch : batch.id;
+    setOpeningBatchId(id);
+    try {
+      const full = await fetchWorkBatchById(id);
+      if (!full) {
+        toast.error("Saqlangan ish topilmadi");
+        return;
+      }
+      const loadedRows = Array.isArray(full.sanitizedPayload)
+        ? (full.sanitizedPayload as ReconcileRow[])
+        : [];
+      setRows(loadedRows);
+      setRowsPage(1);
+      setSummary((full.summaryJson || null) as ReconcileSummary | null);
+      setBankFileName(full.bankFileName || "");
+      setOneCFileName(full.oneCFileName || "");
+      setSelectedIds(loadedRows.filter((r) => r.status === "bank_only").map((r) => r.id));
+      setActiveBatchId(full.id);
+      setActiveTab("all");
+      setAiModeNote(null);
+      toast.success(`«${full.title}» yuklandi`);
+    } catch (err: any) {
+      toast.error("Yuklashda xatolik: " + err.message);
+    } finally {
+      setOpeningBatchId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const batchIdParam = new URLSearchParams(window.location.search).get("batchId");
+      if (batchIdParam && currentEntity?.id) {
+        handleOpenBatch(batchIdParam);
+      }
+    } catch {}
+  }, [currentEntity?.id, handleOpenBatch]);
 
   const runComparison = (nextBank: ParsedBankTransaction[], nextOneC: ParsedBankTransaction[]) => {
     if (nextBank.length === 0 && nextOneC.length === 0) {
@@ -194,7 +264,7 @@ export default function ReconcilePage() {
       return;
     }
     try {
-      const txs = await fetchTransactions(currentEntity.id);
+      const txs = await fetchRecentTransactions(currentEntity.id, 200);
       const mapped: ParsedBankTransaction[] = (txs || []).map((t: any) => ({
         date: t.date,
         amount: Number(t.amount),
@@ -269,19 +339,6 @@ export default function ReconcilePage() {
     } finally {
       setIsSavingBatch(false);
     }
-  };
-
-  const handleOpenBatch = (batch: WorkBatchRecord) => {
-    const loadedRows = Array.isArray(batch.sanitizedPayload) ? (batch.sanitizedPayload as ReconcileRow[]) : [];
-    setRows(loadedRows);
-    setSummary((batch.summaryJson || null) as ReconcileSummary | null);
-    setBankFileName(batch.bankFileName || "");
-    setOneCFileName(batch.oneCFileName || "");
-    setSelectedIds(loadedRows.filter((r) => r.status === "bank_only").map((r) => r.id));
-    setActiveBatchId(batch.id);
-    setActiveTab("all");
-    setAiModeNote(null);
-    toast.success(`«${batch.title}» yuklandi`);
   };
 
   const handleDeleteBatch = async (batchId: string) => {
@@ -515,6 +572,15 @@ export default function ReconcilePage() {
     });
   }, [rows, activeTab, searchQuery]);
 
+  useEffect(() => {
+    setRowsPage(1);
+  }, [activeTab, searchQuery]);
+
+  const paginatedRows = useMemo(() => {
+    const start = (rowsPage - 1) * ROWS_PAGE_SIZE;
+    return filteredRows.slice(start, start + ROWS_PAGE_SIZE);
+  }, [filteredRows, rowsPage]);
+
   const selectableFilteredIds = useMemo(
     () => filteredRows.filter((r) => r.bankAmount > 0).map((r) => r.id),
     [filteredRows]
@@ -537,6 +603,18 @@ export default function ReconcilePage() {
           </h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {currentEntity?.id && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs h-8 gap-1.5"
+              onClick={() => historyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              <History className="h-3.5 w-3.5" />
+              Saqlangan tarix ({savedBatchesCount})
+            </Button>
+          )}
           {rows.length > 0 && (
             <Button variant="ghost" size="sm" className="text-xs h-8 gap-1.5" onClick={handleReset}>
               <RotateCcw className="h-3.5 w-3.5" />
@@ -857,14 +935,14 @@ export default function ReconcilePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRows.length === 0 ? (
+                  {paginatedRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center py-8 text-xs text-muted-foreground">
                         Ushbu filtr boʻyicha yozuvlar topilmadi.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRows.map((row) => (
+                    paginatedRows.map((row) => (
                       <TableRow key={row.id} className="text-xs">
                         <TableCell>
                           <Checkbox
@@ -942,42 +1020,54 @@ export default function ReconcilePage() {
                   )}
                 </TableBody>
               </Table>
+              <PaginationBar
+                page={rowsPage}
+                pageSize={ROWS_PAGE_SIZE}
+                totalCount={filteredRows.length}
+                itemLabel="qator"
+                onPageChange={setRowsPage}
+              />
             </CardContent>
           </Card>
         </>
       )}
 
-      {/* Saved Batch History organized by Month */}
+      {/* Saved Batch History organized by Month (10 per page from DB) */}
       {currentEntity?.id && (
+        <div ref={historyCardRef} id="reconcile-history">
         <Card>
           <CardHeader className="pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-muted-foreground" />
               <CardTitle className="text-sm font-semibold">
-                Saqlangan ishlar tarixi ({savedBatches.length})
+                Saqlangan ishlar tarixi ({savedBatchesCount})
               </CardTitle>
             </div>
-            {savedBatches.length > 0 && (
+            {historyMonths.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <Button
                   type="button"
                   size="sm"
                   variant={historyMonth === "all" ? "default" : "outline"}
                   className="h-6 text-[11px] px-2"
-                  onClick={() => setHistoryMonth("all")}
+                  onClick={() => {
+                    setHistoryMonth("all");
+                    setHistoryPage(1);
+                  }}
                 >
                   Barchasi
                 </Button>
-                {Array.from(new Set(savedBatches.map((b) => b.periodMonth)))
-                  .sort((a, b) => b.localeCompare(a))
-                  .map((m) => (
+                {historyMonths.map((m) => (
                     <Button
                       key={m}
                       type="button"
                       size="sm"
                       variant={historyMonth === m ? "default" : "outline"}
                       className="h-6 text-[11px] px-2 font-mono"
-                      onClick={() => setHistoryMonth(m)}
+                      onClick={() => {
+                        setHistoryMonth(m);
+                        setHistoryPage(1);
+                      }}
                     >
                       {m}
                     </Button>
@@ -986,7 +1076,12 @@ export default function ReconcilePage() {
             )}
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
-            {savedBatches.length === 0 ? (
+            {isLoadingHistory ? (
+              <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                Tarix yuklanmoqda...
+              </div>
+            ) : savedBatches.length === 0 ? (
               <div className="py-6 text-center text-xs text-muted-foreground">
                 Saqlangan solishtirishlar yoʻq
               </div>
@@ -1004,9 +1099,7 @@ export default function ReconcilePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {savedBatches
-                    .filter((b) => historyMonth === "all" || b.periodMonth === historyMonth)
-                    .map((b) => (
+                  {savedBatches.map((b) => (
                       <TableRow key={b.id} className="text-xs">
                         <TableCell className="font-mono text-[11px] whitespace-nowrap">{b.periodMonth}</TableCell>
                         <TableCell className="font-medium max-w-[260px] truncate">{b.title}</TableCell>
@@ -1031,9 +1124,14 @@ export default function ReconcilePage() {
                               size="sm"
                               variant="outline"
                               className="h-7 text-[11px] gap-1 px-2"
+                              disabled={openingBatchId === b.id}
                               onClick={() => handleOpenBatch(b)}
                             >
-                              <FolderOpen className="h-3 w-3" />
+                              {openingBatchId === b.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <FolderOpen className="h-3 w-3" />
+                              )}
                               Ochish
                             </Button>
                             <Button
@@ -1053,8 +1151,17 @@ export default function ReconcilePage() {
                 </TableBody>
               </Table>
             )}
+            <PaginationBar
+              page={historyPage}
+              pageSize={HISTORY_PAGE_SIZE}
+              totalCount={savedBatchesCount}
+              isLoading={isLoadingHistory}
+              itemLabel="ish"
+              onPageChange={setHistoryPage}
+            />
           </CardContent>
         </Card>
+        </div>
       )}
 
       {/* Clipboard Paste Dialog */}

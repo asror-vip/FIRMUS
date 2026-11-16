@@ -11,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  fetchTransactions,
-  fetchExceptions,
+  fetchRecentTransactions,
+  fetchTransactionCounts,
+  fetchExceptionsPaginated,
+  fetchExceptionSummaryCounts,
   fetchTrialBalance,
 } from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/context/app-state";
@@ -27,6 +29,7 @@ import {
   Scale,
   Camera,
   Calculator,
+  History,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -44,26 +47,34 @@ export default function DashboardPage() {
   const { t } = useTranslation();
 
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [exceptions, setExceptions] = useState<any[]>([]);
+  const [recentExceptions, setRecentExceptions] = useState<any[]>([]);
+  const [txCounts, setTxCounts] = useState({ total: 0, posted: 0, pending: 0 });
+  const [excCounts, setExcCounts] = useState({ open: 0, critical: 0, resolved: 0, total: 0 });
   const [vatNetPayable, setVatNetPayable] = useState<number>(0);
 
   useEffect(() => {
     let isMounted = true;
     if (!currentEntity?.id) {
       setTransactions([]);
-      setExceptions([]);
+      setRecentExceptions([]);
+      setTxCounts({ total: 0, posted: 0, pending: 0 });
+      setExcCounts({ open: 0, critical: 0, resolved: 0, total: 0 });
       setVatNetPayable(0);
       return;
     }
 
     Promise.all([
-      fetchTransactions(currentEntity.id),
-      fetchExceptions(currentEntity.id),
+      fetchRecentTransactions(currentEntity.id, 100),
+      fetchTransactionCounts(currentEntity.id),
+      fetchExceptionsPaginated(currentEntity.id, { page: 1, pageSize: 5 }),
+      fetchExceptionSummaryCounts(currentEntity.id),
       fetchTrialBalance(currentEntity.id),
-    ]).then(([txs, excs, tb]) => {
+    ]).then(([txs, countsTx, excsPage, countsExc, tb]) => {
       if (!isMounted) return;
       setTransactions(txs || []);
-      setExceptions(excs || []);
+      setTxCounts(countsTx);
+      setRecentExceptions(excsPage?.data || []);
+      setExcCounts(countsExc);
 
       const row6410 = (tb || []).find((r: any) => r.account_code === "6410");
       const row4410 = (tb || []).find((r: any) => r.account_code === "4410");
@@ -78,13 +89,12 @@ export default function DashboardPage() {
   }, [currentEntity?.id]);
 
   const pendingApprovals = transactions.filter((tx) => tx.status === "pending").slice(0, 5);
-  const totalPendingCount = transactions.filter((tx) => tx.status === "pending").length;
-  const postedCount = transactions.filter((tx) => tx.status === "posted").length;
+  const totalPendingCount = txCounts.pending;
+  const postedCount = txCounts.posted;
   const automatedRate =
-    transactions.length > 0 ? ((postedCount / transactions.length) * 100).toFixed(1) : "100.0";
+    txCounts.total > 0 ? ((postedCount / txCounts.total) * 100).toFixed(1) : "100.0";
 
-  const openExceptions = exceptions.filter((e) => e.status === "open" || e.status === "in_review");
-  const recentExceptions = exceptions.slice(0, 5);
+  const openExceptionsCount = excCounts.open;
 
   // Build real cashflow chart series grouped by date
   const cashFlowMap = new Map<string, { date: string; income: number; expense: number }>();
@@ -117,6 +127,15 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push("/assistant?tab=history")}
+            className="text-xs h-8 gap-1.5"
+          >
+            <History className="h-3.5 w-3.5" />
+            Saqlangan tarix
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -196,7 +215,7 @@ export default function DashboardPage() {
         <KpiCard
           title={t.dashboard.kpiAutomated}
           value={`${automatedRate}%`}
-          subtitle={`${postedCount} / ${transactions.length} ta operatsiya oʻtkazilgan`}
+          subtitle={`${postedCount} / ${txCounts.total} ta operatsiya oʻtkazilgan`}
           icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
           onClick={() => router.push("/accounting")}
         />
@@ -212,9 +231,9 @@ export default function DashboardPage() {
 
         <KpiCard
           title={t.dashboard.kpiExceptions}
-          value={String(openExceptions.length)}
+          value={String(openExceptionsCount)}
           subtitle={t.dashboard.kpiExceptionsSub}
-          badge={<StatusPill status="exception" label={String(openExceptions.length)} />}
+          badge={<StatusPill status="exception" label={String(openExceptionsCount)} />}
           icon={<ShieldAlert className="h-4 w-4 text-rose-500" />}
           onClick={() => router.push("/ai-auditor")}
         />
@@ -517,7 +536,7 @@ export default function DashboardPage() {
             <p className="text-xs text-foreground mt-0.5 leading-relaxed max-w-3xl">
               «{currentEntity?.name}» korxonasining Bosh kitobiga (6410–4410 schyotlar) koʻra joriy sof QQS majburiyati{" "}
               <strong>{new Intl.NumberFormat("uz-UZ").format(Math.round(vatNetPayable))} {t.common.currency}</strong> va ochiq istisnolar{" "}
-              <strong>{openExceptions.length} ta</strong>ni tashkil etmoqda.
+              <strong>{openExceptionsCount} ta</strong>ni tashkil etmoqda.
             </p>
           </div>
         </div>

@@ -6,6 +6,8 @@ import { roundMoney } from "@/lib/utils/finance";
 
 const scanRequestSchema = z.object({
   mode: z.enum(["invoice_receipt", "contract_risk"]).default("invoice_receipt"),
+  chatImageOnly: z.boolean().optional(),
+  userNote: z.string().max(400).optional(),
   fileName: z.string().max(180).optional(),
   mimeType: z
     .enum(["image/jpeg", "image/png", "image/webp", "application/pdf"])
@@ -101,7 +103,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { mode, fileName, mimeType, base64Data, docText } = parsed.data;
+    const { mode, chatImageOnly, userNote, fileName, mimeType, base64Data, docText } = parsed.data;
+    if (chatImageOnly && (!mimeType || mimeType === "application/pdf" || !base64Data)) {
+      return NextResponse.json(
+        { error: "Rasm formati toʻgʻri emas. Faqat PNG, JPG yoki WEBP rasm yuklang." },
+        { status: 400 }
+      );
+    }
+
     const hasBinary = Boolean(mimeType && base64Data && base64Data.length > 20);
     const hasText = Boolean(docText && docText.trim().length > 5);
 
@@ -113,6 +122,7 @@ export async function POST(req: NextRequest) {
     }
 
     const safeDocText = docText ? depersonalizeForAi(docText).slice(0, 20_000) : "";
+    const safeUserNote = userNote ? depersonalizeForAi(userNote).slice(0, 350) : "";
     const apiKey = process.env.GEMINI_API_KEY?.trim();
 
     if (apiKey) {
@@ -148,6 +158,7 @@ export async function POST(req: NextRequest) {
           risks: ["Shartnoma yoki faktura bo'yicha aniqlangan xatarlar (yo'q bo'lsa bo'sh massiv)"],
         }),
         fileName ? `Fayl nomi: ${sanitizeStringForAi(fileName)}` : "",
+        safeUserNote ? `Foydalanuvchi izohi/soʻrovi: ${safeUserNote}` : "",
         safeDocText ? `MATN:\n${safeDocText}` : "",
       ]
         .filter(Boolean)

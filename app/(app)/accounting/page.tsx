@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
+import { PaginationBar } from "@/components/shared/pagination-bar";
 import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet, FileCode, RotateCcw, AlertTriangle, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -39,7 +40,9 @@ export default function AccountingPage() {
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [totalJournalCount, setTotalJournalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 25;
+  const [coaPage, setCoaPage] = useState(1);
+  const [glPage, setGlPage] = useState(1);
+  const pageSize = 10;
   const [isLoadingEntries, setIsLoadingEntries] = useState(true);
   const [ledgerVersion, setLedgerVersion] = useState(0);
 
@@ -108,8 +111,18 @@ export default function AccountingPage() {
   useEffect(() => {
     setSelectedEntry(null);
     setCurrentPage(1);
+    setCoaPage(1);
+    setGlPage(1);
     loadAccounts();
   }, [currentEntity?.id, loadAccounts]);
+
+  useEffect(() => {
+    setCoaPage(1);
+  }, [coaSearch]);
+
+  useEffect(() => {
+    setGlPage(1);
+  }, [selectedLedgerAccount]);
 
   useEffect(() => {
     loadJournalEntries();
@@ -493,7 +506,9 @@ export default function AccountingPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCoa.map((acc) => {
+                  filteredCoa
+                    .slice((coaPage - 1) * pageSize, coaPage * pageSize)
+                    .map((acc) => {
                     const tbRow = trialBalanceData.find((r) => r.account_code === acc.code);
                     const liveBalance = tbRow
                       ? Number(tbRow.closing_debit || 0) > 0
@@ -525,6 +540,13 @@ export default function AccountingPage() {
                 )}
               </TableBody>
             </Table>
+            <PaginationBar
+              page={coaPage}
+              pageSize={pageSize}
+              totalCount={filteredCoa.length}
+              itemLabel="schyot"
+              onPageChange={setCoaPage}
+            />
           </div>
         </TabsContent>
 
@@ -800,7 +822,9 @@ export default function AccountingPage() {
               </TableHeader>
               <TableBody>
                 {generalLedgerData.length > 0 ? (
-                  generalLedgerData.map((row, idx) => (
+                  generalLedgerData
+                    .slice((glPage - 1) * pageSize, glPage * pageSize)
+                    .map((row, idx) => (
                     <TableRow key={row.entry_id || idx}>
                       <TableCell className="font-mono text-xs">{row.entry_date}</TableCell>
                       <TableCell className="font-mono text-xs text-primary font-medium">{row.entry_number}</TableCell>
@@ -826,6 +850,13 @@ export default function AccountingPage() {
                 )}
               </TableBody>
             </Table>
+            <PaginationBar
+              page={glPage}
+              pageSize={pageSize}
+              totalCount={generalLedgerData.length}
+              itemLabel="harakat"
+              onPageChange={setGlPage}
+            />
           </div>
         </TabsContent>
       </Tabs>
