@@ -91,13 +91,7 @@ export default function AssistantPage() {
   const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [executingId, setExecutingId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatTurn[]>([
-    {
-      id: "welcome",
-      sender: "ai",
-      text: "Xush kelibsiz. Savol yozing yoki rasm yuklang.",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatTurn[]>([]);
 
   // 2. Document / Invoice Vision Scanner state (paginated 10 per page from DB)
   const scanFileRef = useRef<HTMLInputElement | null>(null);
@@ -675,8 +669,15 @@ export default function AssistantPage() {
             className={isDraggingOverChat ? "border-indigo-500 ring-2 ring-indigo-500/30" : undefined}
           >
             <CardContent className="pt-4 space-y-3 flex flex-col justify-between min-h-[380px]">
-              <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
-                {messages.map((m) => (
+              <div className="flex-1 flex flex-col space-y-3 max-h-[440px] overflow-y-auto pr-1">
+                {messages.length === 0 && !isSending ? (
+                  <div className="flex-1 flex items-center justify-center py-16 px-4 text-center">
+                    <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
+                      Xush kelibsiz. Nima yordam bera olaman?
+                    </h2>
+                  </div>
+                ) : (
+                  messages.map((m) => (
                   <div
                     key={m.id}
                     className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}
@@ -743,8 +744,8 @@ export default function AssistantPage() {
                       <span className="text-[10px] text-muted-foreground mt-1 px-1">{m.modelUsed}</span>
                     )}
                   </div>
-                ))}
-                {isSending && (
+                )))}
+                {messages.length > 0 && isSending && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground px-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     AI oʻylamoqda...

@@ -136,7 +136,7 @@ export const uzTranslations: Translations = {
   aiDrawer: {
     title: "FIRMUS Copilot",
     online: "Onlayn yordamchi",
-    greeting: "Xush kelibsiz. Savol yozing yoki rasm yuklang.",
+    greeting: "Xush kelibsiz. Nima yordam bera olaman?",
     suggestedTitle: "Tezkor amallar:",
     prompts: {
       exceptions: "Bugungi istisnolarni ko‘rsat",

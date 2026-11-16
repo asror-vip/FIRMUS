@@ -136,7 +136,7 @@ export const ruTranslations: Translations = {
   aiDrawer: {
     title: "FIRMUS Copilot",
     online: "Онлайн помощник",
-    greeting: "Добро пожаловать. Задайте вопрос или загрузите фото.",
+    greeting: "Добро пожаловать. Чем я могу помочь?",
     suggestedTitle: "Быстрые команды:",
     prompts: {
       exceptions: "Показать текущие исключения",

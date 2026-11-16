@@ -136,7 +136,7 @@ export const enTranslations: Translations = {
   aiDrawer: {
     title: "FIRMUS Copilot",
     online: "Online Assistant",
-    greeting: "Welcome. Ask a question or attach an image.",
+    greeting: "Welcome. How can I help you?",
     suggestedTitle: "Quick Actions:",
     prompts: {
       exceptions: "Show today's exceptions",

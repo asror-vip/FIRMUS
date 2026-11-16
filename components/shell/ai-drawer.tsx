@@ -48,27 +48,13 @@ export function AiDrawer() {
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [executingMsgId, setExecutingMsgId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "m-init",
-      sender: "ai",
-      text: t.aiDrawer.greeting,
-      time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
-    setMessages([
-      {
-        id: "m-init",
-        sender: "ai",
-        text: t.aiDrawer.greeting,
-        time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
-      },
-    ]);
+    setMessages([]);
     setInput("");
     setAttachedImage(null);
-  }, [currentEntity?.id, t.aiDrawer.greeting]);
+  }, [currentEntity?.id]);
 
   if (!isAiDrawerOpen) return null;
 
@@ -296,8 +282,15 @@ export function AiDrawer() {
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-        {messages.map((msg) => (
+      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4 text-xs">
+        {messages.length === 0 && !isSending ? (
+          <div className="flex-1 flex items-center justify-center px-4 text-center">
+            <h3 className="text-lg font-semibold tracking-tight text-foreground">
+              {t.aiDrawer.greeting}
+            </h3>
+          </div>
+        ) : (
+          messages.map((msg) => (
           <div
             key={msg.id}
             className={cn(
@@ -446,7 +439,7 @@ export function AiDrawer() {
               {msg.time}
             </span>
           </div>
-        ))}
+        )))}
 
         {isSending && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
