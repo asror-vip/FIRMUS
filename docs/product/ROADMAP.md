@@ -1,122 +1,75 @@
-# AUVRIO — Implementation Roadmap
+# FIRMUS — Implementation Roadmap (Next.js + Supabase Edition)
 
-This roadmap structures the delivery of AUVRIO into disciplined, verifiable phases. Work advances only when the prerequisites and verification tests of the preceding phase are validated.
+> **Architecture Note**: The project consolidated from an early Go microservice draft into a unified **Next.js App Router (TypeScript) + Supabase PostgreSQL (RLS & PL/pgSQL RPCs) + Gemini AI Function Calling** platform for faster iteration, unified Zod contracts, and single-deployment simplicity.
 
 ```mermaid
 flowchart LR
-    P0["Phase 0: Discovery & Architecture"] --> P1["Phase 1: Platform Foundation"]
-    P1 --> P2["Phase 2: Business Workspace"]
-    P2 --> P3["Phase 3: Integration Framework"]
-    P3 --> P4["Phase 4: Accounting Engine"]
-    P4 --> P5["Phase 5: AI Orchestration (GPT-6 Luna)"]
-    P5 --> P6["Phase 6: Live 1C & Didox Integrations"]
-    P6 --> P7["Phase 7: Tax & Financial Statements"]
-    P7 --> P8["Phase 8: Billing, Security Audit & Launch"]
+    P0["Phase 0: Architecture [DONE]"] --> P1["Phase 1: Security & RLS [DONE]"]
+    P1 --> P2["Phase 2: Workspace & Entities [DONE]"]
+    P2 --> P3["Phase 3: Ingestion & 1C/Bank [DONE]"]
+    P3 --> P4["Phase 4: Atomic Ledger [DONE]"]
+    P4 --> P5["Phase 5: Gemini AI Agent [DONE]"]
+    P5 --> P6["Phase 6: E-IMZO & Documents [READY / SANDBOX]"]
+    P6 --> P7["Phase 7: Tax, Closing & Reports [DONE]"]
+    P7 --> P8["Phase 8: SMS OTP, CI & Hardening [LIVE LOCAL / PRE-PROD]"]
 ```
 
 ---
 
-## Phase 0: Discovery, System Architecture & Design
+## Phase 0: Discovery, System Architecture & Design — [DONE]
 - **Deliverables**:
   - `PROJECT_BRIEF.md`, `ARCHITECTURE.md`, `DATABASE_DESIGN.md`, `SECURITY.md`, `ROADMAP.md`
   - Architectural Decision Records (`ADR-0001` to `ADR-0004`)
-  - Initial repository layout and environment definitions
-- **Verification Criteria**:
-  - Architecture blueprint approved by project stakeholders
-  - Tech stack strictly adheres to constraints (Go Modular Monolith, Next.js, Supabase, `gpt-6-luna`)
+  - Next.js App Router + TypeScript + Tailwind CSS + shadcn/ui + Supabase baseline
 
----
-
-## Phase 1: Platform Foundation & Core Multi-Tenancy
+## Phase 1: Security Foundation & Multi-Tenancy — [DONE]
 - **Deliverables**:
-  - Supabase database initialization with migrations for `workspaces`, `workspace_members`, `business_entities`, `entity_assignments`.
-  - Go API service baseline with Chi router, health check, structured logging (`log/slog`), and JWT auth middleware.
-  - Next.js Web App baseline with Tailwind CSS, shadcn/ui, TanStack Query, and Auth flow (Sign Up, Sign In).
-- **Verification Criteria**:
-  - User can register, create an individual company workspace or an accounting firm workspace.
-  - Adding members and assigning roles enforces backend permission boundaries.
-  - Automated tests pass for tenant isolation (users cannot access foreign workspace data).
+  - Supabase migrations for `workspaces`, `team_members`, `business_entities` with strict RLS helper functions (`get_auth_user_workspaces`, `get_auth_user_entities`, `get_auth_user_role`).
+  - Email/Password Auth, Google OAuth PKCE callback with open-redirect guard, and Eskiz.uz SMS OTP phone verification.
+  - Automated RLS isolation test suite (`scripts/test-security-rls.mjs`).
 
----
-
-## Phase 2: Business Workspace & Entity Management
+## Phase 2: Business Workspace & Entity Management — [DONE]
 - **Deliverables**:
-  - Multi-company switcher UI for accounting practices.
-  - Business entity configuration: Legal name, STIR (TIN), tax regime selection (`turnover_tax`, `vat_profit_tax`), currency.
-  - Audit logging middleware and event capture.
-- **Verification Criteria**:
-  - Accounting firm accountant can view only assigned client companies.
-  - Switcher updates global entity context without page reloads.
+  - Multi-company switcher & workspace creation (`create_workspace_with_owner`).
+  - Entity configuration: Legal name, STIR, tax regime (`turnover_tax`, `vat_profit_tax`, `fixed_tax`), currency, automatic 21-BHMS COA seeding.
+  - Team RBAC (`workspace_owner`, `workspace_admin`, `chief_accountant`, `accountant`, `company_director`, `auditor`, `viewer`) and entity assignment matrix.
 
----
-
-## Phase 3: Integration Framework & Mock Connectors
+## Phase 3: Bank Ingestion & 1C Exchange — [DONE]
 - **Deliverables**:
-  - Interface-based connector architecture (`Connector`, `Authenticator`, `Syncer`).
-  - Secure credential storage service with AES-256-GCM envelope encryption.
-  - Mock connectors for 1C (OData simulator) and Didox (invoicing simulator).
-  - Background ingestion worker with PostgreSQL transactional queue.
-- **Verification Criteria**:
-  - Raw source records ingest idempotently with SHA-256 duplicate detection.
-  - Integration credential secrets never leak into logs or API responses.
+  - Client-side & server-validated parsers for 1C Client-Bank `.txt` and bank `.csv` statements (`lib/services/bank-import.ts`).
+  - 1C Client-Bank & Enterprise XML exporters (`lib/services/one-c-export.ts`).
+  - SSRF-protected integration URL verification (`/api/integrations/test`) and sync logs.
 
----
-
-## Phase 4: Deterministic Accounting Engine
+## Phase 4: Deterministic Accounting Engine (21-BHMS) — [DONE]
 - **Deliverables**:
-  - National Standard Chart of Accounts (NSCA) of Uzbekistan initialization.
-  - Double-entry ledger logic in pure Go: Debit/Credit balancing enforcement.
-  - Journal entry creation, draft status, and posting workflow.
-  - Real-time Trial Balance and General Ledger calculation.
-- **Verification Criteria**:
-  - Automated test verifying exact decimal calculations using `NUMERIC(19, 4)` (no floating point errors).
-  - Unbalanced journal entries are rejected by both Go service and DB constraints.
-  - Posted entries cannot be edited in place (immutability test).
+  - Atomic PL/pgSQL ledger RPCs (`create_journal_entry_atomic`, `reverse_journal_entry`, `get_trial_balance`, `get_general_ledger`).
+  - `NUMERIC(19, 4)` arithmetic, idempotency key deduplication, immutability triggers (`trg_journal_entry_immutable`, `trg_journal_lines_immutable`).
+  - Hardening suites verified (`scripts/test-accounting-engine.mjs`, `scripts/test-accounting-hardening.mjs`).
 
----
-
-## Phase 5: AI Orchestration & Exception Center
+## Phase 5: Strict FIRMUS AI Agent (Gemini + Human-in-the-Loop) — [DONE]
 - **Deliverables**:
-  - OpenAI Go SDK client configured exclusively for `gpt-6-luna`.
-  - Typed Tool Calling / Function Calling schemas for accounting actions.
-  - Human-in-the-loop Exception Center: Traffic light status system (Green/Yellow/Red).
-  - Natural-language query interface for financial and compliance inquiries.
-- **Verification Criteria**:
-  - AI function calls pass entity authorization checks before execution.
-  - Zero raw SQL executed by AI.
-  - High confidence matches post automatically (if entity policy allows); anomalies route to Exception Center.
+  - `lib/ai/firmus-agent.ts` with comprehensive 21-BHMS + Tax Code system instructions and live active COA injection.
+  - Configurable `GEMINI_MODEL` (free-tier default `gemini-2.5-flash` + fallback `gemini-2.5-flash-lite`) + offline deterministic guard (`deterministic_guard`) + conversation memory (`history`).
+  - 13 typed tools (5 read-only tools + 8 schema-validated Human-in-the-Loop `propose_*` tools).
+  - Dedicated `/api/ai-copilot/execute` endpoint with RBAC checks, Zod re-validation, atomic ledger execution, and immutable `ai_action_logs`.
 
----
+## Phase 6: Document Management, E-IMZO & External Gateways — [CORE DONE / PARTNER KEYS PENDING]
+- **Delivered**:
+  - Private Supabase `documents` Storage bucket with RLS policies, binary upload, and signed URL download.
+  - Local browser E-IMZO (`CAPIWS` `127.0.0.1:64443`/`64646`) certificate listing and local PKCS#7 signing.
+  - Automatic 3-line 12% VAT split journal entry on invoice signing.
+- **Pending Partner Credentials (External Business Agreements)**:
+  - Live commercial Didox Partner API / MySolik production tokens when moving beyond sandbox/local files.
 
-## Phase 6: Live Integrations (Didox & 1C:Enterprise)
+## Phase 7: Tax, Payroll, Period Closing & Financial Statements — [DONE]
 - **Deliverables**:
-  - Official Didox Partner API integration (sandbox & production readiness).
-  - Client-side E-IMZO browser integration for digital signature generation.
-  - 1C OData REST connector and standalone Windows Connector daemon.
-  - Bidirectional reconciliation between bank statements, Didox invoices, and 1C entries.
-- **Verification Criteria**:
-  - Electronic invoices successfully pull from Didox sandbox into raw records.
-  - 1C chart of accounts and counterparties synchronize without schema errors.
+  - Atomic month/period closing RPC (`close_accounting_period`: closes `90xx`/`91xx`/`94xx` through `9910` to `8710`).
+  - Balance Sheet & Profit/Loss statements without double-counting closed periods (`app/(app)/finance/page.tsx`).
+  - Payroll tax helpers (12% JShODS, 12% social tax) with PINFL masking and HR/Contracts/Inventory CRUD.
 
----
-
-## Phase 7: Tax, Financial Reporting & Advanced Modules
-- **Deliverables**:
-  - Balance Sheet (Form No. 1) and Profit & Loss Statement (Form No. 2) generators.
-  - Turnover Tax and VAT computation helpers for Uzbekistan tax regimes.
-  - Document management with private Supabase Storage buckets and temporary signed URLs.
-- **Verification Criteria**:
-  - Financial reports match trial balance totals with 100% precision.
-  - Storage bucket policies block unauthorized cross-entity file access.
-
----
-
-## Phase 8: Billing, Security Audit & Production Launch
-- **Deliverables**:
-  - Multi-tier subscription model and entitlement enforcement.
-  - Local payment provider webhooks (Click, Payme, Uzum) with idempotency keys.
-  - Security review, load testing, and rate limiting validation.
-  - Production deployment documentation and automated CI/CD pipelines.
-- **Verification Criteria**:
-  - Payment webhooks process idempotently without double-crediting.
-  - Penetration testing confirms tenant isolation and zero credential leakage.
+## Phase 8: SMS OTP, Legal Compliance, CI & Production Readiness — [CORE DONE / LIVE ENV PENDING]
+- **Delivered**:
+  - Eskiz.uz server OTP flow (`phone_otp_verifications`, HMAC-SHA256 OTP hash, 60s cooldown, max 5 attempts).
+  - `/privacy`, `/terms`, Cookie Consent banner, Vitest unit tests, ESLint, GitHub Actions CI, `pnpm audit --prod` 0 vulnerabilities, and `scripts/test-full-production.mjs`.
+- **Optional / Pre-Production Activation Items**:
+  - Populate `.env.local` with commercial/free keys (`GEMINI_API_KEY`, `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `ESKIZ_FROM`) and optional Click/Payme/Uzum merchant webhook credentials when live payment billing is activated.

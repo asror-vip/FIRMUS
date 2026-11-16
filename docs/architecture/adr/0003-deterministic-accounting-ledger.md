@@ -1,16 +1,9 @@
 # ADR 0003: Deterministic Double-Entry Accounting Engine
 
 ## Context
-AUVRIO core value rests on financial accuracy. In financial accounting, binary floating-point representations (e.g., IEEE-754 `float32` / `float64`) accumulate precision errors that corrupt balance sheets and tax returns. Furthermore, editable historical financial records destroy audit trails and violate international accounting standards.
+FIRMUS financial accuracy requires zero floating-point rounding drift and strict historical immutability in compliance with Uzbekistan 21-son BHMS.
 
 ## Decision
-1. **Exact Decimal Arithmetic**: All monetary values are represented as `NUMERIC(19, 4)` in PostgreSQL and `shopspring/decimal` (or Go's `math/big.Rat`) in backend Go code. Floating-point arithmetic is strictly forbidden for currency.
-2. **Double-Entry Invariant**: Every `journal_entry` must satisfy $\sum \text{Debits} = \sum \text{Credits}$. This invariant is enforced both programmatically in Go and through database constraints/triggers prior to posting.
-3. **Immutability of Posted Transactions**:
-   - Status transitions from `draft` to `posted`.
-   - Once `posted`, a record cannot be modified or deleted.
-   - Corrections must be made via explicit compensating `reversal` or `adjusting` journal entries.
-
-## Consequences
-- **Positive**: 100% precision, audit compliance, zero rounding drift, and legal defensibility in financial audits.
-- **Negative**: Reversals require additional transaction lines and UI handling compared to simple in-place edits.
+1. **Exact Decimal Arithmetic**: Monetary columns use PostgreSQL `NUMERIC(19, 4)`; TypeScript helpers (`roundMoney`, `splitVatInclusive`, `calculatePayrollContributions` in `lib/utils/finance.ts`) round deterministically to 2 decimals and validate line balances before posting.
+2. **Double-Entry Invariant**: Every `journal_entry` must satisfy `SUM(debit_amount) = SUM(credit_amount)` with single-sided positive lines (`debit > 0` OR `credit > 0`, never both). Enforced via Zod, PL/pgSQL `create_journal_entry_atomic`, and DB constraints.
+3. **Immutability & Storno**: Posted `journal_entries` and `journal_lines` cannot be updated or deleted (`trg_journal_entry_immutable`, `trg_journal_lines_immutable`). Corrections occur exclusively via compensating `reversal` entries (`reverse_journal_entry`).

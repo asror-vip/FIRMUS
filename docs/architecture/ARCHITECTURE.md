@@ -1,173 +1,85 @@
-# AUVRIO — System Architecture Blueprint
+# FIRMUS — System Architecture Blueprint
 
 ## 1. High-Level Architectural Vision
 
-AUVRIO is structured as a **Modular Monolith** in Go, serving a modern **Next.js App Router** frontend, backed by **Supabase PostgreSQL** as the persistent relational source of truth.
+FIRMUS is structured as a **Modular Full-Stack TypeScript Application** built on **Next.js App Router**, backed by **Supabase PostgreSQL (Row-Level Security + Atomic PL/pgSQL RPCs)** as the persistent financial source of truth, and orchestrated by a strictly bounded **Gemini AI Agent**.
 
 ```mermaid
 flowchart TD
-    subgraph Client["Presentation Layer (TypeScript / Next.js)"]
-        WEB["Next.js App Router (shadcn/ui + TanStack Query)"]
+    subgraph Client["Presentation Layer (TypeScript / Next.js React)"]
+        WEB["Next.js App Router (shadcn/ui + AppStateProvider)"]
+        EIMZO["Local E-IMZO Browser Agent (CAPIWS 127.0.0.1)"]
+        DRAWER["AI Agent Drawer (Human-in-the-Loop Confirmation)"]
     end
 
-    subgraph CoreBackend["AUVRIO Backend (Go Modular Monolith)"]
-        API["HTTP API Service (Chi Router)"]
-        WORKER["Background Processing Worker"]
-        QUEUE[("Postgres Job Queue (SKIP LOCKED)")]
-        
-        subgraph Modules["Domain Modules (Clean Boundaries)"]
-            AUTH["Auth & Tenancy Module"]
-            ORG["Organizations & Entities"]
-            INGEST["Data Ingestion Pipeline"]
-            ACC["Deterministic Accounting Engine"]
-            INTEG["Integration Hub (1C / Didox / Banks)"]
-            AI["AI Orchestration (GPT-6 Luna)"]
-            DOC["Document Management"]
-            EXC["Exception Center"]
-        end
+    subgraph NextServer["Server Layer (Next.js Route Handlers & Server Logic)"]
+        AI_ORCH["/api/ai-copilot (Gemini Function Calling + Deterministic 21-BHMS Guard)"]
+        AI_EXEC["/api/ai-copilot/execute (RBAC + Zod + Audit Log Execution)"]
+        OTP_API["/api/auth/phone-otp/* (HMAC-SHA256 OTP + Rate Limit)"]
+        INTEG_API["/api/integrations/test (SSRF-Protected URL Tester)"]
+        HEALTH["/api/health"]
     end
 
-    subgraph DataLayer["Storage & Infrastructure (Supabase)"]
-        DB[("PostgreSQL Database (RLS + pgx)")]
-        S3["Supabase Storage (Private Buckets)"]
-        REALTIME["Supabase Realtime (Status updates)"]
+    subgraph DataLayer["Database, Auth, Storage & Accounting Core (Supabase)"]
+        DB[("PostgreSQL Database (RLS + NUMERIC(19,4))")]
+        RPCS["Atomic RPCs: create_journal_entry_atomic, reverse_journal_entry, close_accounting_period, get_trial_balance, get_general_ledger"]
+        AUTH["Supabase Auth (Email, Google OAuth, Verified Phone)"]
+        S3["Private Storage Bucket ('documents')"]
     end
 
-    subgraph External["External Systems"]
-        DIDOX["Didox EDO API"]
-        ONEC["1C:Enterprise (OData / Local Connector)"]
-        BANKS["Bank API / Statement Feeds"]
-        OPENAI["OpenAI Responses API (gpt-6-luna)"]
+    subgraph External["External APIs"]
+        GEMINI["Google Gemini REST API (GEMINI_MODEL=gemini-2.5-flash)"]
+        ESKIZ["Eskiz.uz SMS Gateway"]
     end
 
-    WEB -->|REST API + JWT Bearer| API
-    API --> Modules
-    WORKER --> Modules
-    API --> QUEUE
-    WORKER --> QUEUE
-    Modules --> DB
-    Modules --> S3
-    INTEG --> DIDOX
-    INTEG --> ONEC
-    INTEG --> BANKS
-    AI --> OPENAI
+    WEB --> NextServer
+    WEB --> EIMZO
+    DRAWER --> AI_ORCH
+    DRAWER --> AI_EXEC
+    NextServer --> DB
+    NextServer --> RPCS
+    NextServer --> AUTH
+    WEB --> S3
+    AI_ORCH --> GEMINI
+    OTP_API --> ESKIZ
 ```
 
 ---
 
-## 2. Monorepo Repository Structure
-
-AUVRIO uses a unified monorepo to guarantee synchronized API contracts, migrations, and shared documentation.
+## 2. Repository Structure
 
 ```text
-AUVRIO/
-├── apps/
-│   └── web/                         # Next.js App Router, Tailwind CSS, shadcn/ui
-├── services/
-│   ├── api/                         # Go HTTP API service
-│   │   ├── cmd/api/                 # Main entrypoint for API process
-│   │   └── internal/                # Domain modules & business logic
-│   ├── worker/                      # Go background jobs and ingestion worker
-│   │   ├── cmd/worker/              # Main entrypoint for worker process
-│   │   └── internal/                # Job handlers and batch schedulers
-│   └── onec-connector/              # Dedicated Go Windows connector daemon for on-prem 1C
-├── packages/
-│   └── api-contracts/               # OpenAPI spec, generated TypeScript types, Zod schemas
+firmus/
+├── app/
+│   ├── (app)/                       # Authenticated SaaS workspace routes
+│   ├── (auth)/                      # Login, Register, Forgot Password
+│   ├── api/                         # Route Handlers (AI Agent, Execute, OTP, Integration test, Health)
+│   ├── auth/callback/               # PKCE OAuth callback with open-redirect guard
+│   ├── privacy/ & terms/            # Privacy & Terms compliance pages
+├── components/
+│   ├── shared/                      # Cookie consent, UI guards
+│   ├── shell/                       # Sidebar, Topbar, Footer, Human-in-the-Loop AI Drawer
+│   └── ui/                          # shadcn/ui design system primitives
+├── lib/
+│   ├── ai/                          # FIRMUS Agent engine (firmus-agent.ts) & typed contracts (agent-types.ts)
+│   ├── services/                    # supabase-service.ts, eskiz-sms.ts, eimzo-client.ts, bank-import.ts, one-c-export.ts
+│   ├── supabase/                    # server.ts, client.ts, service.ts
+│   ├── utils/                       # finance.ts (roundMoney, splitVatInclusive, payroll), privacy.ts (PII masking)
+│   └── validations/                 # Zod v4 schemas
 ├── supabase/
-│   ├── migrations/                  # Versioned SQL migrations (source of truth)
-│   └── seed.sql                     # Synthetic seed data for local development
-├── docs/
-│   ├── architecture/                # Architecture specifications & ADRs
-│   │   └── adr/
-│   ├── security/                    # Security policies and cryptographic controls
-│   └── product/                     # Product requirements and roadmaps
-└── scripts/                         # Local development, linting, and build automation
+│   └── migrations/                  # Versioned SQL migrations (RLS, ledger engine, COA seed, closing, AI audit logs)
+├── scripts/                         # Security RLS, accounting hardening, and 31-check production E2E runner
+└── tests/unit/                      # Vitest unit tests
 ```
 
 ---
 
-## 3. Go Backend Design & Module Boundaries
+## 3. Core Domain Boundaries
 
-The Go backend adheres to strict dependency injection and interface-based design:
-
-```text
-services/api/internal/
-├── config/              # Environment parsing and typed app config
-├── platform/
-│   ├── database/        # pgxpool connection pool lifecycle
-│   ├── logger/          # Structured logging (log/slog)
-│   ├── middleware/      # Tenant context, auth, CORS, rate-limiting, request ID
-│   └── queue/           # Postgres transactional job enqueue helper
-└── modules/
-    ├── tenancy/         # Workspaces, members, roles, permissions
-    ├── entities/        # Business entities (companies, tax configurations)
-    ├── ingestion/       # Normalization, deduplication, raw ingestion
-    ├── accounting/      # Double-entry ledger, journal entries, trial balance
-    ├── integrations/    # Connector interfaces (1C, Didox, Bank adapters)
-    ├── ai/              # OpenAI Responses API client, function calling tools
-    ├── documents/       # File upload, validation, metadata extraction
-    ├── exceptions/      # Discrepancy management and resolution workflows
-    └── billing/         # Subscriptions, entitlements, usage metering
-```
-
-### Module Boundary Rules:
-1. **No Circular Imports**: Modules communicate through exported Go interfaces.
-2. **Explicit Context**: Every service method takes `ctx context.Context` as its first parameter for deadline propagation and cancellation.
-3. **Database Independence**: Business logic relies on typed repositories generated via `sqlc` with PostgreSQL transactions (`pgx.Tx`).
-
----
-
-## 4. Frontend Architecture (Next.js App Router)
-
-The frontend is a lightweight, responsive enterprise web application built for business productivity:
-
-- **State Management**: Server state is managed exclusively via **TanStack Query (React Query)** with automatic cache invalidation on mutations.
-- **Form Handling & Validation**: React Hook Form coupled with **Zod** schemas matching backend OpenAPI contracts.
-- **Design System**: **Tailwind CSS** with **shadcn/ui** primitives, prioritizing dense, readable data tables, clear status badges, and accessibility (WCAG 2.1 AA compliant).
-- **Navigation Flow**:
-  - Global Workspace Switcher (for accounting firms managing multiple entities).
-  - Business Entity Selector with persistent active context.
-  - Contextual AI copilot panel accessible across any operational view.
-
----
-
-## 5. Background Ingestion & Processing Pipeline
-
-Data synchronization from Didox and 1C occurs asynchronously via a resilient multi-stage pipeline:
-
-```mermaid
-sequenceDiagram
-    participant Ext as External System (Didox / 1C)
-    participant Conn as Integration Connector
-    participant Raw as raw_source_records
-    participant Worker as Background Worker
-    participant Ledger as Accounting Engine
-    participant Exc as Exception Center
-
-    Ext->>Conn: Fetch invoices / journal entries
-    Conn->>Raw: Persist raw payload (hash, payload, source_id)
-    Note over Raw: Deduplication via SHA-256 idempotency key
-    Conn->>Worker: Enqueue normalization job
-    Worker->>Worker: Parse & classify document
-    Worker->>Worker: Match counterparty & chart of accounts
-    alt Perfect Match & Zero Discrepancy
-        Worker->>Ledger: Generate balanced journal entries
-        Ledger->>Ledger: Post transaction (immutable)
-    else Ambiguity / Mismatch / Missing Document
-        Worker->>Exc: Create Exception Record (YELLOW / RED status)
-        Exc->>Exc: Generate AI Suggested Resolution
-        Note over Exc: Awaits accountant approval
-    end
-```
-
----
-
-## 6. AI Orchestration Strategy (GPT-6 Luna)
-
-1. **Sole Model**: `gpt-6-luna` accessed via official OpenAI Go SDK using the **Responses API**.
-2. **Role & Capability**: Acts as the intelligent workflow coordinator, anomaly detector, and natural-language query parser.
-3. **Strict Function Calling**: The model never touches raw SQL. It interacts solely through whitelisted Go tool definitions with structured JSON schemas.
-4. **Deterministic Validation Boundary**:
-   - AI proposes: `"Match invoice #104 with transaction #882 and debit Account 6010 / credit Account 5110"`.
-   - Go Accounting Engine validates: Debits equal Credits, accounts exist in chart of accounts, accounting period is open, user has permission on entity.
-   - If validation succeeds and entity policy allows auto-posting, transaction posts; otherwise, it creates a pending proposal in the Exception Center.
+1. **Deterministic Ledger Boundary (`PostgreSQL RPCs`)**: Double-entry balancing (`SUM(debit) = SUM(credit)`), account verification against `chart_of_accounts`, idempotency keys, and immutability triggers execute inside PostgreSQL transactions — UI/LLM logic can never post unbalanced or backdoor-mutated entries.
+2. **AI Agent Boundary (`lib/ai/firmus-agent.ts` + `/api/ai-copilot/execute`)**:
+   - The LLM interacts strictly via typed Gemini `functionDeclarations` (never raw SQL).
+   - PII (`pinfl`, `phone`, `email`, `password`, tokens) is masked via `depersonalizeForAi` before leaving the server.
+   - Mutating actions emit typed proposals validated by Zod and live `chart_of_accounts` lookups; execution occurs **only** after the user clicks Approve in the UI and `/api/ai-copilot/execute` verifies RBAC and logs to `ai_action_logs`.
+3. **Authentication & Secrets Isolation (`server-only`)**:
+   - `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, and `OTP_HMAC_SECRET` remain strictly server-side (`import "server-only"`).

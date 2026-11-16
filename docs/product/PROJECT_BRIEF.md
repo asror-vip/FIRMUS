@@ -1,31 +1,31 @@
-# AUVRIO — Master Project Brief
+# FIRMUS — Master Project Brief
 
 ## 1. Executive Summary
 
-**AUVRIO** is an AI-powered Business Automation Software-as-a-Service (SaaS) platform engineered specifically for the Uzbekistan market, with native readiness for global expansion. AUVRIO addresses the operational friction in financial administration by serving as an intelligent operational nervous system for both individual businesses and multi-client accounting firms.
+**FIRMUS** is an AI-powered Business Automation Software-as-a-Service (SaaS) platform engineered specifically for the Uzbekistan market (21-son BHMS and Tax Code). FIRMUS serves as an intelligent operational nervous system for both individual businesses and multi-client accounting firms.
 
-Unlike conventional chatbots, lightweight CRMs, or static dashboard systems, AUVRIO automates data ingestion, reconciles transactions against primary regulatory sources (such as Didox for electronic document management and 1C:Enterprise 8.3 for enterprise accounting), and provides a deterministic double-entry ledger verified by AI workflow coordination.
+FIRMUS combines structured data ingestion (1C Client-Bank & CSV bank statements, Didox E-SF workflows, client-side E-IMZO signing), an atomic double-entry accounting engine inside PostgreSQL, and a strictly guarded Gemini AI Agent that drafts operations for human approval without ever bypassing ledger invariants.
 
 ## 2. Core Value Proposition & Principles
 
-- **Zero Redundant Data Entry**: Information retrieved from bank statements, electronic invoices (Didox), or ERP systems (1C) is automatically ingested, classified, matched, and routed without repetitive human input.
-- **Deterministic Financial Truth**: Artificial intelligence (orchestrated exclusively via `gpt-6-luna`) coordinates processes, explains anomalies, and suggests resolutions. However, every financial balance, tax liability, and journal entry is strictly calculated, balanced, and validated by deterministic Go business logic.
-- **Human-in-the-Loop Exception Center**: Routine operations execute automatically based on verified rules. Ambiguities, discrepancy thresholds, and legally significant filings are routed to certified accountants through an intuitive status-driven exception workflow.
-- **Strict Multi-Tenancy**: Designed from day zero to support independent companies and multi-client accounting practices with isolated boundaries, entity assignments, and role-based permissions.
+- **Zero Redundant Data Entry**: Bank statements (1C Client-Bank `.txt` / `.csv`), contracts, documents, and journal entries flow cleanly with automatic VAT 12% splitting and double-entry posting.
+- **Deterministic Financial Truth**: Artificial intelligence (`GEMINI_MODEL`, defaulting to free-tier `gemini-2.5-flash` with deterministic fallback) analyzes balances, explains anomalies, and calls typed `propose_*` tools. Every balance, tax liability, and journal entry is strictly validated by Zod schemas and atomic PostgreSQL RPCs (`NUMERIC(19, 4)`).
+- **Human-in-the-Loop AI Agent**: The AI never mutates financial records autonomously. Every proposed journal entry, storno reversal, period close, exception resolution, contract, employee, or inventory record requires explicit human confirmation in the UI and passes through `/api/ai-copilot/execute` with RBAC checks and immutable `ai_action_logs`.
+- **Strict Multi-Tenancy**: Supports independent companies and multi-client accounting firms with workspace isolation, role-based access control, and PostgreSQL Row-Level Security (RLS).
 
 ## 3. Target Audiences & Personas
 
 ### Persona A: Independent Company (SME / Enterprise)
 - **Stakeholders**: General Director, Internal Accountant, Operations Manager.
-- **Use Case**: One workspace containing their business entity. Automated banking, automated invoicing via Didox, real-time cash flow monitoring, and continuous compliance checks.
+- **Use Case**: One workspace containing their business entity with automated banking import, Didox invoice tracking, E-IMZO local signing, payroll/tax calculations, and AI copilot assistance.
 
 ### Persona B: Accounting Firm (BPO / Multi-Client Practice)
 - **Stakeholders**: Firm Managing Partner, Chief Accountant, Junior Accountants, External Auditor.
-- **Use Case**: One workspace managing dozens or hundreds of distinct client `business_entities`. Staff are granted granular access to assigned companies only. Cross-company aggregation, bulk reconciliation, and unified workload distribution.
+- **Use Case**: One workspace managing multiple client `business_entities`, entity-level assignments, strict auditor read-only isolation, and unified financial reporting.
 
 ## 4. System Boundaries & Constraints
 
-1. **AI Model Boundary**: Single-model architecture utilizing `gpt-6-luna` via the official OpenAI Go SDK and Responses API with strict tool/function calling. No multi-vendor LLM routing or uncontrolled code generation.
-2. **Language & Runtime Boundary**: Pure Go (Golang) for all backend API, ingestion, accounting, and background worker pipelines. No Python in the core architecture. TypeScript / Next.js App Router for frontend presentation.
-3. **Regulatory & Cryptographic Boundary**: E-IMZO digital signature keys and user passwords are never transmitted or stored on AUVRIO servers. Signing is performed strictly client-side.
-4. **Financial Immutability**: Posted journal entries cannot be edited or deleted; corrections occur exclusively via reversed or adjusting entries.
+1. **AI Model Boundary**: Unified Gemini REST orchestration configured via `GEMINI_MODEL` (default free-tier `gemini-2.5-flash`, fallback `gemini-2.5-flash-lite`, plus deterministic offline 21-BHMS guard), strict Function Calling, zero raw SQL execution, and PII depersonalization (`depersonalizeForAi`).
+2. **Full-Stack Runtime**: TypeScript / Next.js App Router (UI + server Route Handlers) paired with Supabase PostgreSQL RLS & atomic PL/pgSQL functions (`create_journal_entry_atomic`, `reverse_journal_entry`, `close_accounting_period`, `get_trial_balance`, `get_general_ledger`).
+3. **Regulatory & Cryptographic Boundary**: E-IMZO digital signature `.pfx`/USB private keys and PINs never leave the user's browser; signing occurs strictly locally via `CAPIWS`.
+4. **Financial Immutability**: Posted journal entries cannot be edited or deleted (`trg_journal_entry_immutable`, `trg_journal_lines_immutable`); corrections occur exclusively via compensating `reversal` entries (`reverse_journal_entry`).

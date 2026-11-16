@@ -1,17 +1,14 @@
-# ADR 0001: Modular Monolith Architecture in Go with Chi Router
+# ADR 0001: Full-Stack Next.js App Router + Supabase PostgreSQL Architecture
 
 ## Context
-AUVRIO requires a high-performance, robust, and maintainable backend capable of processing financial transactions, managing complex multi-tenant access control, and executing real-time data ingestion from systems like Didox and 1C. 
-
-Microservices introduce excessive operational complexity, distributed transaction hurdles, and network serialization latency during initial development. Conversely, an unstructured monolith leads to tight coupling and spaghetti dependencies.
+FIRMUS initially drafted a separate Go (`Chi`) backend service alongside Next.js. During Phase 1–4 implementation, maintaining two separate runtimes duplicated validation schemas and slowed end-to-end delivery for database transactions, RLS policies, and UI workflows.
 
 ## Decision
-We adopt a **Modular Monolith** architecture implemented in **Go (Golang)** using the lightweight **Chi** HTTP router:
-1. **Single Codebase**: API services and background worker processes share the same repository and domain modules.
-2. **Clear Boundaries**: Every business module (`tenancy`, `accounting`, `ingestion`, `integrations`, `ai`) exposes clean Go interfaces and possesses strict package boundaries.
-3. **Chi Router**: Selected for its minimal footprint, 100% compatibility with standard library `net/http`, idiomatic middleware chaining, and zero memory allocations overhead.
-4. **pgx and sqlc**: Database operations use `pgxpool` with type-safe SQL queries generated via `sqlc`, avoiding runtime ORM overhead.
+We unified the architecture around **Next.js App Router (TypeScript) + Supabase PostgreSQL (RLS + PL/pgSQL RPCs)**:
+1. **Single Type-Safe Stack**: Shared Zod v4 validation schemas (`lib/validations/accounting.ts`, `lib/ai/agent-types.ts`), server-only Route Handlers (`app/api/*`), and React UI run in one TypeScript codebase.
+2. **Database-Native Financial Core**: Performance-critical, ACID, multi-line double-entry accounting invariants (`create_journal_entry_atomic`, `reverse_journal_entry`, `close_accounting_period`, `get_trial_balance`, `get_general_ledger`) live inside hardened PostgreSQL PL/pgSQL `SECURITY DEFINER` functions with `NUMERIC(19, 4)` arithmetic and row-level immutability triggers.
+3. **Zero-Bypass RLS**: Both browser Supabase queries and Next.js server routes use user-scoped JWTs so PostgreSQL RLS enforces workspace and entity boundaries uniformly.
 
 ## Consequences
-- **Positive**: High throughput, low memory footprint, simple single-binary deployment, compile-time type safety, and painless local developer experience.
-- **Negative**: Developers must maintain discipline against bypassing module interfaces. Circular dependencies are strictly prevented by Go's compiler.
+- **Positive**: Eliminates cross-language drift, speeds up feature delivery, and guarantees transactional ledger integrity directly inside PostgreSQL.
+- **Negative**: Requires strict discipline keeping service credentials (`SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `ESKIZ_*`) confined to `import "server-only"` server modules.

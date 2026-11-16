@@ -3,11 +3,11 @@
 import React, { useState } from "react";
 import { useAppState } from "@/lib/mock/store";
 import { useTranslation } from "@/lib/i18n/useTranslation";
-import { resolveExceptionInDb, updateTransactionStatus } from "@/lib/services/supabase-service";
+import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, X, Send, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Sparkles, X, Send, CheckCircle2, XCircle, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -18,14 +18,9 @@ interface ChatMessage {
   time: string;
   toolCalls?: string[];
   mode?: string;
+  modelUsed?: string;
   actionStatus?: "pending" | "approved" | "rejected";
-  actionProposed?: {
-    type: "exception" | "transaction";
-    targetId: string;
-    title: string;
-    amount?: string;
-    accounts?: string;
-  };
+  actionProposed?: AgentActionProposal;
 }
 
 export function AiDrawer() {
@@ -33,6 +28,7 @@ export function AiDrawer() {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [executingMsgId, setExecutingMsgId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "m-init",
@@ -54,6 +50,11 @@ export function AiDrawer() {
       text: userText,
       time: nowStr,
     };
+    const historySnapshot = messages
+      .filter((m) => m.id !== "m-init" && m.text.trim().length > 0)
+      .slice(-8)
+      .map((m) => ({ sender: m.sender, text: m.text.slice(0, 1500) }));
+
     setMessages((prev) => [...prev, newMsg]);
     setInput("");
     setIsSending(true);
@@ -65,6 +66,7 @@ export function AiDrawer() {
         body: JSON.stringify({
           message: userText,
           entityId: currentEntity?.id,
+          history: historySnapshot,
         }),
       });
 
@@ -80,6 +82,7 @@ export function AiDrawer() {
         time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
         toolCalls: data.toolCalls,
         mode: data.mode,
+        modelUsed: data.modelUsed,
         actionStatus: data.actionProposed ? "pending" : undefined,
         actionProposed: data.actionProposed,
       };
@@ -101,15 +104,24 @@ export function AiDrawer() {
   };
 
   const handleProposedAction = async (msg: ChatMessage, decision: "approve" | "reject") => {
-    if (!msg.actionProposed?.targetId) return;
+    if (!msg.actionProposed || !currentEntity?.id || executingMsgId) return;
+    setExecutingMsgId(msg.id);
+
     try {
-      if (msg.actionProposed.type === "exception") {
-        await resolveExceptionInDb(msg.actionProposed.targetId, decision);
-      } else {
-        await updateTransactionStatus(
-          msg.actionProposed.targetId,
-          decision === "approve" ? "posted" : "rejected"
-        );
+      const res = await fetch("/api/ai-copilot/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entityId: currentEntity.id,
+          decision,
+          modelUsed: msg.modelUsed || "firmus-agent",
+          proposal: msg.actionProposed,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Amalni bajarishda xatolik");
       }
 
       setMessages((prev) =>
@@ -120,17 +132,20 @@ export function AiDrawer() {
         )
       );
       toast.success(
-        decision === "approve"
-          ? "Amal Supabase bazasida muvaffaqiyatli tasdiqlandi!"
-          : "Amal rad etildi va bazada yangilandi."
+        data.message ||
+          (decision === "approve"
+            ? "Amal Supabase bazasida muvaffaqiyatli tasdiqlandi!"
+            : "Amal rad etildi va bazada yangilandi.")
       );
     } catch (err: any) {
       toast.error("Amalni bajarishda xatolik: " + err.message);
+    } finally {
+      setExecutingMsgId(null);
     }
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[420px] flex-col border-l border-border bg-card shadow-2xl duration-200 animate-in slide-in-from-right">
+    <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[440px] flex-col border-l border-border bg-card shadow-2xl duration-200 animate-in slide-in-from-right">
       {/* Header */}
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
         <div className="flex items-center gap-2">
@@ -141,7 +156,7 @@ export function AiDrawer() {
             <div className="flex items-center gap-1.5">
               <span className="text-xs font-semibold text-foreground">{t.aiDrawer.title}</span>
               <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
-                LIVE DB
+                21-BHMS AGENT
               </span>
             </div>
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -171,6 +186,7 @@ export function AiDrawer() {
             t.aiDrawer.prompts.exceptions,
             t.aiDrawer.prompts.bank,
             t.aiDrawer.prompts.tax,
+            "Oborot-saldovaya vedomostni koʻrsat",
           ].map((prompt, i) => (
             <button
               key={i}
@@ -190,7 +206,7 @@ export function AiDrawer() {
           <div
             key={msg.id}
             className={cn(
-              "flex flex-col max-w-[92%]",
+              "flex flex-col max-w-[94%]",
               msg.sender === "user" ? "ml-auto items-end" : "mr-auto items-start"
             )}
           >
@@ -204,15 +220,22 @@ export function AiDrawer() {
             >
               <p>{msg.text}</p>
 
-              {/* Verified Status */}
+              {/* Verified Mode & Tool Calls */}
               {msg.toolCalls && msg.toolCalls.length > 0 && (
-                <div className="mt-2 pt-1.5 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
-                  <span>{msg.mode === "gemini_api" ? "Gemini AI + Supabase" : "Supabase jonli tahlili"}</span>
+                <div className="mt-2 pt-1.5 border-t border-border/40 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
+                  <span>
+                    {msg.mode === "gemini_agent"
+                      ? `Gemini (${msg.modelUsed || "gemini-2.5-flash"}) + RLS`
+                      : "Qatʼiy 21-BHMS + Supabase RLS"}
+                  </span>
+                  <span className="font-mono text-[9px] opacity-75">
+                    [{msg.toolCalls.slice(0, 3).join(", ")}]
+                  </span>
                 </div>
               )}
 
-              {/* Proposed Action Card (Wired to Real DB Actions) */}
+              {/* Proposed Action Card (Human-in-the-Loop Execution via /api/ai-copilot/execute) */}
               {msg.actionProposed && (
                 <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -237,15 +260,40 @@ export function AiDrawer() {
                     </Badge>
                   </div>
 
-                  {msg.actionProposed.amount && (
-                    <div className="text-[11px] font-mono text-muted-foreground">
-                      {t.common.amount}: <span className="font-semibold text-foreground">{msg.actionProposed.amount}</span>
+                  {"summary" in msg.actionProposed && msg.actionProposed.summary && (
+                    <div className="text-[10px] text-muted-foreground mb-1">
+                      {msg.actionProposed.summary}
                     </div>
                   )}
 
-                  {msg.actionProposed.accounts && (
+                  {"amount" in msg.actionProposed && msg.actionProposed.amount && (
+                    <div className="text-[11px] font-mono text-muted-foreground">
+                      {t.common.amount}:{" "}
+                      <span className="font-semibold text-foreground">{msg.actionProposed.amount}</span>
+                    </div>
+                  )}
+
+                  {"accounts" in msg.actionProposed && msg.actionProposed.accounts && (
                     <div className="text-[10px] font-mono text-muted-foreground mt-0.5">
                       {t.pages.accounting.code}: {msg.actionProposed.accounts}
+                    </div>
+                  )}
+
+                  {/* Multi-line preview for 21-BHMS Journal Entry */}
+                  {msg.actionProposed.type === "journal_entry" && (
+                    <div className="mt-2 rounded border border-border/60 bg-background/80 p-1.5 space-y-1 font-mono text-[10px]">
+                      {msg.actionProposed.payload.lines.map((line, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2">
+                          <span className="truncate">
+                            {line.account_code} {line.account_name}
+                          </span>
+                          <span className="shrink-0 font-semibold">
+                            {line.debit_amount > 0
+                              ? `Dt ${line.debit_amount.toLocaleString("uz-UZ")}`
+                              : `Kt ${line.credit_amount.toLocaleString("uz-UZ")}`}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
 
@@ -255,15 +303,21 @@ export function AiDrawer() {
                         size="sm"
                         variant="success"
                         className="h-7 px-2.5 text-[11px]"
+                        disabled={executingMsgId === msg.id}
                         onClick={() => handleProposedAction(msg, "approve")}
                       >
-                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                        {executingMsgId === msg.id ? (
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                        )}
                         {t.aiDrawer.approveAction}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-7 px-2 text-[11px]"
+                        disabled={executingMsgId === msg.id}
                         onClick={() => handleProposedAction(msg, "reject")}
                       >
                         <XCircle className="mr-1 h-3 w-3" />
@@ -284,7 +338,7 @@ export function AiDrawer() {
         {isSending && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600" />
-            <span>Supabase bazasidan tahlil qilinmoqda...</span>
+            <span>Supabase bazasi va 21-BHMS qoidalari tekshirilmoqda...</span>
           </div>
         )}
       </div>

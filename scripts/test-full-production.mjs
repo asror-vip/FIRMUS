@@ -75,6 +75,7 @@ async function run() {
   // 2. Unauthenticated API protection checks
   const unauthApis = [
     "/api/ai-copilot",
+    "/api/ai-copilot/execute",
     "/api/integrations/test",
     "/api/auth/phone-otp/send",
     "/api/auth/phone-otp/verify",
@@ -157,10 +158,12 @@ async function run() {
   let tempWorkspaceId = null;
   let tempEntityId = null;
   const auditorClient = createClient(supabaseUrl, anonKey);
-  await auditorClient.auth.signInWithPassword({
+  const { data: auditorAuth } = await auditorClient.auth.signInWithPassword({
     email: "jasur@firmus.uz",
     password: "Firmus2026!Secured",
   });
+  const auditorCookieVal = encodeURIComponent(JSON.stringify(auditorAuth.session));
+  const auditorCookieHeader = `sb-${projectRef}-auth-token=${auditorCookieVal}`;
 
   try {
     const { data: wsData, error: wsErr } = await chiefClient.rpc("create_workspace_with_owner", {
@@ -348,6 +351,67 @@ async function run() {
         Number(acc9010?.closing_credit || 0) === 0 &&
         Math.abs(sumDt - sumCt) < 0.01,
       `8710=${acc8710?.closing_credit}, 9010=${acc9010?.closing_credit}, Dt=${sumDt}, Ct=${sumCt}`
+    );
+
+    // 5. AI Agent Full Human-in-the-Loop Proposal + Execute + Audit Log + Auditor RBAC Check
+    const aiPropRes = await fetch(`${BASE_URL}/api/ai-copilot`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+      body: JSON.stringify({
+        message: "provodka 1120000 4010 9010 qqs",
+        entityId: tempEntityId,
+      }),
+    });
+    const aiPropJson = await aiPropRes.json();
+    const proposal = aiPropJson?.actionProposed;
+    check(
+      "AI Agent creates balanced 3-line VAT 12% journal_entry proposal",
+      aiPropRes.status === 200 &&
+        proposal?.type === "journal_entry" &&
+        proposal?.payload?.lines?.length === 3 &&
+        proposal.payload.lines[0].debit_amount === 1120000 &&
+        proposal.payload.lines[1].credit_amount === 1000000 &&
+        proposal.payload.lines[2].credit_amount === 120000,
+      JSON.stringify(aiPropJson)
+    );
+
+    const audExecRes = await fetch(`${BASE_URL}/api/ai-copilot/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: auditorCookieHeader },
+      body: JSON.stringify({
+        entityId: "11111111-1111-1111-1111-111111111111",
+        decision: "approve",
+        modelUsed: "firmus-agent",
+        proposal,
+      }),
+    });
+    check(
+      "AI Execute RBAC: Auditor blocked from approving AI mutations -> HTTP 403",
+      audExecRes.status === 403,
+      `got ${audExecRes.status}`
+    );
+
+    const aiExecRes = await fetch(`${BASE_URL}/api/ai-copilot/execute`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+      body: JSON.stringify({
+        entityId: tempEntityId,
+        decision: "approve",
+        modelUsed: aiPropJson.modelUsed || "firmus-agent",
+        proposal,
+      }),
+    });
+    const aiExecJson = await aiExecRes.json();
+    const { data: aiLogs } = await chiefClient
+      .from("ai_action_logs")
+      .select("action_type, decision")
+      .eq("business_entity_id", tempEntityId);
+    check(
+      "AI Execute approves proposal atomically and records immutable ai_action_logs",
+      aiExecRes.status === 200 &&
+        aiExecJson.ok === true &&
+        (aiLogs || []).some((l) => l.action_type === "journal_entry" && l.decision === "approved"),
+      JSON.stringify(aiExecJson)
     );
   } finally {
     if (tempEntityId || tempWorkspaceId) {
