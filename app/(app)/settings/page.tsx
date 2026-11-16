@@ -41,6 +41,7 @@ function SettingsContent() {
     user,
     currentWorkspace,
     currentRole,
+    subscription,
     language,
     setLanguage,
     refreshContext,
@@ -282,9 +283,12 @@ function SettingsContent() {
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-foreground">Joriy tarif</span>
-                    <Badge variant="indigo" className="text-[10px] capitalize">
-                      {currentWorkspace?.currentPlan || "professional"}
+                    <Badge variant="indigo" className="text-[10px]">
+                      {subscription.isTrialActive ? "Pro (Sinov)" : subscription.planName}
                     </Badge>
+                    <span className="text-[11px] font-mono text-muted-foreground">
+                      {subscription.remainingCredits} / {subscription.monthlyLimit} kredit
+                    </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
                     Tarif va oylik foydalanish limitlarini Obunalar sahifasida koʻring

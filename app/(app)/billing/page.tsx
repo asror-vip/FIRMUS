@@ -4,9 +4,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import {
-  updateWorkspacePlanInDb,
-  fetchWorkspaceUsageSummary,
-} from "@/lib/services/supabase-service";
+  AI_MODELS,
+  PLANS_LIST,
+  type AiModelId,
+  type PlanSpec,
+} from "@/lib/config/plans";
+import { fetchWorkspaceUsageSummary } from "@/lib/services/supabase-service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,156 +24,25 @@ import {
 import {
   CreditCard,
   Check,
-  Building2,
-  Users,
+  Coins,
   FileStack,
-  MessageSquare,
+  HardDrive,
+  ShieldCheck,
   Sparkles,
   Loader2,
-  ShieldCheck,
+  Zap,
+  Lock,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-type PlanId = "starter" | "professional" | "enterprise";
-
-interface PlanDefinition {
-  id: PlanId;
-  name: string;
-  subtitle: string;
-  monthlyPriceUzs: number | null;
-  badge?: string;
-  limits: {
-    entities: number | null;
-    members: number | null;
-    monthlyBatches: number | null;
-  };
-  features: string[];
-}
-
-const B2B_PLANS: PlanDefinition[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    subtitle: "Yakka tadbirkor va 1 ta korxona uchun",
-    monthlyPriceUzs: 0,
-    limits: {
-      entities: 1,
-      members: 3,
-      monthlyBatches: 20,
-    },
-    features: [
-      "1 ta korxona (STIR)",
-      "3 nafargacha jamoa aʼzosi",
-      "Bank ↔ 1C solishtirish",
-      "Oyiga 20 tagacha chek skan va fayl paketi",
-      "AI Chat va soʻnggi tarix",
-    ],
-  },
-  {
-    id: "professional",
-    name: "Professional",
-    subtitle: "Buxgalteriya firmalari va faol MChJlar uchun",
-    monthlyPriceUzs: 290_000,
-    badge: "Tavsiya etiladi",
-    limits: {
-      entities: 10,
-      members: 15,
-      monthlyBatches: 300,
-    },
-    features: [
-      "10 tagacha korxona (STIR)",
-      "15 nafargacha jamoa aʼzosi",
-      "Bank ↔ 1C + 1C XML / TXT eksport",
-      "Oyiga 300 tagacha chek skan va fayl paketi",
-      "Cheksiz AI Chat tarixi va shartnoma tekshiruvi",
-      "Soliq taqvimi, Bosh kitob va Moliya P&L",
-    ],
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    subtitle: "Yirik xoldinglar va BPO markazlar uchun",
-    monthlyPriceUzs: null,
-    limits: {
-      entities: null,
-      members: null,
-      monthlyBatches: null,
-    },
-    features: [
-      "Cheksiz korxonalar va filiallar",
-      "Cheksiz foydalanuvchi va rollar",
-      "Shaxsiy 1C / Didox / E-IMZO ulanishlari",
-      "Cheksiz fayl paketlari va tezkor ustuvor AI",
-      "Ajratilgan qoʻllab-quvvatlash",
-    ],
-  },
-];
-
-const SOLO_PLANS: PlanDefinition[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    subtitle: "Shaxsiy foydalanuvchilar va sinov uchun",
-    monthlyPriceUzs: 0,
-    limits: {
-      entities: 1,
-      members: 1,
-      monthlyBatches: 20,
-    },
-    features: [
-      "Bank ↔ 1C solishtirish",
-      "Oyiga 20 tagacha chek skan va fayl paketi",
-      "AI Chat va soʻnggi tarix",
-      "Soliq va maosh kalkulyatori",
-    ],
-  },
-  {
-    id: "professional",
-    name: "Professional",
-    subtitle: "Faol buxgalterlar va mutaxassislar uchun",
-    monthlyPriceUzs: 290_000,
-    badge: "Tavsiya etiladi",
-    limits: {
-      entities: 1,
-      members: 1,
-      monthlyBatches: 300,
-    },
-    features: [
-      "Bank ↔ 1C + 1C XML / TXT eksport",
-      "Oyiga 300 tagacha chek skan va fayl paketi",
-      "Cheksiz AI Chat tarixi",
-      "Shartnoma xavf tahlili (PDF / rasm)",
-      "Oylar boʻyicha toʻliq saqlangan tarix",
-    ],
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    subtitle: "Katta hajm va individual shartlar uchun",
-    monthlyPriceUzs: null,
-    limits: {
-      entities: null,
-      members: null,
-      monthlyBatches: null,
-    },
-    features: [
-      "Cheksiz fayl paketlari va tezkor ustuvor AI",
-      "Kengaytirilgan 1C / CSV eksport",
-      "Ajratilgan ustuvor qoʻllab-quvvatlash",
-      "Maxsus talablar boʻyicha sozlash",
-    ],
-  },
-];
-
-const PLANS: PlanDefinition[] = FEATURES.multiCompanyMode ? B2B_PLANS : SOLO_PLANS;
 
 function formatUzs(amount: number): string {
   return `${new Intl.NumberFormat("uz-UZ").format(amount)} soʻm`;
 }
 
 function UsageProgressBar({ used, max }: { used: number; max: number | null }) {
-  const pct = max && max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 12;
+  const pct = max && max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 8;
   const isNearLimit = Boolean(max && used >= max);
 
   return (
@@ -186,81 +58,96 @@ function UsageProgressBar({ used, max }: { used: number; max: number | null }) {
   );
 }
 
+function daysRemaining(isoDate: string | null): number {
+  if (!isoDate) return 0;
+  const diff = new Date(isoDate).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
 export default function BillingPage() {
-  const { currentWorkspace, currentEntity, currentRole, refreshContext } = useAppState();
+  const {
+    currentWorkspace,
+    currentEntity,
+    subscription,
+    setSubscriptionSnapshot,
+    refreshSubscription,
+    setPreferredAiModel,
+  } = useAppState();
+
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
-  const [updatingPlanId, setUpdatingPlanId] = useState<PlanId | null>(null);
+  const [isActivatingTrial, setIsActivatingTrial] = useState(false);
+  const [isSwitchingModel, setIsSwitchingModel] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [pendingInfoPlan, setPendingInfoPlan] = useState<PlanDefinition | null>(null);
+  const [selectedPlanForInfo, setSelectedPlanForInfo] = useState<PlanSpec | null>(null);
   const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
   const [isLoadingUsage, setIsLoadingUsage] = useState(true);
 
-  const activePlanId = (currentWorkspace?.currentPlan || "professional") as PlanId;
-  const activePlan = PLANS.find((p) => p.id === activePlanId) || PLANS[1];
-  const canManagePlan =
-    !FEATURES.teamMode ||
-    currentRole === "workspace_owner" ||
-    currentRole === "company_director";
-
-  const loadUsage = useCallback(async () => {
+  const loadStats = useCallback(async () => {
     setIsLoadingUsage(true);
     try {
-      const res = await fetchWorkspaceUsageSummary({
-        workspaceId: currentWorkspace?.id,
-        entityId: currentEntity?.id,
-      });
+      const [res] = await Promise.all([
+        fetchWorkspaceUsageSummary({
+          workspaceId: currentWorkspace?.id,
+          entityId: currentEntity?.id,
+        }),
+        refreshSubscription(),
+      ]);
       setUsage(res);
     } finally {
       setIsLoadingUsage(false);
     }
-  }, [currentWorkspace?.id, currentEntity?.id]);
+  }, [currentWorkspace?.id, currentEntity?.id, refreshSubscription]);
 
   useEffect(() => {
-    loadUsage();
-  }, [loadUsage]);
+    loadStats();
+  }, [loadStats]);
 
-  const handleSelectPlan = async (plan: PlanDefinition) => {
-    if (plan.id === activePlanId) {
-      setPendingInfoPlan(plan);
-      setIsPaymentModalOpen(true);
-      return;
-    }
-
-    if (!currentWorkspace?.id) {
-      toast.error(FEATURES.multiCompanyMode ? "Avval ishchi maydon (Workspace) tanlang" : "Shaxsiy hisob tayyorlanmoqda, biroz kuting");
-      return;
-    }
-
-    if (!canManagePlan) {
-      toast.error("Tarifni faqat ishchi maydon egasi yoki rahbar oʻzgartira oladi");
-      return;
-    }
-
-    setUpdatingPlanId(plan.id);
+  const handleActivateTrial = async () => {
+    setIsActivatingTrial(true);
     try {
-      await updateWorkspacePlanInDb(currentWorkspace.id, plan.id);
-      await refreshContext();
-      toast.success(`Tarif «${plan.name}» ga oʻzgartirildi!`);
-      if (plan.id === "enterprise" || (plan.monthlyPriceUzs ?? 0) > 0) {
-        setPendingInfoPlan(plan);
-        setIsPaymentModalOpen(true);
+      const res = await fetch("/api/subscription/trial", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Sinovni yoqib boʻlmadi");
       }
+      if (data?.subscription) {
+        setSubscriptionSnapshot(data.subscription);
+      } else {
+        await refreshSubscription();
+      }
+      toast.success(data?.message || "7 kunlik bepul Pro sinov yoqildi!");
     } catch (err: any) {
-      toast.error("Tarifni saqlashda xatolik: " + (err?.message || "Ruxsat cheklangan"));
+      toast.error(err?.message || "Sinov muddatini yoqib boʻlmadi");
     } finally {
-      setUpdatingPlanId(null);
+      setIsActivatingTrial(false);
     }
   };
 
-  const getDisplayPrice = (plan: PlanDefinition) => {
-    if (plan.monthlyPriceUzs === null) return "Kelishuv asosida";
+  const handleModelSwitch = async (modelId: AiModelId) => {
+    if (!subscription.limits.allowedModels.includes(modelId)) {
+      toast.info("Gemini 4 Hydrogen modeli Pro va Pro+ tariflarida mavjud.");
+      return;
+    }
+    if (subscription.preferredModel === modelId) return;
+    setIsSwitchingModel(true);
+    try {
+      await setPreferredAiModel(modelId);
+      toast.success(`Standart AI modeli: ${AI_MODELS[modelId].label}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Modelni almashtirib boʻlmadi");
+    } finally {
+      setIsSwitchingModel(false);
+    }
+  };
+
+  const getDisplayPrice = (plan: PlanSpec) => {
     if (plan.monthlyPriceUzs === 0) return "0 soʻm";
     const price =
-      billingCycle === "annual"
-        ? Math.round(plan.monthlyPriceUzs * 0.8)
-        : plan.monthlyPriceUzs;
+      billingCycle === "annual" ? plan.annualMonthlyPriceUzs : plan.monthlyPriceUzs;
     return formatUzs(price);
   };
+
+  const trialDaysLeft = daysRemaining(subscription.trialEndsAt);
 
   return (
     <div className="space-y-6">
@@ -271,13 +158,11 @@ export default function BillingPage() {
             Obuna va Tariflar
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {FEATURES.multiCompanyMode
-              ? "Ishchi maydon tarifi va joriy oydagi resurslardan foydalanish holati"
-              : "Joriy tarif va oylik asboblardan foydalanish holati"}
+            AI kredit balansi, model tanlash va oylik tizim limitlari
           </p>
         </div>
 
-        {/* Monthly / Annual Billing Toggle */}
+        {/* Monthly / Annual Toggle */}
         <div className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs self-start">
           <button
             type="button"
@@ -309,118 +194,167 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Active Plan Status + Live Quotas */}
+      {/* Active Subscription & Live Usage Card */}
       <Card>
-        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <CardHeader className="pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-sm font-semibold">
                 {FEATURES.multiCompanyMode ? currentWorkspace?.name || "Ishchi maydon" : "Shaxsiy hisob"}
               </CardTitle>
               <Badge variant="indigo" className="text-[10px]">
-                {activePlan.name}
+                {subscription.planName}
               </Badge>
-              <Badge variant="success" className="text-[10px]">
-                Faol
-              </Badge>
+              {subscription.isTrialActive ? (
+                <Badge variant="warning" className="text-[10px] gap-1">
+                  <Clock className="h-3 w-3" />
+                  Sinov: {trialDaysLeft} kun qoldi
+                </Badge>
+              ) : (
+                <Badge variant="success" className="text-[10px]">
+                  Faol
+                </Badge>
+              )}
             </div>
             <CardDescription className="text-xs">
-              {activePlan.subtitle}
+              Asosiy AI modeli: <strong>{AI_MODELS[subscription.preferredModel].label}</strong>{" "}
+              ({AI_MODELS[subscription.preferredModel].creditCost} kredit / soʻrov)
             </CardDescription>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs gap-1.5 shrink-0"
-            onClick={() => {
-              setPendingInfoPlan(activePlan);
-              setIsPaymentModalOpen(true);
-            }}
-          >
-            <CreditCard className="h-3.5 w-3.5" />
-            Toʻlov va shartnoma
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Inline Model Selector */}
+            <div className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-[11px]">
+              {(["gemini-3.8-flash", "gemini-4-hydrogen"] as AiModelId[]).map((mId) => {
+                const meta = AI_MODELS[mId];
+                const isSelected = subscription.preferredModel === mId;
+                const isLocked = !subscription.limits.allowedModels.includes(mId);
+                return (
+                  <button
+                    key={mId}
+                    type="button"
+                    disabled={isSwitchingModel}
+                    onClick={() => handleModelSwitch(mId)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md px-2.5 py-1 font-medium transition-colors",
+                      isSelected
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {isLocked && <Lock className="h-3 w-3 text-amber-500" />}
+                    <span>{meta.shortLabel}</span>
+                    <span className="text-[9px] text-muted-foreground font-mono">
+                      {meta.creditCost}kr
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {subscription.trialAvailable && (
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isActivatingTrial}
+                onClick={handleActivateTrial}
+              >
+                {isActivatingTrial ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                7 kun Pro sinov
+              </Button>
+            )}
+          </div>
         </CardHeader>
 
         <CardContent>
-          <div
-            className={cn(
-              "grid grid-cols-1 gap-4 text-xs",
-              FEATURES.multiCompanyMode || FEATURES.teamMode
-                ? "sm:grid-cols-2 lg:grid-cols-4"
-                : "sm:grid-cols-2"
-            )}
-          >
-            {FEATURES.multiCompanyMode && (
-              <div className="rounded-xl border border-border bg-muted/20 p-3.5">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Korxonalar</span>
-                  <Building2 className="h-3.5 w-3.5" />
-                </div>
-                <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                  {currentWorkspace?.entitiesCount ?? 0} /{" "}
-                  {activePlan.limits.entities ?? "∞"}
-                </div>
-                <UsageProgressBar
-                  used={currentWorkspace?.entitiesCount ?? 0}
-                  max={activePlan.limits.entities}
-                />
-              </div>
-            )}
-
-            {FEATURES.teamMode && (
-              <div className="rounded-xl border border-border bg-muted/20 p-3.5">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Jamoa aʼzolari</span>
-                  <Users className="h-3.5 w-3.5" />
-                </div>
-                <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                  {currentWorkspace?.membersCount ?? 1} /{" "}
-                  {activePlan.limits.members ?? "∞"}
-                </div>
-                <UsageProgressBar
-                  used={currentWorkspace?.membersCount ?? 1}
-                  max={activePlan.limits.members}
-                />
-              </div>
-            )}
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Shu oydagi ishlar</span>
-                <FileStack className="h-3.5 w-3.5" />
+                <span>Oylik AI kreditlar</span>
+                <Coins className="h-3.5 w-3.5 text-amber-500" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {isLoadingUsage ? "…" : usage.monthlyBatches} /{" "}
-                {activePlan.limits.monthlyBatches ?? "∞"}
+                {subscription.monthlyUsed} / {subscription.monthlyLimit}
               </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Qoldiq: {subscription.remainingCredits} kredit
+              </p>
               <UsageProgressBar
-                used={usage.monthlyBatches}
-                max={activePlan.limits.monthlyBatches}
+                used={subscription.monthlyUsed}
+                max={subscription.monthlyLimit}
               />
             </div>
 
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>AI Suhbatlar</span>
-                <MessageSquare className="h-3.5 w-3.5" />
+                <span>Bugungi sarf</span>
+                <Zap className="h-3.5 w-3.5 text-indigo-500" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {isLoadingUsage ? "…" : usage.aiThreadsCount} ta suhbat
+                {subscription.dailyUsed} / {subscription.dailyLimit}
               </div>
-              <UsageProgressBar used={usage.aiThreadsCount} max={null} />
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Kunlik xavfsiz chegara (UTC+5)
+              </p>
+              <UsageProgressBar
+                used={subscription.dailyUsed}
+                max={subscription.dailyLimit}
+              />
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Saqlangan ishlar</span>
+                <FileStack className="h-3.5 w-3.5 text-emerald-500" />
+              </div>
+              <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
+                {isLoadingUsage ? "…" : usage.monthlyBatches} / {subscription.limits.maxSavedBatches}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Chatlar limiti: {usage.aiThreadsCount} / {subscription.limits.maxChatThreads}
+              </p>
+              <UsageProgressBar
+                used={usage.monthlyBatches}
+                max={subscription.limits.maxSavedBatches}
+              />
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Yuklash limitlari</span>
+                <HardDrive className="h-3.5 w-3.5" />
+              </div>
+              <div className="mt-1.5 text-xs font-medium text-foreground space-y-0.5">
+                <div>
+                  Rasm: {subscription.limits.imageMaxDimensionPx}px /{" "}
+                  {(subscription.limits.imageMaxBytes / (1024 * 1024)).toFixed(1)} MB
+                </div>
+                <div>
+                  PDF:{" "}
+                  {subscription.limits.pdfAllowed
+                    ? `${Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024))} MB`
+                    : "Yopiq (Pro da ochiq)"}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  Bank ↔ 1C: max {subscription.limits.reconcileMaxRows.toLocaleString("uz-UZ")} qator
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Plans Grid */}
+      {/* 3 Plan Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {PLANS.map((plan) => {
-          const isCurrent = plan.id === activePlanId;
-          const isUpdating = updatingPlanId === plan.id;
+        {PLANS_LIST.map((plan) => {
+          const isCurrent = plan.id === subscription.planId;
+          const featuresList = FEATURES.multiCompanyMode ? plan.b2bFeatures : plan.soloFeatures;
+          const showTrialBtn = plan.id === "professional" && subscription.trialAvailable;
 
           return (
             <Card
@@ -440,7 +374,7 @@ export default function BillingPage() {
                     </CardTitle>
                     {isCurrent ? (
                       <Badge variant="success" className="text-[10px]">
-                        Joriy tarif
+                        {subscription.isTrialActive ? "Joriy (Sinov)" : "Joriy tarif"}
                       </Badge>
                     ) : plan.badge ? (
                       <Badge variant="indigo" className="text-[10px] gap-1">
@@ -457,7 +391,7 @@ export default function BillingPage() {
                     <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
                       {getDisplayPrice(plan)}
                     </span>
-                    {plan.monthlyPriceUzs !== null && plan.monthlyPriceUzs > 0 && (
+                    {plan.monthlyPriceUzs > 0 && (
                       <span className="text-xs text-muted-foreground ml-1.5">
                         / oyiga
                       </span>
@@ -467,7 +401,7 @@ export default function BillingPage() {
 
                 <CardContent className="pt-0">
                   <ul className="space-y-2 text-xs">
-                    {plan.features.map((feat, idx) => (
+                    {featuresList.map((feat, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-foreground/90">
                         <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                         <span>{feat}</span>
@@ -477,20 +411,43 @@ export default function BillingPage() {
                 </CardContent>
               </div>
 
-              <div className="p-6 pt-2">
+              <div className="p-6 pt-2 space-y-2">
+                {showTrialBtn && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-full h-9 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    disabled={isActivatingTrial}
+                    onClick={handleActivateTrial}
+                  >
+                    {isActivatingTrial ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    7 kun bepul sinab koʻrish
+                  </Button>
+                )}
+
                 <Button
                   type="button"
-                  variant={isCurrent ? "outline" : plan.id === "professional" ? "default" : "outline"}
+                  variant={isCurrent || showTrialBtn ? "outline" : "default"}
                   className="w-full h-9 text-xs gap-1.5"
-                  disabled={Boolean(updatingPlanId)}
-                  onClick={() => handleSelectPlan(plan)}
+                  onClick={() => {
+                    setSelectedPlanForInfo(plan);
+                    setIsPaymentModalOpen(true);
+                  }}
                 >
-                  {isUpdating ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : isCurrent ? (
+                  {isCurrent ? (
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                  ) : null}
-                  {isCurrent ? "Toʻlov maʼlumotlari" : "Tarifni tanlash"}
+                  ) : (
+                    <CreditCard className="h-3.5 w-3.5" />
+                  )}
+                  {isCurrent
+                    ? "Tarif va toʻlov maʼlumotlari"
+                    : plan.monthlyPriceUzs === 0
+                    ? "Asosiy bepul tarif"
+                    : "Ulanish / Toʻlov tartibi"}
                 </Button>
               </div>
             </Card>
@@ -498,34 +455,38 @@ export default function BillingPage() {
         })}
       </div>
 
-      {/* Honest Payment & Contract Info Modal */}
+      {/* Honest Payment & Activation Info Modal (Zero fake card inputs) */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
         <DialogContent className="sm:max-w-md text-xs">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">
-              {pendingInfoPlan ? `${pendingInfoPlan.name} — Toʻlov tartibi` : "Toʻlov tartibi"}
+              {selectedPlanForInfo ? `${selectedPlanForInfo.name} — Toʻlov tartibi` : "Toʻlov tartibi"}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Tanlangan tarif saqlandi. Toʻlov usullari:
+              {selectedPlanForInfo && selectedPlanForInfo.monthlyPriceUzs > 0
+                ? `Tanlangan narx: ${getDisplayPrice(selectedPlanForInfo)} / oy (${
+                    billingCycle === "annual" ? "yillik -20%" : "oylik"
+                  })`
+                : "Bepul boshlangʻich tarif"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-1">
-            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2">
+            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-1.5">
               <div className="font-semibold text-foreground">
-                1. Bank oʻtkazmasi (Hisob-faktura / Didox E-SF)
+                1. Click / Payme (tayyorlanmoqda)
               </div>
               <p className="text-muted-foreground leading-relaxed">
-                Rekvizitlar asosida shartnoma va E-SF rasmiylashtirilib, hisob raqamdan koʻchirish yoʻli bilan toʻlov qabul qilinadi.
+                Avtomatik karta toʻlov shlyuzi hozir ulanish bosqichida. Toʻlov tasdiqlangach obuna serverda avtomatik faollashadi.
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-2">
+            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-1.5">
               <div className="font-semibold text-foreground">
-                2. Payme / Click / Uzum Business
+                2. Bank oʻtkazmasi (Hisob-faktura / Didox E-SF)
               </div>
               <p className="text-muted-foreground leading-relaxed">
-                Avtomatik karta orqali toʻlov shlyuzi hozir ulanish bosqichida. Hozirgi sinov davrida tanlangan tarif hisobingizda cheklovlarsiz faol turadi.
+                Yuridik shaxslar va YaTT lar uchun hisob raqamdan koʻchirish hamda E-SF asosida tarif faollashtirish qoʻllab-quvvatlanadi.
               </p>
             </div>
           </div>

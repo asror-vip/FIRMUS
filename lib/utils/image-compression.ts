@@ -129,7 +129,7 @@ function canvasToBlob(
 
 export async function compressImageForAi(
   file: File,
-  options?: { maxDimension?: number; quality?: number }
+  options?: { maxDimension?: number; quality?: number; maxCompressedBytes?: number }
 ): Promise<CompressedImageResult> {
   const safeMime = resolveSupportedImageMime(file);
   if (!safeMime) {
@@ -141,6 +141,7 @@ export async function compressImageForAi(
 
   const maxDim = options?.maxDimension ?? MAX_DIMENSION_PX;
   const quality = options?.quality ?? 0.82;
+  const targetMaxBytes = options?.maxCompressedBytes ?? TARGET_MAX_COMPRESSED_BYTES;
 
   let bitmap: ImageBitmap | null = null;
   let objectUrl: string | null = null;
@@ -164,7 +165,7 @@ export async function compressImageForAi(
     }
 
     // Fast path: small screenshots / pre-sized images skip canvas re-encoding (~0ms)
-    if (file.size <= SKIP_COMPRESS_THRESHOLD_BYTES && width <= maxDim && height <= maxDim) {
+    if (file.size <= Math.min(SKIP_COMPRESS_THRESHOLD_BYTES, targetMaxBytes) && width <= maxDim && height <= maxDim) {
       const dataUrl = await readBlobAsDataUrl(file);
       return {
         dataUrl,
@@ -196,12 +197,15 @@ export async function compressImageForAi(
     ctx.drawImage(drawSource, 0, 0, targetW, targetH);
 
     let outBlob = await canvasToBlob(canvas, "image/jpeg", quality);
-    if (outBlob.size > TARGET_MAX_COMPRESSED_BYTES) {
+    if (outBlob.size > targetMaxBytes) {
       outBlob = await canvasToBlob(canvas, "image/jpeg", 0.68);
+    }
+    if (outBlob.size > targetMaxBytes) {
+      outBlob = await canvasToBlob(canvas, "image/jpeg", 0.52);
     }
 
     // Keep original if somehow already smaller and within bounds
-    if (outBlob.size >= file.size && file.size <= TARGET_MAX_COMPRESSED_BYTES) {
+    if (outBlob.size >= file.size && file.size <= targetMaxBytes) {
       const dataUrl = await readBlobAsDataUrl(file);
       return {
         dataUrl,
@@ -234,5 +238,18 @@ export async function compressImageForAi(
     if (objectUrl) {
       URL.revokeObjectURL(objectUrl);
     }
+  }
+}
+
+export async function computeSha256Hex(raw: string): Promise<string | undefined> {
+  try {
+    if (typeof crypto === "undefined" || !crypto.subtle) return undefined;
+    const enc = new TextEncoder().encode(raw);
+    const digest = await crypto.subtle.digest("SHA-256", enc);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return undefined;
   }
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
+import { AI_MODELS } from "@/lib/config/plans";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,13 @@ interface ChatMessage {
 }
 
 export function AiDrawer() {
-  const { isAiDrawerOpen, setIsAiDrawerOpen, currentEntity } = useAppState();
+  const {
+    isAiDrawerOpen,
+    setIsAiDrawerOpen,
+    currentEntity,
+    subscription,
+    setSubscriptionSnapshot,
+  } = useAppState();
   const { t } = useTranslation();
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const abortCtrlRef = useRef<AbortController | null>(null);
@@ -153,7 +160,10 @@ export function AiDrawer() {
       return;
     }
     try {
-      const compressed = await compressImageForAi(file);
+      const compressed = await compressImageForAi(file, {
+        maxDimension: subscription.limits.imageMaxDimensionPx,
+        maxCompressedBytes: subscription.limits.imageMaxBytes,
+      });
       setAttachedImage(compressed);
     } catch (err: any) {
       toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
@@ -204,13 +214,15 @@ export function AiDrawer() {
 
     try {
       if (imgToSend) {
-        const { scan, savedBatchId, isDuplicate } = await scanCompressedImageAndSave({
+        const { scan, savedBatchId, isDuplicate, usage } = await scanCompressedImageAndSave({
           dataUrl: imgToSend.dataUrl,
           mimeType: imgToSend.mimeType,
           fileName: imgToSend.fileName,
           userNote: userText.trim(),
           entityId: currentEntity?.id,
+          requestedModel: subscription.limits.defaultScanModel,
         });
+        if (usage) setSubscriptionSnapshot(usage);
 
         const aiScanMsg: ChatMessage = {
           id: `m-a-${Date.now()}`,
@@ -240,11 +252,13 @@ export function AiDrawer() {
         body: JSON.stringify({
           message: userText,
           entityId: currentEntity?.id,
+          requestedModel: subscription.preferredModel,
           history: historySnapshot,
         }),
       });
 
       const data = await res.json();
+      if (data?.usage) setSubscriptionSnapshot(data.usage);
       if (!res.ok) {
         throw new Error(data.error || "AI Copilot javob qaytarmadi");
       }
@@ -392,7 +406,11 @@ export function AiDrawer() {
             </div>
             <span className="text-[10px] text-muted-foreground flex items-center gap-1 truncate">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-              <span className="truncate">{currentEntity?.tradeName || currentEntity?.name || "Shaxsiy"}</span>
+              <span className="truncate">
+                {FEATURES.multiCompanyMode
+                  ? currentEntity?.tradeName || currentEntity?.name || "Shaxsiy"
+                  : `${AI_MODELS[subscription.preferredModel].shortLabel} • ${subscription.remainingCredits} kredit`}
+              </span>
             </span>
           </div>
         </div>
@@ -621,6 +639,8 @@ export function AiDrawer() {
               onAttachImage={setAttachedImage}
               isSending={isSending}
               isStreaming={isStreaming}
+              maxDimension={subscription.limits.imageMaxDimensionPx}
+              maxCompressedBytes={subscription.limits.imageMaxBytes}
               onStop={handleStop}
               compact
               placeholder="Xabar yozing..."

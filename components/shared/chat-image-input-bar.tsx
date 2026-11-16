@@ -23,6 +23,8 @@ interface ChatImageInputBarProps {
   onStop?: () => void;
   placeholder?: string;
   compact?: boolean;
+  maxDimension?: number;
+  maxCompressedBytes?: number;
 }
 
 export function ChatImageInputBar({
@@ -36,6 +38,8 @@ export function ChatImageInputBar({
   onStop,
   placeholder = "Xabar yozing...",
   compact = false,
+  maxDimension,
+  maxCompressedBytes,
 }: ChatImageInputBarProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -54,7 +58,10 @@ export function ChatImageInputBar({
       return;
     }
     try {
-      const compressed = await compressImageForAi(file);
+      const compressed = await compressImageForAi(file, {
+        maxDimension,
+        maxCompressedBytes,
+      });
       onAttachImage(compressed);
     } catch (err: any) {
       toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);

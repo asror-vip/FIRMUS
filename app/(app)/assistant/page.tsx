@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
+import { AI_MODELS, type AiModelId } from "@/lib/config/plans";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
 import { Money } from "@/components/shared/money";
 import { PaginationBar } from "@/components/shared/pagination-bar";
@@ -30,6 +32,7 @@ import {
 import {
   AI_IMAGE_FORMAT_ERROR,
   compressImageForAi,
+  computeSha256Hex,
   isSupportedAiImageFile,
   type CompressedImageResult,
 } from "@/lib/utils/image-compression";
@@ -64,8 +67,18 @@ import {
   PanelLeft,
   SquarePen,
   Copy,
+  Lock,
+  Coins,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const TOOL_PAGE_TITLES: Record<string, string> = {
+  chat: "AI Chat",
+  scan: "Faktura / Chek Skaner",
+  calc: "Kalkulyator",
+  contract: "Shartnoma tahlili",
+  history: "Saqlangan tarix",
+};
 
 interface ChatTurn {
   id: string;
@@ -87,7 +100,13 @@ const HISTORY_PAGE_SIZE = 10;
 function AssistantContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentEntity, isContextReady } = useAppState();
+  const {
+    currentEntity,
+    isContextReady,
+    subscription,
+    setSubscriptionSnapshot,
+    setPreferredAiModel,
+  } = useAppState();
   const tabParam = searchParams.get("tab");
   const resolvedTab =
     tabParam && ["chat", "scan", "calc", "contract", "history"].includes(tabParam)
@@ -280,10 +299,30 @@ function AssistantContent() {
       return;
     }
     try {
-      const compressed = await compressImageForAi(file);
+      const compressed = await compressImageForAi(file, {
+        maxDimension: subscription.limits.imageMaxDimensionPx,
+        maxCompressedBytes: subscription.limits.imageMaxBytes,
+      });
       setAttachedChatImage(compressed);
     } catch (err: any) {
       toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
+    }
+  };
+
+  const handleModelSwitch = async (nextModel: AiModelId) => {
+    if (!subscription.limits.allowedModels.includes(nextModel)) {
+      toast.info(
+        `${AI_MODELS[nextModel].label} modeli Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul sinovni yoqing.`
+      );
+      router.push("/billing");
+      return;
+    }
+    if (subscription.preferredModel === nextModel) return;
+    try {
+      await setPreferredAiModel(nextModel);
+      toast.success(`Model oʻzgartirildi: ${AI_MODELS[nextModel].label}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Modelni almashtirib boʻlmadi");
     }
   };
 
@@ -364,18 +403,21 @@ function AssistantContent() {
 
     try {
       if (imgToSend) {
-        const { scan, savedBatchId, isDuplicate } = await scanCompressedImageAndSave({
+        const { scan, savedBatchId, isDuplicate, cachedHit, usage } = await scanCompressedImageAndSave({
           dataUrl: imgToSend.dataUrl,
           mimeType: imgToSend.mimeType,
           fileName: imgToSend.fileName,
           userNote: query,
           entityId: currentEntity?.id,
+          requestedModel: subscription.limits.defaultScanModel,
         });
+        if (usage) setSubscriptionSnapshot(usage);
         await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
         const aiScanTurn: ChatTurn = {
           id: `a-${Date.now()}`,
           sender: "ai",
           text:
+            `${cachedHit ? "(Tarixdan topildi — 0 kredit) " : ""}` +
             `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
             (scan.provodkaExplanation || "Provodka tayyorlandi."),
           modelUsed: scan.modelUsed,
@@ -398,10 +440,12 @@ function AssistantContent() {
         body: JSON.stringify({
           message: query,
           entityId: currentEntity?.id,
+          requestedModel: subscription.preferredModel,
           history: historySnapshot,
         }),
       });
       const data = await res.json();
+      if (data?.usage) setSubscriptionSnapshot(data.usage);
       if (!res.ok) throw new Error(data.error || "AI javob qaytarmadi");
 
       const aiTurn: ChatTurn = {
@@ -503,8 +547,13 @@ function AssistantContent() {
     if (!file) return;
     try {
       if (file.type === "application/pdf") {
-        if (file.size > 6 * 1024 * 1024) {
-          toast.error("PDF hajmi 6 MB dan oshmasligi kerak");
+        if (!subscription.limits.pdfAllowed) {
+          toast.info("PDF yuklash Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul sinovni yoqing.");
+          return;
+        }
+        if (file.size > subscription.limits.pdfMaxBytes) {
+          const maxMb = Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024));
+          toast.error(`PDF hajmi ${subscription.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak`);
           return;
         }
         const dataUrl = await readFileAsBase64(file);
@@ -521,7 +570,10 @@ function AssistantContent() {
         return;
       }
 
-      const compressed = await compressImageForAi(file);
+      const compressed = await compressImageForAi(file, {
+        maxDimension: subscription.limits.imageMaxDimensionPx,
+        maxCompressedBytes: subscription.limits.imageMaxBytes,
+      });
       setScanFileName(compressed.fileName);
       setScanMimeType(compressed.mimeType);
       setScanBase64(compressed.dataUrl);
@@ -539,20 +591,30 @@ function AssistantContent() {
     }
     setIsScanning(true);
     try {
+      const fileHash = await computeSha256Hex(scanBase64);
       const res = await fetch("/api/ai-document-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "invoice_receipt",
           fileName: scanFileName,
+          fileHash,
+          entityId: currentEntity?.id,
+          requestedModel: subscription.limits.defaultScanModel,
           mimeType: scanMimeType,
           base64Data: scanBase64,
         }),
       });
       const data = await res.json();
+      if (data?.usage) setSubscriptionSnapshot(data.usage);
       if (!res.ok) throw new Error(data.error || "Hujjatni tahlil qilib boʻlmadi");
       setScanResult(data);
-      setActiveScanBatchId(null);
+      setActiveScanBatchId(data.savedBatchId || null);
+
+      if (data.cachedHit) {
+        toast.success("Ushbu hujjat avval oʻqilgan — tarixdan olindi (0 kredit)!");
+        return;
+      }
 
       if (currentEntity?.id) {
         try {
@@ -562,6 +624,7 @@ function AssistantContent() {
             periodMonth: /^\d{4}-\d{2}/.test(data.date || "") ? data.date.slice(0, 7) : undefined,
             title: `${data.documentType || "Hujjat"} ${data.documentNumber || ""} (${data.counterparty || ""})`.trim(),
             bankFileName: scanFileName || undefined,
+            fileHash,
             rowCount: Array.isArray(data.items) ? Math.max(1, data.items.length) : 1,
             totalIncome: data.direction === "income" ? Number(data.totalAmount || 0) : 0,
             totalExpense: data.direction === "expense" ? Number(data.totalAmount || 0) : 0,
@@ -618,8 +681,13 @@ function AssistantContent() {
     if (!file) return;
     try {
       if (file.type === "application/pdf") {
-        if (file.size > 6 * 1024 * 1024) {
-          toast.error("PDF hajmi 6 MB dan oshmasligi kerak");
+        if (!subscription.limits.pdfAllowed) {
+          toast.info("Shartnoma PDF yuklash Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul sinovni yoqing.");
+          return;
+        }
+        if (file.size > subscription.limits.pdfMaxBytes) {
+          const maxMb = Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024));
+          toast.error(`PDF hajmi ${subscription.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak`);
           return;
         }
         const dataUrl = await readFileAsBase64(file);
@@ -636,7 +704,10 @@ function AssistantContent() {
         return;
       }
 
-      const compressed = await compressImageForAi(file);
+      const compressed = await compressImageForAi(file, {
+        maxDimension: subscription.limits.imageMaxDimensionPx,
+        maxCompressedBytes: subscription.limits.imageMaxBytes,
+      });
       setContractFileInfo({
         name: compressed.fileName,
         mimeType: compressed.mimeType,
@@ -652,22 +723,39 @@ function AssistantContent() {
       toast.error("Shartnoma matnini joylashtiring yoki PDF/rasm fayl yuklang");
       return;
     }
+    if (contractText.trim().length > subscription.limits.contractTextMaxChars) {
+      toast.error(
+        `Shartnoma matni ${subscription.planName} tarifi limiti (${subscription.limits.contractTextMaxChars.toLocaleString("uz-UZ")} belgi) dan oshib ketdi.`
+      );
+      return;
+    }
     setIsCheckingContract(true);
     try {
+      const hashSource = contractFileInfo?.base64 || contractText.trim();
+      const fileHash = await computeSha256Hex(hashSource);
       const res = await fetch("/api/ai-document-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "contract_risk",
           fileName: contractFileInfo?.name,
+          fileHash,
+          entityId: currentEntity?.id,
+          requestedModel: subscription.preferredModel,
           mimeType: contractFileInfo?.mimeType,
           base64Data: contractFileInfo?.base64,
           docText: contractText.trim() || undefined,
         }),
       });
       const data = await res.json();
+      if (data?.usage) setSubscriptionSnapshot(data.usage);
       if (!res.ok) throw new Error(data.error || "Shartnomani tahlil qilib boʻlmadi");
       setContractResult(data);
+
+      if (data.cachedHit) {
+        toast.success("Ushbu shartnoma avval tekshirilgan — tarixdan olindi (0 kredit)!");
+        return;
+      }
 
       if (currentEntity?.id) {
         try {
@@ -676,6 +764,7 @@ function AssistantContent() {
             batchType: "contract_risk",
             title: `Shartnoma: ${contractFileInfo?.name || data.counterparty || "Matnli tekshiruv"}`.slice(0, 180),
             bankFileName: contractFileInfo?.name,
+            fileHash,
             rowCount: Array.isArray(data.risks) ? data.risks.length : 0,
             totalIncome: 0,
             totalExpense: Number(data.totalAmount || 0),
@@ -736,35 +825,52 @@ function AssistantContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-xl font-bold tracking-tight text-foreground">
-          AI Yordamchi
+          {FEATURES.fullAccountingErp
+            ? "AI Yordamchi"
+            : TOOL_PAGE_TITLES[activeTab] || "AI Yordamchi"}
         </h1>
+
+        <Link
+          href="/billing"
+          className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 hover:bg-muted/70 px-3 py-1 text-xs transition-colors self-start sm:self-auto"
+        >
+          <Coins className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+          <span className="font-mono font-semibold text-foreground">
+            {subscription.remainingCredits} / {subscription.monthlyLimit} kredit
+          </span>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+            {subscription.isTrialActive ? "Pro sinov" : subscription.planName}
+          </Badge>
+        </Link>
       </div>
 
       <QuickEntityBanner />
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="h-9 text-xs flex-wrap">
-          <TabsTrigger value="chat" className="gap-1.5 text-xs">
-            <Sparkles className="h-3.5 w-3.5" />
-            AI Chat
-          </TabsTrigger>
-          <TabsTrigger value="scan" className="gap-1.5 text-xs">
-            <Camera className="h-3.5 w-3.5" />
-            Faktura / Chek Skaner
-          </TabsTrigger>
-          <TabsTrigger value="calc" className="gap-1.5 text-xs">
-            <Calculator className="h-3.5 w-3.5" />
-            Kalkulyator
-          </TabsTrigger>
-          <TabsTrigger value="contract" className="gap-1.5 text-xs">
-            <FileWarning className="h-3.5 w-3.5" />
-            Shartnoma tahlili
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-1.5 text-xs">
-            <History className="h-3.5 w-3.5" />
-            Tarix ({allHistoryCount})
-          </TabsTrigger>
-        </TabsList>
+        {FEATURES.fullAccountingErp && (
+          <TabsList className="h-9 text-xs flex-wrap">
+            <TabsTrigger value="chat" className="gap-1.5 text-xs">
+              <Sparkles className="h-3.5 w-3.5" />
+              AI Chat
+            </TabsTrigger>
+            <TabsTrigger value="scan" className="gap-1.5 text-xs">
+              <Camera className="h-3.5 w-3.5" />
+              Faktura / Chek Skaner
+            </TabsTrigger>
+            <TabsTrigger value="calc" className="gap-1.5 text-xs">
+              <Calculator className="h-3.5 w-3.5" />
+              Kalkulyator
+            </TabsTrigger>
+            <TabsTrigger value="contract" className="gap-1.5 text-xs">
+              <FileWarning className="h-3.5 w-3.5" />
+              Shartnoma tahlili
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-1.5 text-xs">
+              <History className="h-3.5 w-3.5" />
+              Tarix ({allHistoryCount})
+            </TabsTrigger>
+          </TabsList>
+        )}
 
         {/* TAB 1: AI CHAT */}
         <TabsContent value="chat" className="space-y-3">
@@ -803,7 +909,7 @@ function AssistantContent() {
 
               {/* Active Conversation Area */}
               <div className="flex-1 flex flex-col min-w-0">
-                <div className="flex items-center justify-between px-3.5 py-2 border-b border-border/60 bg-card/50">
+                <div className="flex items-center justify-between gap-2 flex-wrap px-3.5 py-2 border-b border-border/60 bg-card/50">
                   <div className="flex items-center gap-1.5">
                     <Button
                       type="button"
@@ -819,16 +925,46 @@ function AssistantContent() {
                       {activeThreadId ? "Saqlangan suhbat" : "Yangi suhbat"}
                     </span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-                    onClick={handleNewChat}
-                  >
-                    <SquarePen className="h-3.5 w-3.5" />
-                    <span>Yangi chat</span>
-                  </Button>
+
+                  <div className="flex items-center gap-1.5">
+                    <div className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-[11px]">
+                      {(["gemini-3.8-flash", "gemini-4-hydrogen"] as AiModelId[]).map((mId) => {
+                        const meta = AI_MODELS[mId];
+                        const isSelected = subscription.preferredModel === mId;
+                        const isLocked = !subscription.limits.allowedModels.includes(mId);
+                        return (
+                          <button
+                            key={mId}
+                            type="button"
+                            onClick={() => handleModelSwitch(mId)}
+                            title={meta.description}
+                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium transition-colors ${
+                              isSelected
+                                ? "bg-background text-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {isLocked && <Lock className="h-2.5 w-2.5 text-amber-500" />}
+                            <span>{meta.shortLabel}</span>
+                            <span className="text-[9px] text-muted-foreground font-mono">
+                              {meta.creditCost}kr
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+                      onClick={handleNewChat}
+                    >
+                      <SquarePen className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Yangi chat</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <CardContent className="pt-4 space-y-3 flex-1 flex flex-col justify-between min-h-[420px]">
@@ -939,6 +1075,8 @@ function AssistantContent() {
                       onAttachImage={setAttachedChatImage}
                       isSending={isSending}
                       isStreaming={isChatStreaming}
+                      maxDimension={subscription.limits.imageMaxDimensionPx}
+                      maxCompressedBytes={subscription.limits.imageMaxBytes}
                       onStop={handleStopChat}
                       onSubmit={() => handleSendChat()}
                     />
@@ -956,14 +1094,20 @@ function AssistantContent() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">Faktura, TTN yoki Chek yuklash</CardTitle>
                 <CardDescription className="text-xs">
-                  PNG, JPG, WEBP yoki PDF
+                  {subscription.limits.pdfAllowed
+                    ? `PNG, JPG, WEBP yoki PDF (max ${Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024))} MB)`
+                    : "PNG, JPG, WEBP (PDF uchun Pro tarif)"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
                 <input
                   ref={scanFileRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  accept={
+                    subscription.limits.pdfAllowed
+                      ? "image/jpeg,image/png,image/webp,application/pdf"
+                      : "image/jpeg,image/png,image/webp"
+                  }
                   className="hidden"
                   onChange={(e) => handleSelectScanFile(e.target.files?.[0])}
                 />
@@ -974,7 +1118,10 @@ function AssistantContent() {
                   onClick={() => scanFileRef.current?.click()}
                 >
                   <Upload className="h-5 w-5 text-indigo-600" />
-                  <span>{scanFileName || "Rasm yoki PDF tanlash"}</span>
+                  <span>
+                    {scanFileName ||
+                      (subscription.limits.pdfAllowed ? "Rasm yoki PDF tanlash" : "Rasm tanlash (PNG, JPG, WEBP)")}
+                  </span>
                 </Button>
                 {scanPreviewUrl && (
                   <div className="rounded-md border border-border overflow-hidden max-h-48 flex justify-center bg-muted/30">
@@ -1383,7 +1530,11 @@ function AssistantContent() {
                 <input
                   ref={contractFileRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  accept={
+                    subscription.limits.pdfAllowed
+                      ? "image/jpeg,image/png,image/webp,application/pdf"
+                      : "image/jpeg,image/png,image/webp"
+                  }
                   className="hidden"
                   onChange={(e) => handleSelectContractFile(e.target.files?.[0])}
                 />
@@ -1395,7 +1546,11 @@ function AssistantContent() {
                   onClick={() => contractFileRef.current?.click()}
                 >
                   <Upload className="h-3.5 w-3.5" />
-                  {contractFileInfo ? contractFileInfo.name : "PDF yoki rasm biriktirish"}
+                  {contractFileInfo
+                    ? contractFileInfo.name
+                    : subscription.limits.pdfAllowed
+                    ? `PDF yoki rasm biriktirish (max ${Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024))} MB)`
+                    : "Rasm biriktirish (PDF uchun Pro tarif)"}
                 </Button>
                 <textarea
                   rows={7}

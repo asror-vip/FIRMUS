@@ -6,6 +6,11 @@ import { BusinessEntity, UserRole, Workspace } from "@/lib/types/accounting";
 import { supabase } from "@/lib/supabase/client";
 import { FEATURES } from "@/lib/config/features";
 import {
+  DEFAULT_STARTER_SNAPSHOT,
+  type AiModelId,
+  type SubscriptionSnapshot,
+} from "@/lib/config/plans";
+import {
   createBusinessEntity,
   createWorkspaceRecord,
   fetchBusinessEntities,
@@ -19,7 +24,7 @@ const EMPTY_WORKSPACE: Workspace = {
   name: "Ishchi maydon",
   type: "accounting_firm",
   ownerName: "",
-  currentPlan: "professional",
+  currentPlan: "starter",
   entitiesCount: 0,
   membersCount: 1,
 };
@@ -49,6 +54,11 @@ interface AppStateContextType {
 
   isContextReady: boolean;
 
+  subscription: SubscriptionSnapshot;
+  setSubscriptionSnapshot: (next: SubscriptionSnapshot) => void;
+  refreshSubscription: () => Promise<void>;
+  setPreferredAiModel: (modelId: AiModelId) => Promise<void>;
+
   refreshContext: () => Promise<void>;
   handleSignOut: () => Promise<void>;
 }
@@ -69,6 +79,34 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isContextReady, setIsContextReady] = useState<boolean>(false);
+  const [subscription, setSubscription] = useState<SubscriptionSnapshot>(DEFAULT_STARTER_SNAPSHOT);
+
+  const refreshSubscription = useCallback(async () => {
+    try {
+      const res = await fetch("/api/subscription", { cache: "no-store" });
+      if (res.ok) {
+        const data = (await res.json()) as SubscriptionSnapshot;
+        if (data?.planId) {
+          setSubscription(data);
+        }
+      }
+    } catch {
+      // Keep safe current snapshot if transient network error occurs
+    }
+  }, []);
+
+  const setPreferredAiModel = useCallback(async (modelId: AiModelId) => {
+    const res = await fetch("/api/subscription", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preferredModel: modelId }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data?.error || "Modelni almashtirib boʻlmadi");
+    }
+    setSubscription(data as SubscriptionSnapshot);
+  }, []);
 
   const syncRoleForWorkspace = useCallback(async (authUser: any, wsId: string) => {
     if (!authUser || !wsId) return;
@@ -197,10 +235,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error("Error loading workspace/entities in AppStateProvider:", err);
       } finally {
+        await refreshSubscription();
         setIsContextReady(true);
       }
     },
-    [ensureSoloContext, syncRoleForWorkspace]
+    [ensureSoloContext, refreshSubscription, syncRoleForWorkspace]
   );
 
   const refreshContext = useCallback(async () => {
@@ -357,6 +396,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setIsSearchOpen,
 
         isContextReady,
+
+        subscription,
+        setSubscriptionSnapshot: setSubscription,
+        refreshSubscription,
+        setPreferredAiModel,
 
         refreshContext,
         handleSignOut,

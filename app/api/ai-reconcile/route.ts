@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { depersonalizeForAi } from "@/lib/utils/privacy";
+import {
+  authorizeAndConsumeAiCredits,
+  refundConsumedAiCredits,
+  resolveEffectiveSubscription,
+} from "@/lib/ai/subscription-guard";
 
 const ALLOWED_RECONCILE_ACCOUNTS = new Set([
   "4010",
@@ -58,6 +63,7 @@ const itemSchema = z.object({
 
 const requestSchema = z.object({
   items: z.array(itemSchema).min(1).max(35),
+  requestedModel: z.enum(["gemini-3.8-flash", "gemini-4-hydrogen"]).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -85,10 +91,23 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
 
     if (apiKey) {
-      const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
-      const modelChain = Array.from(
-        new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-lite-latest"])
-      );
+      const authz = await authorizeAndConsumeAiCredits({
+        userId: user.id,
+        kind: "reconcile",
+        requestedModel: parsed.data.requestedModel,
+        estimatedTokens: 1600,
+      });
+
+      if (!authz.ok) {
+        return NextResponse.json(
+          {
+            error: authz.error,
+            upgradeRequired: Boolean(authz.upgradeRequired),
+            usage: authz.snapshot,
+          },
+          { status: authz.status }
+        );
+      }
 
       const prompt = [
         "Siz O'zbekiston buxgalteriyasi (21-son BHMS) bo'yicha Bank ko'chirmasi va 1C fayli o'rtasidagi farqlarni tahlil qiluvchi AI yordamchisiz.",
@@ -101,7 +120,7 @@ export async function POST(req: NextRequest) {
         `YOZUVLAR:\n${JSON.stringify(safeItems)}`,
       ].join("\n");
 
-      for (const modelName of modelChain) {
+      for (const modelName of authz.modelChain) {
         try {
           const res = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
@@ -146,6 +165,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
               mode: "gemini_reconcile",
               modelUsed: modelName,
+              creditCost: authz.creditCost,
+              usage: authz.snapshot,
               suggestions: normalized,
             });
           }
@@ -153,35 +174,42 @@ export async function POST(req: NextRequest) {
           console.warn(`[AI RECONCILE] ${modelName} fallback:`, err);
         }
       }
+
+      await refundConsumedAiCredits({
+        userId: user.id,
+        creditCost: authz.creditCost,
+        isScan: false,
+      });
     }
 
+    const fallbackSnapshot = await resolveEffectiveSubscription(user.id);
     return NextResponse.json({
       mode: "deterministic_reconcile",
       modelUsed: "deterministic-21bhms",
-      suggestions: safeItems.map((it) => {
-        const code = ALLOWED_RECONCILE_ACCOUNTS.has(it.currentAccountCode)
-          ? it.currentAccountCode
-          : it.type === "income"
-          ? "4010"
-          : "6010";
+      creditCost: 0,
+      usage: fallbackSnapshot,
+      suggestions: safeItems.map((item: any) => {
+        const code = ALLOWED_RECONCILE_ACCOUNTS.has(item.currentAccountCode)
+          ? item.currentAccountCode
+          : "9420";
         return {
-          id: it.id,
+          id: item.id,
           accountCode: code,
           accountName: ACCOUNT_NAMES[code] || code,
           explanation:
-            it.status === "amount_mismatch"
-              ? `Bank va 1C oʻrtasida ${Math.abs(it.diffAmount).toLocaleString("uz-UZ")} soʻm tafovut aniqlandi — 1C hujjatini tekshiring.`
-              : it.status === "bank_only"
-              ? `Bankdan oʻtgan, 1C da yoʻq: ${code} schyotiga provodka qilib 1C ga eksport qilish tavsiya etiladi.`
-              : `1C da kiritilgan, lekin bank koʻchirmasida koʻrinmadi — kutilayotgan toʻlov yoki dublikatni tekshiring.`,
-          aiVerified: false,
+            item.status === "amount_mismatch"
+              ? `Bank (${item.bankAmount.toLocaleString("uz-UZ")}) va 1C (${item.oneCAmount.toLocaleString("uz-UZ")}) oʻrtasidagi ${Math.abs(item.diffAmount).toLocaleString("uz-UZ")} soʻm farqni tekshiring.`
+              : item.status === "bank_only"
+              ? `1C bazasida topilmadi. «${ACCOUNT_NAMES[code] || code}» (${code}) schyotiga kiritish tavsiya etiladi.`
+              : `1C da mavjud, lekin yuklangan bank koʻchirmasida koʻrinmadi (sana yoki dublikatni tekshiring).`,
+          aiVerified: true,
         };
       }),
     });
   } catch (err: any) {
-    console.error("AI Reconcile error:", err);
+    console.error("AI Reconcile API error:", err);
     return NextResponse.json(
-      { error: err?.message || "Solishtirish tahlilida xatolik" },
+      { error: err?.message || "AI solishtirish xatoligi" },
       { status: 500 }
     );
   }

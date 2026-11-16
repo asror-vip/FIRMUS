@@ -11,6 +11,7 @@ export const agentHistoryItemSchema = z.object({
 export const copilotRequestSchema = z.object({
   message: z.string().trim().min(1, "Savol matni boʻsh boʻlishi mumkin emas").max(2000),
   entityId: z.string().regex(UUID_REGEX, "Notoʻgʻri korxona ID").optional(),
+  requestedModel: z.enum(["gemini-3.8-flash", "gemini-4-hydrogen"]).optional(),
   history: z.array(agentHistoryItemSchema).max(12).optional(),
 });
 

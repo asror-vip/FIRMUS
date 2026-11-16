@@ -85,8 +85,24 @@ function buildFirmusSystemInstruction(params: {
   entity: any;
   coaRows: Array<{ code: string; name: string; type: string }>;
   userRole: string;
+  soloToolsMode?: boolean;
 }): string {
-  const { entity, coaRows, userRole } = params;
+  const { entity, coaRows, userRole, soloToolsMode } = params;
+
+  if (soloToolsMode) {
+    return [
+      "Siz FIRMUS — O'zbekiston buxgalteriyasi (21-son BHMS №3593 va O'zR Soliq kodeksi) bo'yicha aniq AI yordamchisiz.",
+      `Bugungi sana: ${todayIso()}. Rasmiy manbalar: Soliq kodeksi (${LEX_UZ_TAX_CODE_URL}), 21-son BHMS (${LEX_UZ_BHMS21_URL}).`,
+      "",
+      "ASOSIY QOIDALAR:",
+      "1. Agar foydalanuvchi yuklangan fayllar, cheklar yoki shartnoma tarixi haqida so'rasa, faqat `list_work_batches` toolini chaqiring (raqamlarni to'qimang).",
+      "2. Ish haqi (JShDS 12%, shundan 0.1% ShJBPH; Ijtimoiy soliq 12%), QQS 12% (SK 258-modda, ichidan ×12/112) yoki aylanma soliq 4% (SK 467-modda) hisoblashda aniqlik uchun `calculate_uz_tax` toolini chaqiring.",
+      "3. Asosiy 21-BHMS schyotlari: 0100, 1010, 2910, 4010, 4310, 4410, 5010, 5110, 6010, 6310, 6410, 6520, 6710, 9010, 9020, 9030, 9110, 9410, 9420, 9430.",
+      "4. Obuna, to'lovlar yoki tizim ruxsatlari haqidagi savollarda foydalanuvchini Obunalar bo'limiga yo'naltiring.",
+      "5. Javoblarni O'zbek tilida, lo'nda, tushunarli va xatosiz bering.",
+    ].join("\n");
+  }
+
   const coaSummary =
     coaRows.length > 0
       ? coaRows.map((c) => `${c.code} (${c.name} [${c.type}])`).join(", ")
@@ -131,7 +147,50 @@ function buildFirmusSystemInstruction(params: {
   ].join("\n");
 }
 
+const CALCULATE_UZ_TAX_TOOL = {
+  name: "calculate_uz_tax",
+  description:
+    "O'zbekiston Soliq kodeksi bo'yicha 100% aniq arifmetik hisob-kitob bajaradi: maosh (gross/net, JShDS 12%, ijtimoiy soliq 12%), QQS 12% yoki aylanma soliq 4%.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      calc_type: {
+        type: "STRING",
+        enum: ["payroll_gross_to_net", "payroll_net_to_gross", "vat_included", "vat_excluded", "turnover_4"],
+        description: "Hisob turi",
+      },
+      amount: { type: "NUMBER", description: "Summa so'mda (> 0)" },
+    },
+    required: ["calc_type", "amount"],
+  },
+};
+
+const LIST_WORK_BATCHES_TOOL = {
+  name: "list_work_batches",
+  description:
+    "Saqlangan ishlar tarixi (work_batches — yuklangan bank/1C fayllari, chek/faktura skanerlari va shartnoma tahlillari) xulosasini oy va tur bo'yicha qaytaradi.",
+  parameters: {
+    type: "OBJECT",
+    properties: {
+      period_month: { type: "STRING", description: "Ixtiyoriy oy YYYY-MM, masalan 2026-11" },
+      batch_type: {
+        type: "STRING",
+        enum: ["reconcile", "document_scan", "contract_risk"],
+        description: "Ixtiyoriy ish turi",
+      },
+      status: {
+        type: "STRING",
+        enum: ["reviewed", "posted_to_ledger"],
+        description: "Ixtiyoriy holat",
+      },
+    },
+  },
+};
+
+const SOLO_TOOL_DECLARATIONS = [CALCULATE_UZ_TAX_TOOL, LIST_WORK_BATCHES_TOOL];
+
 const GEMINI_TOOL_DECLARATIONS = [
+  CALCULATE_UZ_TAX_TOOL,
   {
     name: "get_financial_overview",
     description:
@@ -312,6 +371,42 @@ async function runToolCall(
   ctx: ToolContext
 ): Promise<{ result: any; proposal?: AgentActionProposal }> {
   const { supabase, entity, coaMap, userRole } = ctx;
+
+  if (name === "calculate_uz_tax") {
+    const amount = Math.max(0, Number(args.amount || 0));
+    const kind = String(args.calc_type || "");
+    if (kind === "payroll_gross_to_net" || kind === "payroll_net_to_gross") {
+      return {
+        result: {
+          ok: true,
+          ...calculatePayrollUz({
+            amount,
+            direction: kind === "payroll_net_to_gross" ? "net_to_gross" : "gross_to_net",
+          }),
+        },
+      };
+    }
+    if (kind === "vat_included" || kind === "vat_excluded") {
+      return {
+        result: {
+          ok: true,
+          ...calculateVatUz({
+            amount,
+            mode: kind === "vat_excluded" ? "excluded" : "included",
+          }),
+        },
+      };
+    }
+    if (kind === "turnover_4") {
+      return {
+        result: {
+          ok: true,
+          ...calculateTurnoverTaxUz({ revenue: amount }),
+        },
+      };
+    }
+    return { result: { ok: false, error: "Noto'g'ri calc_type" } };
+  }
 
   // Read-only tools
   if (name === "get_financial_overview") {
@@ -846,16 +941,29 @@ export async function runFirmusAgent(params: {
   entity: any;
   message: string;
   history?: AgentHistoryItem[];
+  modelChain?: string[];
+  soloToolsMode?: boolean;
 }): Promise<AgentResult> {
-  const { supabase, userId, userEmail, entity, message, history = [] } = params;
+  const {
+    supabase,
+    userId,
+    userEmail,
+    entity,
+    message,
+    history = [],
+    modelChain: explicitChain,
+    soloToolsMode = true,
+  } = params;
 
   const [coaRes, userRole] = await Promise.all([
-    supabase
-      .from("chart_of_accounts")
-      .select("code, name, type")
-      .eq("business_entity_id", entity.id)
-      .eq("is_active", true)
-      .order("code", { ascending: true }),
+    soloToolsMode
+      ? Promise.resolve({ data: [] })
+      : supabase
+          .from("chart_of_accounts")
+          .select("code, name, type")
+          .eq("business_entity_id", entity.id)
+          .eq("is_active", true)
+          .order("code", { ascending: true }),
     resolveUserEntityRole(supabase, userId, userEmail, entity),
   ]);
 
@@ -865,16 +973,32 @@ export async function runFirmusAgent(params: {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (!apiKey) {
+    if (soloToolsMode) {
+      return {
+        mode: "deterministic_guard",
+        modelUsed: "deterministic-uz-tax-advisory",
+        reply: buildDeterministicUzAdvisoryReply(depersonalizeForAi(message)),
+        toolCalls: ["uz_tax_calculator"],
+        userRole: "advisory",
+        canExecuteActions: false,
+      };
+    }
     return runDeterministicAgent({ message, ctx });
   }
 
-  const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
-  const modelChain = Array.from(
-    new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-lite-latest"])
-  );
-  const systemInstruction = buildFirmusSystemInstruction({ entity, coaRows, userRole });
+  const modelChain =
+    explicitChain && explicitChain.length > 0
+      ? explicitChain
+      : ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+  const activeDeclarations = soloToolsMode ? SOLO_TOOL_DECLARATIONS : GEMINI_TOOL_DECLARATIONS;
+  const systemInstruction = buildFirmusSystemInstruction({
+    entity,
+    coaRows,
+    userRole,
+    soloToolsMode,
+  });
 
-  const baseContents: any[] = history.slice(-8).map((h) => ({
+  const baseContents: any[] = history.slice(-6).map((h) => ({
     role: h.sender === "user" ? "user" : "model",
     parts: [{ text: h.text }],
   }));
@@ -901,12 +1025,12 @@ export async function runFirmusAgent(params: {
             body: JSON.stringify({
               systemInstruction: { parts: [{ text: systemInstruction }] },
               contents,
-              tools: [{ functionDeclarations: GEMINI_TOOL_DECLARATIONS }],
+              tools: [{ functionDeclarations: activeDeclarations }],
               toolConfig: { functionCallingConfig: { mode: "AUTO" } },
               generationConfig: {
                 temperature: 0.0,
                 topP: 0.9,
-                maxOutputTokens: 2048,
+                maxOutputTokens: 1500,
               },
             }),
           }
@@ -977,6 +1101,17 @@ export async function runFirmusAgent(params: {
       lastErrorNote = `Gemini ${modelName} ulanish xatosi`;
       console.warn(`[FIRMUS AI] ${modelName} exception:`, err?.message || err);
     }
+  }
+
+  if (soloToolsMode) {
+    return {
+      mode: "deterministic_guard",
+      modelUsed: "deterministic-uz-tax-advisory",
+      reply: buildDeterministicUzAdvisoryReply(depersonalizeForAi(message)),
+      toolCalls: ["uz_tax_calculator"],
+      userRole: "advisory",
+      canExecuteActions: false,
+    };
   }
 
   return runDeterministicAgent({
@@ -1067,16 +1202,17 @@ function buildDeterministicUzAdvisoryReply(message: string): string {
 export async function runAdvisoryAgent(params: {
   message: string;
   history?: AgentHistoryItem[];
+  modelChain?: string[];
 }): Promise<AgentResult> {
-  const { message, history = [] } = params;
+  const { message, history = [], modelChain: explicitChain } = params;
   const safeMessage = depersonalizeForAi(message);
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (apiKey) {
-    const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
-    const modelChain = Array.from(
-      new Set([primaryModel, "gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-3.8-flash", "gemini-flash-lite-latest"])
-    );
+    const modelChain =
+      explicitChain && explicitChain.length > 0
+        ? explicitChain
+        : ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
     const advisoryPrompt = [
       "Siz FIRMUS — Oʻzbekiston buxgalterlari uchun AI hamkasbsiz (Oʻzbekiston Soliq kodeksi va 21-son BHMS №3593).",
       `Rasmiy havolalar: Soliq kodeksi (${LEX_UZ_TAX_CODE_URL}), 21-son BHMS (${LEX_UZ_BHMS21_URL}).`,
@@ -1084,8 +1220,7 @@ export async function runAdvisoryAgent(params: {
       "1. Qonunchilik savollariga imkon qadar tegishli Soliq kodeksi moddasini va lex.uz havolasini aniq koʻrsatib javob bering. Aniq ishonchingiz komil boʻlmagan moddani toʻqimang.",
       "2. Ish haqi savollarida: JShDS 12% (0.1% ShJBPH ichida, SK 381-modda), Ijtimoiy soliq 12% (SK 405-modda) va 21-BHMS Debet/Kredit provodkalarini qadam-baqadam koʻrsating.",
       "3. QQS 12% (SK 258-modda): ichidan ajratish = summa * 12 / 112. Aylanmadan soliq 4% (SK 467-modda).",
-      "4. Foydalanuvchida hali korxona ulanmagan — shuning uchun Bosh kitobga yozish uchun tepadan «10 soniyada korxona qoʻshish» kerakligini faqat soʻralganda eslating.",
-      "5. Javobni oʻzbek tilida loʻnda, tushunarli va amaliy tarzda bering.",
+      "4. Javobni oʻzbek tilida loʻnda, tushunarli va amaliy tarzda bering.",
     ].join("\n");
 
     const contents = [

@@ -81,7 +81,7 @@ function downloadFileBlob(content: string, fileName: string, mimeType: string) {
 }
 
 export default function ReconcilePage() {
-  const { currentEntity } = useAppState();
+  const { currentEntity, subscription, setSubscriptionSnapshot } = useAppState();
   const bankInputRef = useRef<HTMLInputElement | null>(null);
   const oneCInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -216,6 +216,13 @@ export default function ReconcilePage() {
       return false;
     }
 
+    if (parsed.length > subscription.limits.reconcileMaxRows) {
+      toast.error(
+        `Faylda ${parsed.length} ta yozuv bor. ${subscription.planName} tarifi limiti: max ${subscription.limits.reconcileMaxRows.toLocaleString("uz-UZ")} qator.`
+      );
+      return false;
+    }
+
     if (source === "bank") {
       setBankFileName(label);
       setBankItems(parsed);
@@ -232,6 +239,11 @@ export default function ReconcilePage() {
 
   const handleUploadFile = async (source: "bank" | "onec", file?: File) => {
     if (!file) return;
+    if (file.size > subscription.limits.reconcileMaxFileBytes) {
+      const maxMb = Math.round(subscription.limits.reconcileMaxFileBytes / (1024 * 1024));
+      toast.error(`Fayl hajmi ${subscription.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak`);
+      return;
+    }
     try {
       const buffer = await file.arrayBuffer();
       const parsed = await parseStatementFileBuffer(buffer, file.name, currentEntity?.tinStir || "");
@@ -384,9 +396,13 @@ export default function ReconcilePage() {
       const res = await fetch("/api/ai-reconcile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: candidates }),
+        body: JSON.stringify({
+          items: candidates,
+          requestedModel: subscription.limits.defaultScanModel,
+        }),
       });
       const data = await res.json();
+      if (data?.usage) setSubscriptionSnapshot(data.usage);
       if (!res.ok) throw new Error(data.error || "AI solishtirish xatosi");
 
       const map = new Map<string, any>((data.suggestions || []).map((s: any) => [s.id, s]));

@@ -65,7 +65,8 @@ const PLAN_LABELS: Record<string, string> = {
 
 function SoloToolsHome() {
   const router = useRouter();
-  const { currentWorkspace, currentEntity, isContextReady, toggleAiDrawer } = useAppState();
+  const { currentWorkspace, currentEntity, isContextReady, subscription, toggleAiDrawer } =
+    useAppState();
   const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
   const [recentBatches, setRecentBatches] = useState<WorkBatchRecord[]>([]);
   const [totalBatches, setTotalBatches] = useState(0);
@@ -100,7 +101,9 @@ function SoloToolsHome() {
     };
   }, [isContextReady, currentWorkspace?.id, currentEntity?.id]);
 
-  const planName = PLAN_LABELS[currentWorkspace?.currentPlan || "starter"] || "Professional";
+  const planName = subscription.isTrialActive
+    ? "Pro (Sinov)"
+    : subscription.planName || PLAN_LABELS[currentWorkspace?.currentPlan || "starter"] || "Starter";
 
   const tools = [
     {
@@ -207,7 +210,11 @@ function SoloToolsHome() {
         <KpiCard
           title="Joriy tarif"
           value={planName}
-          subtitle="Obuna va limitlarni boshqarish"
+          subtitle={
+            subscription.trialAvailable
+              ? `${subscription.remainingCredits} kredit • 7 kun bepul Pro sinov`
+              : `${subscription.remainingCredits} / ${subscription.monthlyLimit} AI kredit qoldi`
+          }
           icon={<CreditCard className="h-4 w-4 text-amber-500" />}
           onClick={() => router.push("/billing")}
         />

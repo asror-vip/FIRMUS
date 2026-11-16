@@ -2249,6 +2249,7 @@ export async function saveWorkBatch(input: {
   title: string;
   bankFileName?: string;
   oneCFileName?: string;
+  fileHash?: string;
   rowCount: number;
   totalIncome: number;
   totalExpense: number;
@@ -2281,6 +2282,7 @@ export async function saveWorkBatch(input: {
       title: sanitizeStringForAi(input.title).slice(0, 190),
       bank_file_name: input.bankFileName ? sanitizeStringForAi(input.bankFileName).slice(0, 170) : null,
       onec_file_name: input.oneCFileName ? sanitizeStringForAi(input.oneCFileName).slice(0, 170) : null,
+      file_hash: input.fileHash ? String(input.fileHash).slice(0, 64) : null,
       row_count: Math.max(0, Math.round(input.rowCount)),
       total_income: Number(input.totalIncome || 0),
       total_expense: Number(input.totalExpense || 0),

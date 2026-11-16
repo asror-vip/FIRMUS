@@ -1,10 +1,12 @@
 import { supabase } from "@/lib/supabase/client";
 import { roundMoney } from "@/lib/utils/finance";
+import { computeSha256Hex } from "@/lib/utils/image-compression";
 import {
   saveWorkBatch,
   markWorkBatchPosted,
   findDuplicateScanBatch,
 } from "@/lib/services/supabase-service";
+import type { AiModelId, SubscriptionSnapshot } from "@/lib/config/plans";
 
 export interface ScannedDocItem {
   name: string;
@@ -42,11 +44,15 @@ export async function scanCompressedImageAndSave(params: {
   fileName: string;
   userNote?: string;
   entityId?: string;
+  requestedModel?: AiModelId;
 }): Promise<{
   scan: ScannedDocResult;
   savedBatchId: string | null;
   isDuplicate: boolean;
+  cachedHit?: boolean;
+  usage?: SubscriptionSnapshot;
 }> {
+  const fileHash = await computeSha256Hex(params.dataUrl);
   const res = await fetch("/api/ai-document-scan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -54,15 +60,34 @@ export async function scanCompressedImageAndSave(params: {
       mode: "invoice_receipt",
       chatImageOnly: true,
       fileName: params.fileName,
+      fileHash,
+      entityId: params.entityId,
+      requestedModel: params.requestedModel,
       mimeType: params.mimeType,
       base64Data: params.dataUrl,
       userNote: params.userNote?.trim() || undefined,
     }),
   });
 
-  const data = (await res.json()) as ScannedDocResult & { error?: string };
+  const data = (await res.json()) as ScannedDocResult & {
+    error?: string;
+    cachedHit?: boolean;
+    savedBatchId?: string | null;
+    isDuplicate?: boolean;
+    usage?: SubscriptionSnapshot;
+  };
   if (!res.ok) {
     throw new Error(data.error || "Rasmni oʻqib boʻlmadi");
+  }
+
+  if (data.cachedHit && data.savedBatchId) {
+    return {
+      scan: data,
+      savedBatchId: data.savedBatchId,
+      isDuplicate: true,
+      cachedHit: true,
+      usage: data.usage,
+    };
   }
 
   let savedBatchId: string | null = null;
@@ -85,6 +110,7 @@ export async function scanCompressedImageAndSave(params: {
         periodMonth: /^\d{4}-\d{2}/.test(data.date) ? data.date.slice(0, 7) : undefined,
         title: `${data.documentType}: ${data.counterparty || params.fileName}`.slice(0, 180),
         bankFileName: params.fileName,
+        fileHash,
         rowCount: Math.max(1, data.items?.length || 1),
         totalIncome: data.direction === "income" ? data.totalAmount : 0,
         totalExpense: data.direction === "income" ? 0 : data.totalAmount,
@@ -106,7 +132,7 @@ export async function scanCompressedImageAndSave(params: {
     }
   }
 
-  return { scan: data, savedBatchId, isDuplicate };
+  return { scan: data, savedBatchId, isDuplicate, usage: data.usage };
 }
 
 export async function postScannedDocToLedger(params: {

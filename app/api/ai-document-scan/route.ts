@@ -3,12 +3,21 @@ import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { depersonalizeForAi, sanitizeStringForAi } from "@/lib/utils/privacy";
 import { roundMoney } from "@/lib/utils/finance";
+import {
+  authorizeAndConsumeAiCredits,
+  refundConsumedAiCredits,
+  resolveEffectiveSubscription,
+} from "@/lib/ai/subscription-guard";
+import { UUID_REGEX } from "@/lib/ai/agent-types";
 
 const scanRequestSchema = z.object({
   mode: z.enum(["invoice_receipt", "contract_risk"]).default("invoice_receipt"),
   chatImageOnly: z.boolean().optional(),
   userNote: z.string().max(400).optional(),
   fileName: z.string().max(180).optional(),
+  fileHash: z.string().regex(/^[a-f0-9]{32,64}$/i).optional(),
+  entityId: z.string().regex(UUID_REGEX).optional(),
+  requestedModel: z.enum(["gemini-3.8-flash", "gemini-4-hydrogen"]).optional(),
   mimeType: z
     .enum(["image/jpeg", "image/png", "image/webp", "application/pdf"])
     .optional(),
@@ -34,6 +43,13 @@ const ALLOWED_ACCOUNTS = new Set([
   "9420",
   "9430",
 ]);
+
+function estimateDecodedBytes(dataUrlOrBase64: string): number {
+  const b64 = dataUrlOrBase64.includes(",")
+    ? dataUrlOrBase64.split(",")[1] || ""
+    : dataUrlOrBase64;
+  return Math.floor((b64.length * 3) / 4);
+}
 
 function buildContractHeuristicFallback(rawText: string) {
   const safeText = depersonalizeForAi(rawText);
@@ -103,7 +119,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { mode, chatImageOnly, userNote, fileName, mimeType, base64Data, docText } = parsed.data;
+    const {
+      mode,
+      chatImageOnly,
+      userNote,
+      fileName,
+      fileHash,
+      entityId,
+      requestedModel,
+      mimeType,
+      base64Data,
+      docText,
+    } = parsed.data;
+
     if (chatImageOnly && (!mimeType || mimeType === "application/pdf" || !base64Data)) {
       return NextResponse.json(
         { error: "Rasm formati toʻgʻri emas. Faqat PNG, JPG yoki WEBP rasm yuklang." },
@@ -121,15 +149,93 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const safeDocText = docText ? depersonalizeForAi(docText).slice(0, 20_000) : "";
+    // 1. Enforce Plan File & Payload Size Limits BEFORE spending any AI credits
+    const preSnapshot = await resolveEffectiveSubscription(user.id);
+    if (hasBinary && mimeType && base64Data) {
+      const byteSize = estimateDecodedBytes(base64Data);
+      if (mimeType === "application/pdf") {
+        if (!preSnapshot.limits.pdfAllowed) {
+          return NextResponse.json(
+            {
+              error:
+                "PDF yuklash Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul Pro sinovini yoqing.",
+              upgradeRequired: true,
+              usage: preSnapshot,
+            },
+            { status: 403 }
+          );
+        }
+        if (byteSize > preSnapshot.limits.pdfMaxBytes) {
+          const maxMb = Math.round(preSnapshot.limits.pdfMaxBytes / (1024 * 1024));
+          return NextResponse.json(
+            {
+              error: `PDF hajmi ${preSnapshot.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak.`,
+              upgradeRequired: true,
+              usage: preSnapshot,
+            },
+            { status: 413 }
+          );
+        }
+      } else if (byteSize > preSnapshot.limits.imageMaxBytes + 128 * 1024) {
+        const maxMb = (preSnapshot.limits.imageMaxBytes / (1024 * 1024)).toFixed(1);
+        return NextResponse.json(
+          {
+            error: `Rasm hajmi ${preSnapshot.planName} tarifi limiti (${maxMb} MB) dan katta.`,
+            upgradeRequired: true,
+            usage: preSnapshot,
+          },
+          { status: 413 }
+        );
+      }
+    }
+
+    // 2. Duplicate hash cache hit -> 0 AI credits & 0 tokens!
+    if (fileHash && entityId) {
+      const { data: cached } = await supabase
+        .from("work_batches")
+        .select("id, sanitized_payload")
+        .eq("business_entity_id", entityId)
+        .eq("file_hash", fileHash)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cached?.sanitized_payload && typeof cached.sanitized_payload === "object") {
+        return NextResponse.json({
+          ...(cached.sanitized_payload as Record<string, any>),
+          cachedHit: true,
+          savedBatchId: cached.id,
+          isDuplicate: true,
+          creditCost: 0,
+          usage: preSnapshot,
+        });
+      }
+    }
+
+    const safeDocText = docText
+      ? depersonalizeForAi(docText).slice(0, preSnapshot.limits.contractTextMaxChars)
+      : "";
     const safeUserNote = userNote ? depersonalizeForAi(userNote).slice(0, 350) : "";
     const apiKey = process.env.GEMINI_API_KEY?.trim();
 
     if (apiKey) {
-      const primaryModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite";
-      const modelChain = Array.from(
-        new Set([primaryModel, "gemini-2.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-flash-lite-latest"])
-      );
+      const authz = await authorizeAndConsumeAiCredits({
+        userId: user.id,
+        kind: mode === "contract_risk" ? "contract" : "scan",
+        requestedModel,
+        estimatedTokens: hasBinary ? 2800 : 2200,
+      });
+
+      if (!authz.ok) {
+        return NextResponse.json(
+          {
+            error: authz.error,
+            upgradeRequired: Boolean(authz.upgradeRequired),
+            usage: authz.snapshot,
+          },
+          { status: authz.status }
+        );
+      }
 
       const prompt = [
         "Siz Oʻzbekiston buxgalteriyasi (21-son BHMS №3593 va Soliq kodeksi) boʻyicha hujjat va faktura tahlilchisisiz.",
@@ -175,7 +281,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      for (const modelName of modelChain) {
+      for (const modelName of authz.modelChain) {
         try {
           const res = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
@@ -203,6 +309,7 @@ export async function POST(req: NextRequest) {
             json?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || "").join("") || "";
           const data = JSON.parse(rawText);
 
+          // Server-side deterministic arithmetic & account code enforcement
           const totalAmount = roundMoney(Math.max(0, Number(data.totalAmount || 0)));
           let vatAmount = roundMoney(Math.max(0, Number(data.vatAmount || 0)));
           if (vatAmount > totalAmount) vatAmount = 0;
@@ -219,6 +326,8 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({
             mode: "gemini_scan",
             modelUsed: modelName,
+            creditCost: authz.creditCost,
+            usage: authz.snapshot,
             documentType: sanitizeStringForAi(String(data.documentType || "Hujjat")).slice(0, 60),
             documentNumber: sanitizeStringForAi(String(data.documentNumber || "")).slice(0, 40),
             date: /^\d{4}-\d{2}-\d{2}$/.test(String(data.date || ""))
@@ -248,19 +357,28 @@ export async function POST(req: NextRequest) {
               String(data.provodkaExplanation || "21-BHMS boʻyicha provodka taklifi tayyorlandi.")
             ).slice(0, 260),
             risks: Array.isArray(data.risks)
-              ? data.risks
-                  .slice(0, 8)
-                  .map((r: any) => sanitizeStringForAi(String(r)).slice(0, 220))
+              ? data.risks.slice(0, 10).map((r: any) => sanitizeStringForAi(String(r)).slice(0, 220))
               : [],
           });
         } catch (err) {
-          console.warn(`[AI DOCUMENT SCAN] ${modelName} fallback:`, err);
+          console.warn(`[AI DOC SCAN] ${modelName} fallback:`, err);
         }
       }
+
+      // Refund reserved credits when Gemini fails completely
+      await refundConsumedAiCredits({
+        userId: user.id,
+        creditCost: authz.creditCost,
+        isScan: true,
+      });
     }
 
     if (mode === "contract_risk" && safeDocText) {
-      return NextResponse.json(buildContractHeuristicFallback(safeDocText));
+      return NextResponse.json({
+        ...buildContractHeuristicFallback(safeDocText),
+        creditCost: 0,
+        usage: preSnapshot,
+      });
     }
 
     return NextResponse.json(
@@ -273,7 +391,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("AI Document Scan error:", err);
     return NextResponse.json(
-      { error: err?.message || "Hujjatni tahlil qilishda xatolik" },
+      { error: err?.message || "Hujjat skanerida xatolik yuz berdi" },
       { status: 500 }
     );
   }

@@ -27,7 +27,7 @@ export interface Workspace {
   name: string;
   type: "individual_company" | "accounting_firm";
   ownerName: string;
-  currentPlan: "starter" | "professional" | "enterprise";
+  currentPlan: "starter" | "professional" | "pro_plus" | "enterprise";
   entitiesCount: number;
   membersCount: number;
 }
