@@ -8,7 +8,6 @@ import {
   createBusinessEntity,
   updateBusinessEntity,
   fetchUserPhoneVerification,
-  saveUserPhoneVerification,
 } from "@/lib/services/supabase-service";
 import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -70,12 +69,13 @@ function SettingsContent() {
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
 
-  // Phone verification state for progressive profiling
-  const [phoneNumber, setPhoneNumber] = useState("+998 90 123-45-67");
+  // Phone verification state (Eskiz.uz SMS OTP)
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [verifiedAtLabel, setVerifiedAtLabel] = useState<string | null>(null);
   const [isOtpSent, setIsOtpSent] = useState(false);
-  const [sentOtpCode, setSentOtpCode] = useState<string>("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
   const [otpCode, setOtpCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -123,46 +123,68 @@ function SettingsContent() {
     }
   };
 
-  const handleSendOtp = (method: "sms" | "telegram") => {
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const t = setTimeout(() => setResendSeconds((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [resendSeconds]);
+
+  const handleSendOtp = async () => {
     const cleanDigits = phoneNumber.replace(/\D/g, "");
     if (cleanDigits.length < 9) {
       toast.error("Iltimos, toʻgʻri telefon raqamini kiriting (masalan: +998 90 123-45-67)");
       return;
     }
-    const generated = String(Math.floor(100000 + Math.random() * 900000));
-    setSentOtpCode(generated);
-    setIsOtpSent(true);
-    if (method === "telegram") {
-      toast.success(`Telegram botingizga 6 xonali tasdiqlash kodi yuborildi: ${generated}`);
-    } else {
-      toast.success(`SMS orqali 6 xonali tasdiqlash kodi yuborildi: ${generated}`);
+    setIsSendingOtp(true);
+    try {
+      const res = await fetch("/api/auth/phone-otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phoneNumber }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error || "SMS yuborishda xatolik yuz berdi");
+        return;
+      }
+      setIsOtpSent(true);
+      setResendSeconds(60);
+      toast.success(json.message || "Eskiz.uz orqali 6 xonali SMS kod yuborildi!");
+    } catch (err: any) {
+      toast.error("SMS xizmatiga ulanishda xatolik: " + (err?.message || ""));
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (!otpCode || otpCode.trim().length !== 6) {
-      toast.error("Iltimos, 6 xonali tasdiqlash kodini toʻliq kiriting");
-      return;
-    }
-    if (sentOtpCode && otpCode.trim() !== sentOtpCode) {
-      toast.error("Kiritilgan tasdiqlash kodi notoʻgʻri!");
-      return;
-    }
-    if (!user?.id) {
-      toast.error("Tasdiqlash uchun avval tizimga kiring.");
+    if (!otpCode || !/^\d{6}$/.test(otpCode.trim())) {
+      toast.error("Iltimos, 6 xonali SMS tasdiqlash kodini toʻliq kiriting");
       return;
     }
 
     setIsVerifying(true);
     try {
-      const verifiedAt = await saveUserPhoneVerification(user.id, phoneNumber.trim());
+      const res = await fetch("/api/auth/phone-otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phoneNumber, code: otpCode.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error || "Tasdiqlash kodi notoʻgʻri");
+        return;
+      }
+      if (json.phone) setPhoneNumber(json.phone);
       setIsPhoneVerified(true);
-      setVerifiedAtLabel(new Date(verifiedAt).toLocaleDateString("uz-UZ"));
+      setVerifiedAtLabel(
+        json.verifiedAt ? new Date(json.verifiedAt).toLocaleDateString("uz-UZ") : null
+      );
       setIsOtpSent(false);
       setOtpCode("");
-      toast.success("Telefon raqamingiz Supabase profilida tasdiqlandi! Hisob xavfsizligi darajasi oshirildi.");
+      toast.success("Telefon raqamingiz Eskiz.uz SMS orqali tasdiqlandi!");
     } catch (err: any) {
-      toast.error("Telefonni saqlashda xatolik: " + err.message);
+      toast.error("Tasdiqlashda xatolik: " + (err?.message || ""));
     } finally {
       setIsVerifying(false);
     }
@@ -452,24 +474,21 @@ function SettingsContent() {
                       placeholder="+998 90 123-45-67"
                       className="w-44 text-xs h-8 font-mono"
                     />
-                    {!isPhoneVerified && !isOtpSent && (
-                      <div className="flex gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleSendOtp("telegram")}
-                          className="h-8 text-xs font-medium gap-1 text-sky-600 hover:text-sky-700"
-                        >
-                          Telegram OTP
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSendOtp("sms")}
-                          className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-                        >
-                          SMS kod
-                        </Button>
-                      </div>
+                    {!isPhoneVerified && (
+                      <Button
+                        size="sm"
+                        disabled={isSendingOtp || resendSeconds > 0}
+                        onClick={handleSendOtp}
+                        className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                      >
+                        {isSendingOtp
+                          ? "Yuborilmoqda..."
+                          : resendSeconds > 0
+                          ? `Qayta (${resendSeconds}s)`
+                          : isOtpSent
+                          ? "Qayta SMS yuborish"
+                          : "SMS kod yuborish"}
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -478,10 +497,10 @@ function SettingsContent() {
                   <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-md">
                     <div>
                       <span className="font-semibold text-foreground text-xs block">
-                        6 xonali tasdiqlash kodini kiriting:
+                        6 xonali SMS tasdiqlash kodini kiriting:
                       </span>
                       <p className="text-[11px] text-muted-foreground">
-                        Raqamingizga yuborilgan bir martalik kodni yozing {sentOtpCode ? `(Yuborilgan kod: ${sentOtpCode})` : ""}.
+                        Eskiz.uz orqali telefon raqamingizga yuborilgan bir martalik kod (5 daqiqa amal qiladi).
                       </p>
                     </div>
                     <div className="flex items-center gap-2">

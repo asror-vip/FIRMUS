@@ -8,8 +8,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Lock, Mail, ArrowRight, ShieldCheck, Loader2, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Lock, Mail, ArrowRight, ShieldCheck, Loader2, KeyRound } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  listEImzoCertificates,
+  signWithEImzoCertificate,
+  type EImzoCertificate,
+} from "@/lib/services/eimzo-client";
 
 function LoginForm() {
   const router = useRouter();
@@ -17,9 +28,13 @@ function LoginForm() {
   const redirectedFrom = searchParams.get("redirectedFrom") || "/";
   const authError = searchParams.get("error");
 
-  const [email, setEmail] = useState("dilnoza@firmus.uz");
-  const [password, setPassword] = useState("Firmus2026!Secured");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isEImzoOpen, setIsEImzoOpen] = useState(false);
+  const [eImzoLoading, setEImzoLoading] = useState(false);
+  const [eImzoCerts, setEImzoCerts] = useState<EImzoCertificate[]>([]);
+  const [eImzoError, setEImzoError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (authError === "oauth_failed") {
@@ -78,10 +93,38 @@ function LoginForm() {
     }
   };
 
-  const handleQuickSelect = (testEmail: string, roleName: string) => {
-    setEmail(testEmail);
-    setPassword("Firmus2026!Secured");
-    toast.info(`«${roleName}» test hisobi tanlandi: ${testEmail}`);
+  const handleOpenEImzo = async () => {
+    setIsEImzoOpen(true);
+    setEImzoLoading(true);
+    setEImzoError(null);
+    setEImzoCerts([]);
+    try {
+      const certs = await listEImzoCertificates();
+      setEImzoCerts(certs);
+      if (certs.length === 0) {
+        setEImzoError("Kompyuterda faol E-IMZO kalitlari topilmadi (PFX fayl ulanganini tekshiring).");
+      }
+    } catch (err: any) {
+      setEImzoError(err?.message || "E-IMZO dasturiga ulanib boʻlmadi.");
+    } finally {
+      setEImzoLoading(false);
+    }
+  };
+
+  const handleSelectEImzoCert = async (cert: EImzoCertificate) => {
+    setEImzoLoading(true);
+    try {
+      const challenge = `FIRMUS-AUTH:${cert.tin}:${Date.now()}`;
+      const sig = await signWithEImzoCertificate(cert, challenge);
+      toast.success(
+        `ERI imzo tasdiqlandi (${sig.signerName}, S/N: ${sig.signerSerial}). Server ERI sessiyasini bogʻlash uchun avval Email/Google bilan hisobingizga kiring.`
+      );
+      setIsEImzoOpen(false);
+    } catch (err: any) {
+      toast.error(err?.message || "E-IMZO bilan imzolash bekor qilindi");
+    } finally {
+      setEImzoLoading(false);
+    }
   };
 
   return (
@@ -103,37 +146,6 @@ function LoginForm() {
           <p className="text-xs text-muted-foreground">
             Biznesingiz uchun aqlli moliyaviy yechim
           </p>
-        </div>
-
-        {/* Quick Test Accounts Switcher */}
-        <div className="p-2.5 rounded-lg border border-border/80 bg-muted/40 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
-            <Sparkles className="h-3 w-3 text-indigo-600" />
-            <span>Tezkor test hisoblari:</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => handleQuickSelect("dilnoza@firmus.uz", "Buxgalter")}
-              className="text-[10px] px-2 py-0.5 rounded border border-border bg-background hover:bg-accent transition-colors font-medium text-foreground"
-            >
-              Dilnoza (Buxgalter)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickSelect("azizbek@firmus.uz", "Bosh buxgalter")}
-              className="text-[10px] px-2 py-0.5 rounded border border-border bg-background hover:bg-accent transition-colors font-medium text-foreground"
-            >
-              Azizbek (Bosh Bux.)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickSelect("jasur@firmus.uz", "Auditor")}
-              className="text-[10px] px-2 py-0.5 rounded border border-border bg-background hover:bg-accent transition-colors font-medium text-foreground"
-            >
-              Jasur (Auditor)
-            </button>
-          </div>
         </div>
 
         <Card className="shadow-lg border-border">
@@ -237,12 +249,9 @@ function LoginForm() {
               <Button
                 type="button"
                 variant="outline"
+                disabled={isLoading}
                 className="w-full text-xs h-9 gap-2 font-medium"
-                onClick={() => {
-                  toast.info(
-                    "E-IMZO moduli orqali kirish tez kunda ishga tushadi. Standart login/parol yoki Google'dan foydalaning."
-                  );
-                }}
+                onClick={handleOpenEImzo}
               >
                 <ShieldCheck className="h-4 w-4 text-indigo-600" />
                 E-IMZO (ERI) orqali kirish
@@ -257,6 +266,55 @@ function LoginForm() {
             Roʻyxatdan oʻtish
           </Link>
         </p>
+
+        <p className="text-center text-[10px] text-muted-foreground/80">
+          <Link href="/privacy" className="hover:underline">Maxfiylik siyosati</Link>
+          {" • "}
+          <Link href="/terms" className="hover:underline">Foydalanish shartlari (Oferta)</Link>
+        </p>
+
+        <Dialog open={isEImzoOpen} onOpenChange={setIsEImzoOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-sm font-bold flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-indigo-600" />
+                E-IMZO Elektron Raqamli Imzo (CAPIWS)
+              </DialogTitle>
+              <DialogDescription className="text-xs">
+                Kompyuteringizga ulangan PFX sertifikatini tanlang (127.0.0.1:64443).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2 text-xs">
+              {eImzoLoading ? (
+                <div className="flex items-center justify-center py-6 text-muted-foreground gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  E-IMZO agentiga ulanilmoqda...
+                </div>
+              ) : eImzoError ? (
+                <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 leading-relaxed">
+                  {eImzoError}
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {eImzoCerts.map((cert) => (
+                    <button
+                      key={`${cert.serialNumber}-${cert.name}`}
+                      type="button"
+                      onClick={() => handleSelectEImzoCert(cert)}
+                      className="w-full text-left p-3 rounded-lg border border-border hover:border-indigo-500 hover:bg-indigo-500/5 transition-colors space-y-0.5"
+                    >
+                      <div className="font-semibold text-foreground">{cert.fullName}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono">
+                        STIR: {cert.tin || "—"} • S/N: {cert.serialNumber}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">{cert.org}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

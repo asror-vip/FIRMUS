@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase/client";
-import { mockBusinessEntities, mockWorkspaces } from "@/lib/mock/entities";
 import { mockChartOfAccounts } from "@/lib/mock/accounting";
+import { splitVatInclusive } from "@/lib/utils/finance";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,7 +31,7 @@ export async function fetchWorkspaces() {
 
     if (error) {
       console.error("fetchWorkspaces error:", error);
-      return mockWorkspaces;
+      return [];
     }
 
     if (!data || data.length === 0) return [];
@@ -47,7 +47,7 @@ export async function fetchWorkspaces() {
     }));
   } catch (err) {
     console.error("fetchWorkspaces exception:", err);
-    return mockWorkspaces;
+    return [];
   }
 }
 
@@ -94,7 +94,7 @@ export async function fetchBusinessEntities() {
 
     if (error) {
       console.error("fetchBusinessEntities error:", error);
-      return mockBusinessEntities;
+      return [];
     }
 
     if (!data || data.length === 0) return [];
@@ -116,7 +116,7 @@ export async function fetchBusinessEntities() {
     }));
   } catch (err) {
     console.error("fetchBusinessEntities exception:", err);
-    return mockBusinessEntities;
+    return [];
   }
 }
 
@@ -469,7 +469,51 @@ function mapDocumentRow(doc: any) {
     eImzoSigned: doc.e_imzo_signed,
     eImzoTimestamp: doc.e_imzo_timestamp,
     fileUrl: doc.file_url,
+    fileName: doc.file_name || undefined,
+    fileSize: doc.file_size || undefined,
   };
+}
+
+export async function uploadDocumentFileToStorage(entityId: string, file: File): Promise<{
+  fileUrl: string;
+  fileName: string;
+  fileSize: string;
+}> {
+  if (!isValidUuid(entityId)) {
+    throw new Error("Fayl yuklash uchun korxona tanlanishi shart.");
+  }
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const storagePath = `${entityId}/${Date.now()}_${safeName}`;
+
+  const { error } = await supabase.storage
+    .from("documents")
+    .upload(storagePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || "application/octet-stream",
+    });
+
+  if (error) {
+    throw new Error(`Storage yuklashda xatolik: ${error.message}`);
+  }
+
+  const kb = Math.max(1, Math.round(file.size / 1024));
+  const sizeLabel = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+  return {
+    fileUrl: storagePath,
+    fileName: file.name,
+    fileSize: sizeLabel,
+  };
+}
+
+export async function getDocumentDownloadUrl(fileUrl: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from("documents")
+    .createSignedUrl(fileUrl, 120);
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message || "Hujjat faylini yuklab olish havolasi yaratilmadi.");
+  }
+  return data.signedUrl;
 }
 
 export async function fetchDocuments(entityId?: string) {
@@ -537,11 +581,14 @@ export async function createDocument(doc: {
   dueDate?: string;
   amount: number;
   contractNumber?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: string;
 }) {
   if (!isValidUuid(doc.entityId)) {
     throw new Error("Korxona ID tanlanmagan");
   }
-  const vatAmount = Math.round((doc.amount * 12) / 112);
+  const { vat: vatAmount } = splitVatInclusive(doc.amount, 12);
   const { data, error } = await supabase
     .from("documents")
     .insert({
@@ -557,6 +604,9 @@ export async function createDocument(doc: {
       status: "pending_signature",
       contract_number: doc.contractNumber || null,
       e_imzo_signed: false,
+      file_url: doc.fileUrl || null,
+      file_name: doc.fileName || null,
+      file_size: doc.fileSize || null,
     })
     .select()
     .single();
@@ -595,11 +645,37 @@ export async function signDocumentWithEImzo(
 
   if (error) throw error;
 
-  // Auto-post signed E-SF invoice to General Ledger with VAT breakdown if positive
+  // Auto-post signed E-SF invoice to General Ledger with automatic 12% VAT breakdown
   if (isValidUuid(docInfo?.entityId) && docInfo && docInfo.amount > 0) {
     const isIncoming = docInfo.type === "incoming_invoice" || docInfo.type === "act";
-    const debitCode = isIncoming ? "2910" : "4010";
-    const creditCode = isIncoming ? "6010" : "9010";
+    const split = splitVatInclusive(docInfo.amount, 12);
+    const vat =
+      docInfo.vatAmount && docInfo.vatAmount > 0 && docInfo.vatAmount < docInfo.amount
+        ? Number(docInfo.vatAmount.toFixed(2))
+        : split.vat;
+    const net = Number((docInfo.amount - vat).toFixed(2));
+
+    let lines: Array<{ account_code: string; debit_amount: number; credit_amount: number; memo: string }>;
+    if (vat > 0 && (docInfo.type === "invoice" || docInfo.type === "incoming_invoice")) {
+      if (isIncoming) {
+        lines = [
+          { account_code: "2910", debit_amount: net, credit_amount: 0, memo: `E-SF №${docInfo.documentNumber} (QQSsiz)` },
+          { account_code: "4410", debit_amount: vat, credit_amount: 0, memo: `E-SF №${docInfo.documentNumber} (Kiruvchi QQS 12%)` },
+          { account_code: "6010", debit_amount: 0, credit_amount: docInfo.amount, memo: `E-SF №${docInfo.documentNumber}` },
+        ];
+      } else {
+        lines = [
+          { account_code: "4010", debit_amount: docInfo.amount, credit_amount: 0, memo: `E-SF №${docInfo.documentNumber}` },
+          { account_code: "9010", debit_amount: 0, credit_amount: net, memo: `E-SF №${docInfo.documentNumber} (Sof tushum)` },
+          { account_code: "6410", debit_amount: 0, credit_amount: vat, memo: `E-SF №${docInfo.documentNumber} (Chiquvchi QQS 12%)` },
+        ];
+      }
+    } else {
+      lines = [
+        { account_code: isIncoming ? "2910" : "4010", debit_amount: docInfo.amount, credit_amount: 0, memo: `E-SF №${docInfo.documentNumber}` },
+        { account_code: isIncoming ? "6010" : "9010", debit_amount: 0, credit_amount: docInfo.amount, memo: `E-SF №${docInfo.documentNumber}` },
+      ];
+    }
 
     const { error: jeErr } = await supabase.rpc("create_journal_entry_atomic", {
       p_business_entity_id: docInfo.entityId,
@@ -609,20 +685,7 @@ export async function signDocumentWithEImzo(
       p_source_type: "didox_invoice",
       p_source_reference_id: docInfo.documentNumber,
       p_idempotency_key: `idem-esf-${documentId}`,
-      p_lines: [
-        {
-          account_code: debitCode,
-          debit_amount: docInfo.amount,
-          credit_amount: 0,
-          memo: `E-SF №${docInfo.documentNumber}`,
-        },
-        {
-          account_code: creditCode,
-          debit_amount: 0,
-          credit_amount: docInfo.amount,
-          memo: `E-SF №${docInfo.documentNumber}`,
-        },
-      ],
+      p_lines: lines,
     });
 
     if (jeErr) {
@@ -1384,6 +1447,26 @@ export async function reverseJournalEntryRecord(entryId: string, reason: string 
   const { data, error } = await supabase.rpc("reverse_journal_entry", {
     p_entry_id: entryId,
     p_reason: reason,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function closeAccountingPeriod(params: {
+  entityId?: string;
+  fromDate: string;
+  toDate: string;
+  closingDate?: string;
+}) {
+  if (!isValidUuid(params.entityId)) {
+    throw new Error("Korxona ID tanlanmagan");
+  }
+  const { data, error } = await supabase.rpc("close_accounting_period", {
+    p_business_entity_id: params.entityId,
+    p_from_date: params.fromDate,
+    p_to_date: params.toDate,
+    p_closing_date: params.closingDate || params.toDate,
+    p_idempotency_key: `idem-close-${params.entityId}-${params.fromDate}-${params.toDate}`,
   });
   if (error) throw error;
   return data;

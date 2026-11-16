@@ -5,6 +5,7 @@ import {
   createJournalEntryRecord,
   fetchJournalEntriesPaginated,
   reverseJournalEntryRecord,
+  closeAccountingPeriod,
   fetchTrialBalance,
   fetchGeneralLedger,
   fetchChartOfAccounts,
@@ -21,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
-import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet, FileCode, RotateCcw, AlertTriangle } from "lucide-react";
+import { Search, Download, Plus, CheckCircle2, BookOpen, Layers, FileSpreadsheet, FileCode, RotateCcw, AlertTriangle, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { JournalEntry } from "@/lib/mock/types";
@@ -51,6 +52,20 @@ export default function AccountingPage() {
   const [isReversing, setIsReversing] = useState(false);
   const [reversalReason, setReversalReason] = useState("Notoʻgʻri summa kiritilgan");
   const [isReversalDialogOpen, setIsReversalDialogOpen] = useState(false);
+
+  // Period Closing (Zakritiye mesyatsa) modal state
+  const [isClosePeriodOpen, setIsClosePeriodOpen] = useState(false);
+  const [isClosingPeriod, setIsClosingPeriod] = useState(false);
+  const [closePeriodDates, setClosePeriodDates] = useState(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+    return {
+      fromDate: `${y}-${m}-01`,
+      toDate: `${y}-${m}-${String(lastDay).padStart(2, "0")}`,
+    };
+  });
 
   const [newCoa, setNewCoa] = useState({
     code: "",
@@ -310,6 +325,37 @@ export default function AccountingPage() {
     }
   };
 
+  const handleClosePeriod = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!closePeriodDates.fromDate || !closePeriodDates.toDate) {
+      toast.error("Boshlanish va tugash sanalarini tanlang");
+      return;
+    }
+    setIsClosingPeriod(true);
+    try {
+      const res = await closeAccountingPeriod({
+        entityId: currentEntity?.id,
+        fromDate: closePeriodDates.fromDate,
+        toDate: closePeriodDates.toDate,
+        closingDate: closePeriodDates.toDate,
+      });
+      if (res?.idempotent) {
+        toast.info(`Ushbu davr (${closePeriodDates.fromDate} — ${closePeriodDates.toDate}) allaqachon yopilgan (${res.entry_number}).`);
+      } else {
+        toast.success(
+          `Davr muvaffaqiyatli yopildi (${res.entry_number})! Moliyaviy natija (9910 → 8710): ${Number(res.net_profit || 0).toLocaleString()} UZS.`
+        );
+      }
+      setIsClosePeriodOpen(false);
+      await loadJournalEntries();
+      setLedgerVersion((v) => v + 1);
+    } catch (err: any) {
+      toast.error("Davrni yopishda xatolik: " + err.message);
+    } finally {
+      setIsClosingPeriod(false);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(totalJournalCount / pageSize));
 
   return (
@@ -347,14 +393,25 @@ export default function AccountingPage() {
             {t.common.export} (CSV)
           </Button>
           {currentRole !== "viewer" && currentRole !== "auditor" && (
-            <Button
-              size="sm"
-              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => setIsAddOpen(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t.common.addNew}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8 gap-1.5 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                onClick={() => setIsClosePeriodOpen(true)}
+              >
+                <Lock className="h-3.5 w-3.5" />
+                Davrni yopish
+              </Button>
+              <Button
+                size="sm"
+                className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setIsAddOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t.common.addNew}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -992,6 +1049,65 @@ export default function AccountingPage() {
                 disabled={isSubmittingCoa}
               >
                 {isSubmittingCoa ? "Qoʻshilmoqda..." : "Schyotni saqlash"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Period Closing (Zakritiye mesyatsa) Modal */}
+      <Dialog open={isClosePeriodOpen} onOpenChange={setIsClosePeriodOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
+              <Lock className="h-4 w-4 text-amber-600" />
+              Davrni yopish (Oy yopish)
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Tanlangan davr uchun barcha daromad (9010) va xarajat (9110–9430) schyotlarini 9910 orqali 8710 (Taqsimlanmagan foyda/zarar) ga yopish.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleClosePeriod} className="space-y-3 pt-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[11px] font-medium">Boshlanish sanasi *</Label>
+                <Input
+                  type="date"
+                  value={closePeriodDates.fromDate}
+                  onChange={(e) => setClosePeriodDates({ ...closePeriodDates, fromDate: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium">Tugash sanasi *</Label>
+                <Input
+                  type="date"
+                  value={closePeriodDates.toDate}
+                  onChange={(e) => setClosePeriodDates({ ...closePeriodDates, toDate: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsClosePeriodOpen(false)}
+                disabled={isClosingPeriod}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                disabled={isClosingPeriod}
+              >
+                {isClosingPeriod ? "Yopilmoqda..." : "Davrni yopish (9910 → 8710)"}
               </Button>
             </DialogFooter>
           </form>

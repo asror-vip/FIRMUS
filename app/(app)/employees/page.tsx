@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { fetchEmployees, createEmployee, createJournalEntryRecord } from "@/lib/services/supabase-service";
 import { employeeSchema, getFirstZodError } from "@/lib/validations/accounting";
+import { maskPinfl } from "@/lib/utils/privacy";
 import { useAppState } from "@/lib/mock/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -290,7 +291,7 @@ export default function EmployeesPage() {
                     <Money amount={emp.salary} />
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
-                    {emp.pinfl}
+                    {maskPinfl(emp.pinfl)}
                   </TableCell>
                   <TableCell className="font-mono text-[11px] text-muted-foreground">
                     {emp.startDate}

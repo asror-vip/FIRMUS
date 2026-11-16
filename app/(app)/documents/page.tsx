@@ -8,7 +8,10 @@ import {
   createDocument,
   signDocumentWithEImzo,
   rejectDocumentInDb,
+  uploadDocumentFileToStorage,
+  getDocumentDownloadUrl,
 } from "@/lib/services/supabase-service";
+import { listEImzoCertificates, signWithEImzoCertificate } from "@/lib/services/eimzo-client";
 import { documentSchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,6 +61,7 @@ function DocumentsContent() {
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachedFileInfo, setAttachedFileInfo] = useState<{ name: string; sizeLabel: string } | null>(null);
 
   // Form state
@@ -91,7 +95,9 @@ function DocumentsContent() {
         date: d.date,
         status: d.status,
         format: "pdf",
-        fileSize: d.fileSize || "1.4 MB",
+        fileSize: d.fileSize || "—",
+        fileName: d.fileName,
+        fileUrl: d.fileUrl,
         signedByLocal: d.eImzoSigned ? "Imzolangan (E-IMZO)" : undefined,
         signedByPartner: d.status === "signed" ? "Tasdiqlangan" : "Kutilmoqda",
         aiExtractedData: {
@@ -150,6 +156,27 @@ function DocumentsContent() {
   const handleSignDocument = async (docId: string) => {
     try {
       const target = documents.find((d) => d.id === docId);
+
+      // Attempt real browser E-IMZO (CAPIWS) signature if agent is active on user PC
+      let signerTag = "Imzolangan (E-IMZO Oʻzbekiston)";
+      try {
+        const certs = await listEImzoCertificates();
+        if (certs.length > 0 && target) {
+          const sig = await signWithEImzoCertificate(
+            certs[0],
+            JSON.stringify({
+              number: target.number,
+              amount: target.amount,
+              counterparty: target.counterparty,
+              date: target.date,
+            })
+          );
+          signerTag = `E-IMZO PKCS#7 (${sig.signerName})`;
+        }
+      } catch {
+        // Local desktop E-IMZO agent not present; proceed with authenticated server session approval
+      }
+
       await signDocumentWithEImzo(
         docId,
         target
@@ -168,11 +195,13 @@ function DocumentsContent() {
       if (selectedDoc && selectedDoc.id === docId) {
         setSelectedDoc((prev) =>
           prev
-            ? { ...prev, status: "signed", signedByLocal: "Imzolangan (E-IMZO Oʻzbekiston)" }
+            ? { ...prev, status: "signed", signedByLocal: signerTag }
             : null
         );
       }
-      toast.success("Hujjat E-IMZO bilan tasdiqlandi va Bosh kitobga (Ledger) provodka tushirildi!");
+      toast.success(
+        `Hujjat ${signerTag} bilan tasdiqlandi va Bosh kitobga (QQS 12% bilan) provodka tushirildi!`
+      );
     } catch (err: any) {
       toast.error("Imzolashda xatolik yuz berdi: " + err.message);
     }
@@ -189,7 +218,19 @@ function DocumentsContent() {
     }
   };
 
-  const handleExportSingleDoc = (doc: DocumentItem) => {
+  const handleExportSingleDoc = async (doc: DocumentItem) => {
+    if (doc.fileUrl) {
+      try {
+        const signedUrl = await getDocumentDownloadUrl(doc.fileUrl);
+        window.open(signedUrl, "_blank", "noopener,noreferrer");
+        toast.success(`«${doc.fileName || doc.number}» asl fayli Supabase Storage'dan ochildi!`);
+        return;
+      } catch (err: any) {
+        toast.error("Faylni Storage'dan yuklab boʻlmadi: " + err.message);
+        return;
+      }
+    }
+
     const content = [
       `FIRMUS — DIDOX EDO ELEKTRON HUJJAT NUSXASI`,
       `==========================================`,
@@ -233,6 +274,11 @@ function DocumentsContent() {
 
     setIsSubmitting(true);
     try {
+      let uploadedMeta: { fileUrl: string; fileName: string; fileSize: string } | undefined;
+      if (attachedFile && currentEntity?.id) {
+        uploadedMeta = await uploadDocumentFileToStorage(currentEntity.id, attachedFile);
+      }
+
       await createDocument({
         entityId: currentEntity?.id,
         documentNumber: parsed.data.number,
@@ -242,11 +288,19 @@ function DocumentsContent() {
         amount: parsed.data.amount,
         date: parsed.data.date,
         contractNumber: parsed.data.contractNumber || undefined,
+        fileUrl: uploadedMeta?.fileUrl,
+        fileName: uploadedMeta?.fileName,
+        fileSize: uploadedMeta?.fileSize,
       });
 
       await loadDocuments();
-      toast.success("Hujjat Didox va Supabase tizimiga muvaffaqiyatli yuklandi!");
+      toast.success(
+        uploadedMeta
+          ? "Hujjat va biriktirilgan fayl Supabase Storage + bazaga yuklandi!"
+          : "Hujjat Didox va Supabase tizimiga muvaffaqiyatli yuklandi!"
+      );
       setIsUploadOpen(false);
+      setAttachedFile(null);
       setAttachedFileInfo(null);
       setNewDoc({
         number: `SF-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
@@ -705,6 +759,7 @@ function DocumentsContent() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
+                    setAttachedFile(file);
                     const kb = Math.max(1, Math.round(file.size / 1024));
                     setAttachedFileInfo({
                       name: file.name,

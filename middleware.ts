@@ -43,8 +43,11 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth/callback");
 
+  const isPublicLegalPage =
+    pathname.startsWith("/privacy") || pathname.startsWith("/terms");
+
   // If user is unauthenticated and attempting to access protected routes
-  if (!user && !isAuthPage) {
+  if (!user && !isAuthPage && !isPublicLegalPage) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { error: "Autentifikatsiya talab qilinadi" },

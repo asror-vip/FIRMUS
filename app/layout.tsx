@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "FIRMUS — AI-Powered Business & Accounting Automation",
   description:
-    "Avtomatlashtirilgan buxgalteriya, 1C va Didox integratsiyasi, moliyaviy hisobotlar va GPT-6 Luna AI koordinatsiyasi.",
+    "Oʻzbekiston biznesi uchun avtomatlashtirilgan buxgalteriya, 1C va Didox EDO integratsiyasi, moliyaviy hisobotlar va AI Copilot tizimi.",
 };
 
 export default function RootLayout({

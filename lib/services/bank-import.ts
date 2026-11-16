@@ -103,14 +103,19 @@ export function parseBankCsv(csvContent: string): ParsedBankTransaction[] {
     const cols = lines[i].split(delimiter).map((c) => c.replace(/^["']|["']$/g, "").trim());
     if (cols.length < 4) continue;
 
-    // Expected format: Sana, Kontragent, STIR, Turi/Summa, Tavsif
+    // Expected format: Sana, Kontragent, STIR, Summa, [Turi/Tavsif], [Tavsif]
     const date = cols[0] || new Date().toISOString().split("T")[0];
     const counterparty = cols[1] || "Kontragent";
     const stir = cols[2]?.replace(/\D/g, "") || undefined;
     const rawSum = parseFloat(cols[3]?.replace(/[^\d.-]/g, "") || "0");
-    const desc = cols[4] || cols[cols.length - 1] || "Bank koʻchirmasi";
+    const col4 = (cols[4] || "").toLowerCase();
+    const isExplicitTypeCol = ["income", "expense", "kirim", "chiqim", "приход", "расход"].includes(col4);
+    const desc = (isExplicitTypeCol ? cols[5] : cols[4]) || cols[cols.length - 1] || "Bank koʻchirmasi";
 
-    const type: "income" | "expense" = rawSum >= 0 ? "income" : "expense";
+    const type: "income" | "expense" =
+      col4 === "expense" || col4 === "chiqim" || col4 === "расход" || rawSum < 0
+        ? "expense"
+        : "income";
     const amount = Math.abs(rawSum);
 
     if (amount > 0) {

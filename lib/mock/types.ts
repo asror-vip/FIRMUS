@@ -71,6 +71,8 @@ export interface DocumentItem {
   date: string;
   status: DocumentStatus;
   fileSize: string;
+  fileName?: string;
+  fileUrl?: string;
   format: "pdf" | "docx" | "xlsx";
   signedByLocal?: string;
   signedByPartner?: string;

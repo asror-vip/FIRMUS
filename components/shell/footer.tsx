@@ -57,6 +57,12 @@ export function Footer() {
           <Link href="/reports" className="hover:text-foreground transition-colors">
             {t.footer.reports}
           </Link>
+          <Link href="/privacy" className="hover:text-foreground transition-colors">
+            Maxfiylik siyosati
+          </Link>
+          <Link href="/terms" className="hover:text-foreground transition-colors">
+            Oferta
+          </Link>
           <a
             href="https://soliq.uz"
             target="_blank"

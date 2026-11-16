@@ -237,6 +237,14 @@ export default function RegisterPage() {
             Tizimga kirish
           </Link>
         </p>
+
+        <p className="text-center text-[10px] text-muted-foreground/80">
+          Roʻyxatdan oʻtish orqali{" "}
+          <Link href="/privacy" className="underline">Maxfiylik siyosati</Link>
+          {" va "}
+          <Link href="/terms" className="underline">Ommaviy oferta</Link>
+          {" shartlariga rozilik bildirasiz."}
+        </p>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { depersonalizeForAi } from "@/lib/utils/privacy";
 import { z } from "zod";
 
 const copilotRequestSchema = z.object({
@@ -111,9 +112,8 @@ export async function POST(req: NextRequest) {
     // Optional Real LLM Call if GEMINI_API_KEY is configured in environment
     if (process.env.GEMINI_API_KEY) {
       try {
-        const snapshot = {
+        const snapshot = depersonalizeForAi({
           entity: targetEntity.legal_name,
-          tin: targetEntity.tin_stir,
           bankBalanceTotalUzs: totalBankBalance,
           openExceptionsCount: openExceptions.length,
           openExceptions: openExceptions.slice(0, 5),
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
           vatOutput6410: vatOutput,
           vatInput4410: vatInput,
           netVatPayable: netVat,
-        };
+        });
         const geminiRes = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
           {

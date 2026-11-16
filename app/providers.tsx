@@ -7,6 +7,7 @@ import { AppStateProvider } from "@/lib/mock/store";
 import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { AiDrawer } from "@/components/shell/ai-drawer";
+import { CookieConsent } from "@/components/shared/cookie-consent";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           {children}
           <CommandPalette />
           <AiDrawer />
+          <CookieConsent />
           <Toaster position="top-right" richColors closeButton />
         </AppStateProvider>
       </QueryClientProvider>
