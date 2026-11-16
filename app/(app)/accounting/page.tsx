@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { mockChartOfAccounts, mockJournalEntries } from "@/lib/mock/accounting";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   createJournalEntryRecord,
-  fetchJournalEntries,
+  fetchJournalEntriesPaginated,
   reverseJournalEntryRecord,
   fetchTrialBalance,
   fetchGeneralLedger,
   fetchChartOfAccounts,
+  createChartOfAccount,
 } from "@/lib/services/supabase-service";
+import { journalEntrySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { useAppState } from "@/lib/mock/store";
 import { generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -33,71 +34,109 @@ export default function AccountingPage() {
   const [coaSearch, setCoaSearch] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [selectedLedgerAccount, setSelectedLedgerAccount] = useState("5110");
-  const [chartOfAccounts, setChartOfAccounts] = useState<any[]>(mockChartOfAccounts);
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(mockJournalEntries);
+  const [chartOfAccounts, setChartOfAccounts] = useState<any[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [totalJournalCount, setTotalJournalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const [isLoadingEntries, setIsLoadingEntries] = useState(true);
+  const [ledgerVersion, setLedgerVersion] = useState(0);
+
   const [trialBalanceData, setTrialBalanceData] = useState<any[]>([]);
   const [generalLedgerData, setGeneralLedgerData] = useState<any[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isAddCoaOpen, setIsAddCoaOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingCoa, setIsSubmittingCoa] = useState(false);
   const [isReversing, setIsReversing] = useState(false);
   const [reversalReason, setReversalReason] = useState("Notoʻgʻri summa kiritilgan");
   const [isReversalDialogOpen, setIsReversalDialogOpen] = useState(false);
 
-  // Load real Chart of Accounts & Journal Entries
-  useEffect(() => {
-    let isMounted = true;
-    if (!currentEntity?.id) return;
+  const [newCoa, setNewCoa] = useState({
+    code: "",
+    name: "",
+    type: "asset" as "asset" | "liability" | "equity" | "revenue" | "expense",
+  });
 
-    fetchChartOfAccounts(currentEntity.id).then((accounts) => {
-      if (isMounted && accounts && accounts.length > 0) {
-        setChartOfAccounts(accounts);
-      }
-    });
-
-    fetchJournalEntries(currentEntity.id)
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          setJournalEntries(data);
-        }
-      })
-      .catch((err) => console.error("Error loading journal entries:", err));
-
-    return () => {
-      isMounted = false;
-    };
+  const loadAccounts = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setChartOfAccounts([]);
+      return;
+    }
+    const accounts = await fetchChartOfAccounts(currentEntity.id);
+    setChartOfAccounts(accounts || []);
   }, [currentEntity?.id]);
+
+  const loadJournalEntries = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setJournalEntries([]);
+      setTotalJournalCount(0);
+      setIsLoadingEntries(false);
+      return;
+    }
+    setIsLoadingEntries(true);
+    try {
+      const { data, count } = await fetchJournalEntriesPaginated(currentEntity.id, {
+        page: currentPage,
+        pageSize,
+      });
+      setJournalEntries((data || []) as JournalEntry[]);
+      setTotalJournalCount(count);
+    } catch (err) {
+      console.error("Error loading journal entries:", err);
+      toast.error("Provodkalarni bazadan yuklab boʻlmadi");
+    } finally {
+      setIsLoadingEntries(false);
+    }
+  }, [currentEntity?.id, currentPage, pageSize]);
+
+  useEffect(() => {
+    setSelectedEntry(null);
+    setCurrentPage(1);
+    loadAccounts();
+  }, [currentEntity?.id, loadAccounts]);
+
+  useEffect(() => {
+    loadJournalEntries();
+  }, [loadJournalEntries]);
 
   // Load real Trial Balance
   useEffect(() => {
     let isMounted = true;
-    if (!currentEntity?.id) return;
+    if (!currentEntity?.id) {
+      setTrialBalanceData([]);
+      return;
+    }
 
     fetchTrialBalance(currentEntity.id).then((tb) => {
-      if (isMounted && tb) {
-        setTrialBalanceData(tb);
+      if (isMounted) {
+        setTrialBalanceData(tb || []);
       }
     });
 
     return () => {
       isMounted = false;
     };
-  }, [currentEntity?.id, journalEntries.length]);
+  }, [currentEntity?.id, ledgerVersion]);
 
   // Load real General Ledger for selected account
   useEffect(() => {
     let isMounted = true;
-    if (!currentEntity?.id || !selectedLedgerAccount) return;
+    if (!currentEntity?.id || !selectedLedgerAccount) {
+      setGeneralLedgerData([]);
+      return;
+    }
 
     fetchGeneralLedger(currentEntity.id, selectedLedgerAccount).then((gl) => {
-      if (isMounted && gl) {
-        setGeneralLedgerData(gl);
+      if (isMounted) {
+        setGeneralLedgerData(gl || []);
       }
     });
 
     return () => {
       isMounted = false;
     };
-  }, [currentEntity?.id, selectedLedgerAccount, journalEntries.length]);
+  }, [currentEntity?.id, selectedLedgerAccount, ledgerVersion]);
 
   const [newEntry, setNewEntry] = useState({
     entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
@@ -162,76 +201,44 @@ export default function AccountingPage() {
 
   const handleCreateEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEntry.description || !newEntry.amount) {
-      toast.error("Iltimos, tavsif va summani kiriting");
-      return;
-    }
-
-    const amountNum = Number(newEntry.amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      toast.error("Summa musbat son boʻlishi kerak");
-      return;
-    }
-
-    if (newEntry.debitAccountCode === newEntry.creditAccountCode) {
-      toast.error("Debet va kredit schyotlari bir xil boʻlishi mumkin emas");
+    const parsed = journalEntrySchema.safeParse({
+      entryNumber: newEntry.entryNumber,
+      date: newEntry.date,
+      description: newEntry.description,
+      debitAccountCode: newEntry.debitAccountCode,
+      creditAccountCode: newEntry.creditAccountCode,
+      amount: newEntry.amount,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
 
     setIsSubmitting(true);
     try {
       const debitAcc =
-        chartOfAccounts.find((a) => a.code === newEntry.debitAccountCode)?.name ||
+        chartOfAccounts.find((a) => a.code === parsed.data.debitAccountCode)?.name ||
         "Debet schyoti";
       const creditAcc =
-        chartOfAccounts.find((a) => a.code === newEntry.creditAccountCode)?.name ||
+        chartOfAccounts.find((a) => a.code === parsed.data.creditAccountCode)?.name ||
         "Kredit schyoti";
 
       // Atomic PostgreSQL RPC
-      const result = await createJournalEntryRecord({
+      await createJournalEntryRecord({
         entityId: currentEntity?.id,
-        entryNumber: newEntry.entryNumber,
-        entryDate: newEntry.date,
-        description: newEntry.description,
-        debitAccountCode: newEntry.debitAccountCode,
+        entryNumber: parsed.data.entryNumber,
+        entryDate: parsed.data.date,
+        description: parsed.data.description,
+        debitAccountCode: parsed.data.debitAccountCode,
         debitAccountName: debitAcc,
-        creditAccountCode: newEntry.creditAccountCode,
+        creditAccountCode: parsed.data.creditAccountCode,
         creditAccountName: creditAcc,
-        amount: amountNum,
+        amount: parsed.data.amount,
+        idempotencyKey: `idem-je-${currentEntity?.id}-${parsed.data.entryNumber}-${Date.now()}`,
       });
 
-      const createdJe: JournalEntry = {
-        id: result?.id || `je-${Date.now()}`,
-        entityId: currentEntity?.id || "11111111-1111-1111-1111-111111111111",
-        entryNumber: newEntry.entryNumber,
-        date: newEntry.date,
-        description: newEntry.description,
-        sourceType: "manual",
-        status: "posted",
-        totalDebit: amountNum,
-        totalCredit: amountNum,
-        createdBy: "Bosh buxgalter",
-        lines: [
-          {
-            id: `line-${Date.now()}-1`,
-            accountCode: newEntry.debitAccountCode,
-            accountName: debitAcc,
-            debit: amountNum,
-            credit: 0,
-            memo: newEntry.description,
-          },
-          {
-            id: `line-${Date.now()}-2`,
-            accountCode: newEntry.creditAccountCode,
-            accountName: creditAcc,
-            debit: 0,
-            credit: amountNum,
-            memo: newEntry.description,
-          },
-        ],
-      };
-
-      setJournalEntries((prev) => [createdJe, ...prev]);
+      await loadJournalEntries();
+      setLedgerVersion((v) => v + 1);
       toast.success("Buxgalteriya provodkasi atomar tranzaksiya bilan Ledgerga saqlandi!");
       setIsAddOpen(false);
       setNewEntry({
@@ -250,8 +257,42 @@ export default function AccountingPage() {
     }
   };
 
+  const handleCreateCoa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{4,8}$/.test(newCoa.code.trim())) {
+      toast.error("Schyot kodi 4–8 xonali raqam boʻlishi shart (masalan: 5120)");
+      return;
+    }
+    if (newCoa.name.trim().length < 3) {
+      toast.error("Schyot nomini kamida 3 ta belgi bilan kiriting");
+      return;
+    }
+
+    setIsSubmittingCoa(true);
+    try {
+      await createChartOfAccount({
+        entityId: currentEntity?.id,
+        code: newCoa.code,
+        name: newCoa.name,
+        type: newCoa.type,
+      });
+      await loadAccounts();
+      toast.success(`«${newCoa.code} — ${newCoa.name}» schyoti rejaga qoʻshildi!`);
+      setIsAddCoaOpen(false);
+      setNewCoa({ code: "", name: "", type: "asset" });
+    } catch (err: any) {
+      toast.error("Schyot qoʻshishda xatolik: " + err.message);
+    } finally {
+      setIsSubmittingCoa(false);
+    }
+  };
+
   const handleReverseEntry = async () => {
     if (!selectedEntry) return;
+    if (!reversalReason || reversalReason.trim().length < 3) {
+      toast.error("Storno qilish sababini kamida 3 ta belgi bilan kiriting");
+      return;
+    }
     setIsReversing(true);
     try {
       const res = await reverseJournalEntryRecord(selectedEntry.id, reversalReason);
@@ -259,11 +300,8 @@ export default function AccountingPage() {
       setIsReversalDialogOpen(false);
       setSelectedEntry(null);
 
-      // Refresh list
-      if (currentEntity?.id) {
-        const refreshed = await fetchJournalEntries(currentEntity.id);
-        setJournalEntries(refreshed);
-      }
+      await loadJournalEntries();
+      setLedgerVersion((v) => v + 1);
     } catch (err: any) {
       console.error("Reversal error:", err);
       toast.error("Storno qilishda xatolik: " + err.message);
@@ -271,6 +309,8 @@ export default function AccountingPage() {
       setIsReversing(false);
     }
   };
+
+  const totalPages = Math.max(1, Math.ceil(totalJournalCount / pageSize));
 
   return (
     <div className="space-y-5">
@@ -306,14 +346,16 @@ export default function AccountingPage() {
             <Download className="h-3.5 w-3.5" />
             {t.common.export} (CSV)
           </Button>
-          <Button
-            size="sm"
-            className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t.common.addNew}
-          </Button>
+          {currentRole !== "viewer" && currentRole !== "auditor" && (
+            <Button
+              size="sm"
+              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => setIsAddOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t.common.addNew}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -339,7 +381,7 @@ export default function AccountingPage() {
 
         {/* 1. Chart of Accounts Tab */}
         <TabsContent value="coa" className="space-y-3 mt-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="relative w-full max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -349,9 +391,22 @@ export default function AccountingPage() {
                 className="h-8 pl-8 text-xs"
               />
             </div>
-            <span className="text-xs text-muted-foreground">
-              {filteredCoa.length} / {mockChartOfAccounts.length}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground">
+                {filteredCoa.length} / {chartOfAccounts.length} schyot
+              </span>
+              {currentRole !== "viewer" && currentRole !== "auditor" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => setIsAddCoaOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Yangi schyot / subschyot
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -360,33 +415,49 @@ export default function AccountingPage() {
                 <TableRow>
                   <TableHead className="w-24">{t.pages.accounting.code}</TableHead>
                   <TableHead>{t.pages.accounting.name}</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Kategoriya</TableHead>
+                  <TableHead>Turi</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.balance} ({t.common.currency})</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCoa.map((acc) => (
-                  <TableRow key={acc.id} className="hover:bg-muted/50">
-                    <TableCell className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
-                      {acc.code}
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">
-                      {acc.name}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">
-                      {acc.category}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] capitalize">
-                        {acc.type === "active" ? "Aktiv" : acc.type === "passive" ? "Passiv" : "Aktiv-Passiv"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Money amount={acc.balance} />
+                {filteredCoa.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">
+                      Schyotlar rejasi topilmadi.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredCoa.map((acc) => {
+                    const tbRow = trialBalanceData.find((r) => r.account_code === acc.code);
+                    const liveBalance = tbRow
+                      ? Number(tbRow.closing_debit || 0) > 0
+                        ? Number(tbRow.closing_debit)
+                        : Number(tbRow.closing_credit || 0)
+                      : 0;
+                    return (
+                      <TableRow key={acc.id} className="hover:bg-muted/50">
+                        <TableCell className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                          {acc.code}
+                        </TableCell>
+                        <TableCell className="font-medium text-foreground">
+                          {acc.name}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {acc.category}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px] capitalize">
+                            {acc.type === "active" ? "Aktiv" : acc.type === "passive" ? "Passiv" : "Aktiv-Passiv"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          <Money amount={liveBalance} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </div>
@@ -409,7 +480,16 @@ export default function AccountingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {journalEntries.map((je) => (
+                {journalEntries.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
+                      {isLoadingEntries
+                        ? "Provodkalar Supabase bazasidan yuklanmoqda..."
+                        : "Ushbu korxona boʻyicha buxgalteriya provodkalari topilmadi."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  journalEntries.map((je) => (
                   <TableRow
                     key={je.id}
                     className="cursor-pointer hover:bg-muted/60"
@@ -442,9 +522,37 @@ export default function AccountingPage() {
                       {je.createdBy}
                     </TableCell>
                   </TableRow>
-                ))}
+                ))
+                )}
               </TableBody>
             </Table>
+
+            {/* Server-side Pagination Bar */}
+            <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+              <span>
+                Jami: <strong className="text-foreground">{totalJournalCount}</strong> ta provodka (Sahifa {currentPage} / {totalPages})
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={currentPage <= 1 || isLoadingEntries}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  Oldingi
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  disabled={currentPage >= totalPages || isLoadingEntries}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Keyingi
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Selected Entry Detail modal / view */}
@@ -817,6 +925,76 @@ export default function AccountingPage() {
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Custom BHMS Account / Sub-account Modal */}
+      <Dialog open={isAddCoaOpen} onOpenChange={setIsAddCoaOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Yangi schyot / subschyot qoʻshish
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Korxona uchun individual BHMS subschyotini (masalan, 5120, 4011) bazaga kiritish.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateCoa} className="space-y-3 pt-2 text-xs">
+            <div>
+              <Label className="text-[11px] font-medium">Schyot kodi (4–8 ta raqam) *</Label>
+              <Input
+                placeholder="5120"
+                value={newCoa.code}
+                onChange={(e) => setNewCoa({ ...newCoa, code: e.target.value })}
+                className="h-8 text-xs font-mono mt-1"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-[11px] font-medium">Schyot nomi *</Label>
+              <Input
+                placeholder="Valyuta hisobvaragʻi (USD)"
+                value={newCoa.name}
+                onChange={(e) => setNewCoa({ ...newCoa, name: e.target.value })}
+                className="h-8 text-xs mt-1"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-[11px] font-medium">Schyot turi (BHMS)</Label>
+              <select
+                value={newCoa.type}
+                onChange={(e) => setNewCoa({ ...newCoa, type: e.target.value as any })}
+                className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
+              >
+                <option value="asset">Aktiv (Asset)</option>
+                <option value="liability">Majburiyat (Liability)</option>
+                <option value="equity">Xususiy kapital (Equity)</option>
+                <option value="revenue">Daromad (Revenue)</option>
+                <option value="expense">Xarajat (Expense)</option>
+              </select>
+            </div>
+            <DialogFooter className="pt-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setIsAddCoaOpen(false)}
+                disabled={isSubmittingCoa}
+              >
+                {t.common.cancel}
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                disabled={isSubmittingCoa}
+              >
+                {isSubmittingCoa ? "Qoʻshilmoqda..." : "Schyotni saqlash"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { mockTransactions } from "@/lib/mock/transactions";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Transaction } from "@/lib/mock/types";
-import { fetchTransactions, createTransaction } from "@/lib/services/supabase-service";
+import { fetchTransactionsPaginated, createTransaction, updateTransactionStatus } from "@/lib/services/supabase-service";
+import { transactionSchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,15 +36,30 @@ import { toast } from "sonner";
 import { useAppState } from "@/lib/mock/store";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
-export default function TransactionsPage() {
+function TransactionsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentEntity, currentRole } = useAppState();
   const { t } = useTranslation();
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("all");
+
+  const initialTab = searchParams.get("tab") || "all";
+  const initialTxId = searchParams.get("id");
+
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [search, setSearch] = useState("");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+
+  // Extended Filter Bar state
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [minAmount, setMinAmount] = useState("");
 
   // Modal form state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -105,13 +121,52 @@ export default function TransactionsPage() {
     reader.readAsText(file, "utf-8");
   };
 
+  const loadTransactions = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setTransactions([]);
+      setTotalCount(0);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, count } = await fetchTransactionsPaginated(currentEntity.id, {
+        page: currentPage,
+        pageSize,
+        tab: activeTab,
+        search,
+      });
+      setTransactions((data || []) as Transaction[]);
+      setTotalCount(count);
+      if (initialTxId) {
+        const match = (data || []).find((row: any) => row.id === initialTxId);
+        if (match) setSelectedTx(match as Transaction);
+      }
+    } catch (err: any) {
+      console.error("Error loading transactions:", err);
+      toast.error("Tranzaksiyalarni yuklab boʻlmadi: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentEntity?.id, currentPage, pageSize, activeTab, search, initialTxId]);
+
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setSelectedIds([]);
+  }, [currentEntity?.id, activeTab, search]);
+
   const handleConfirmImport = async () => {
     if (importedList.length === 0) return;
     setIsImporting(true);
     try {
       const saved = await importBatchTransactions(importedList, currentEntity?.id);
-      setTransactions((prev) => [...(saved as any), ...prev]);
-      toast.success(`${saved.length} ta bank toʻlovi Supabase bazasiga kiritildi va hisob-fakturalarga bogʻlandi!`);
+      await loadTransactions();
+      toast.success(`${saved.length} ta bank toʻlovi Supabase bazasiga kiritildi va Ledgerga bogʻlandi!`);
       setIsImportOpen(false);
       setImportedList([]);
       setImportFileName("");
@@ -121,24 +176,6 @@ export default function TransactionsPage() {
       setIsImporting(false);
     }
   };
-
-  useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
-    fetchTransactions(currentEntity?.id)
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          setTransactions(data);
-        }
-      })
-      .catch((err) => console.error("Error loading transactions:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [currentEntity?.id]);
 
   const handleExport = () => {
     const headers = ["ID", "Sana", "Kontragent", "STIR", "Turi", "Summa", "Tavsif", "Holat"];
@@ -165,25 +202,35 @@ export default function TransactionsPage() {
 
   const handleCreateTx = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTx.counterparty || !newTx.amount || !newTx.description) {
-      toast.error("Iltimos, kontragent, summa va tavsif maydonlarini toʻldiring");
+    const parsed = transactionSchema.safeParse({
+      date: newTx.date,
+      amount: newTx.amount,
+      type: newTx.type,
+      counterparty: newTx.counterparty,
+      counterpartyStir: newTx.counterpartyStir || undefined,
+      description: newTx.description,
+      accountCode: newTx.accountCode,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
+
     setIsSubmitting(true);
     try {
-      const created = await createTransaction({
+      await createTransaction({
         entityId: currentEntity?.id,
-        date: newTx.date,
-        amount: Number(newTx.amount),
-        type: newTx.type,
-        counterparty: newTx.counterparty,
-        counterpartyStir: newTx.counterpartyStir || undefined,
-        description: newTx.description,
-        accountCode: newTx.accountCode,
-        accountName: newTx.type === "income" ? "Xaridorlar schyoti" : "Yetkazib beruvchilar schyoti",
+        date: parsed.data.date,
+        amount: parsed.data.amount,
+        type: parsed.data.type,
+        counterparty: parsed.data.counterparty,
+        counterpartyStir: parsed.data.counterpartyStir || undefined,
+        description: parsed.data.description,
+        accountCode: parsed.data.accountCode,
+        accountName: parsed.data.type === "income" ? "Xaridorlar schyoti" : "Yetkazib beruvchilar schyoti",
       });
 
-      setTransactions((prev) => [created as any, ...prev]);
+      await loadTransactions();
       toast.success("Tranzaksiya Supabase maʼlumotlar bazasiga muvaffaqiyatli saqlandi!");
       setIsAddOpen(false);
       setNewTx({
@@ -202,23 +249,11 @@ export default function TransactionsPage() {
     }
   };
 
-  // Filter transactions
+  // Client-side secondary filter (date range / min amount) on top of server-side paginated results
   const filtered = transactions.filter((tx) => {
-    // Tab filter
-    if (activeTab === "income" && tx.type !== "income") return false;
-    if (activeTab === "expense" && tx.type !== "expense") return false;
-    if (activeTab === "pending" && tx.status !== "pending") return false;
-    if (activeTab === "exception" && tx.status !== "exception") return false;
-
-    // Search query
-    if (search) {
-      const q = search.toLowerCase();
-      const matchName = tx.counterparty.toLowerCase().includes(q);
-      const matchDesc = tx.description.toLowerCase().includes(q);
-      const matchAmount = tx.amount.toString().includes(q);
-      if (!matchName && !matchDesc && !matchAmount) return false;
-    }
-
+    if (dateFrom && tx.date < dateFrom) return false;
+    if (dateTo && tx.date > dateTo) return false;
+    if (minAmount && Number(tx.amount) < Number(minAmount)) return false;
     return true;
   });
 
@@ -239,6 +274,60 @@ export default function TransactionsPage() {
   };
 
   const isAllSelected = filtered.length > 0 && selectedIds.length === filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const paginatedTx = filtered;
+
+  const handleApproveTx = async (tx: Transaction) => {
+    try {
+      await updateTransactionStatus(tx.id, "posted", {
+        entityId: currentEntity?.id,
+        date: tx.date,
+        amount: tx.amount,
+        type: tx.type,
+        counterparty: tx.counterparty,
+        description: tx.description,
+        accountCode: tx.accountCode,
+      });
+      await loadTransactions();
+      toast.success(`«${tx.counterparty}» tranzaksiyasi tasdiqlandi va Bosh kitobga (Ledger) provodka tushirildi!`);
+      setSelectedTx(null);
+    } catch (err: any) {
+      toast.error("Tasdiqlashda xatolik: " + err.message);
+    }
+  };
+
+  const handleRejectTx = async (tx: Transaction) => {
+    try {
+      await updateTransactionStatus(tx.id, "rejected");
+      await loadTransactions();
+      toast.success(`«${tx.counterparty}» tranzaksiyasi rad etildi.`);
+      setSelectedTx(null);
+    } catch (err: any) {
+      toast.error("Rad etishda xatolik: " + err.message);
+    }
+  };
+
+  const handleBatchApprove = async () => {
+    try {
+      const selectedObjects = transactions.filter((t) => selectedIds.includes(t.id));
+      for (const tx of selectedObjects) {
+        await updateTransactionStatus(tx.id, "posted", {
+          entityId: currentEntity?.id,
+          date: tx.date,
+          amount: tx.amount,
+          type: tx.type,
+          counterparty: tx.counterparty,
+          description: tx.description,
+          accountCode: tx.accountCode,
+        });
+      }
+      await loadTransactions();
+      toast.success(`${selectedIds.length} ta tranzaksiya tasdiqlandi va Bosh kitobga (Ledger) provodkalar tushirildi!`);
+      setSelectedIds([]);
+    } catch (err: any) {
+      toast.error("Ommaviy tasdiqlashda xatolik: " + err.message);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -302,7 +391,7 @@ export default function TransactionsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
           <TabsList className="h-8">
-            <TabsTrigger value="all">{t.pages.transactions.tabs.all} ({transactions.length})</TabsTrigger>
+            <TabsTrigger value="all">{t.pages.transactions.tabs.all} ({totalCount})</TabsTrigger>
             <TabsTrigger value="income">{t.pages.transactions.tabs.income}</TabsTrigger>
             <TabsTrigger value="expense">{t.pages.transactions.tabs.expense}</TabsTrigger>
             <TabsTrigger value="pending">{t.pages.transactions.tabs.pending}</TabsTrigger>
@@ -320,12 +409,65 @@ export default function TransactionsPage() {
               className="h-8 pl-8 text-xs"
             />
           </div>
-          <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs text-muted-foreground">
+          <Button
+            variant={isFilterOpen ? "default" : "outline"}
+            size="sm"
+            className="h-8 px-2.5 text-xs"
+            onClick={() => setIsFilterOpen((v) => !v)}
+          >
             <Filter className="h-3.5 w-3.5 mr-1" />
             {t.common.filter}
           </Button>
         </div>
       </div>
+
+      {isFilterOpen && (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-xl border border-border bg-muted/20 p-3 text-xs">
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Sanadan</Label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-8 text-xs mt-1 bg-background"
+            />
+          </div>
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Sanagacha</Label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-8 text-xs mt-1 bg-background"
+            />
+          </div>
+          <div>
+            <Label className="text-[11px] text-muted-foreground">Minimal summa (UZS)</Label>
+            <Input
+              type="number"
+              placeholder="Masalan: 1000000"
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+              className="h-8 text-xs font-mono mt-1 bg-background"
+            />
+          </div>
+          <div className="flex items-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs w-full"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+                setMinAmount("");
+              }}
+            >
+              Filtrlarni tozalash
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Bulk Action Bar (when selected) */}
       {selectedIds.length > 0 && (
@@ -338,10 +480,7 @@ export default function TransactionsPage() {
               size="sm"
               variant="success"
               className="h-7 px-3 text-xs"
-              onClick={() => {
-                toast.success(`${selectedIds.length} - ${t.pages.transactions.batchApprove}`);
-                setSelectedIds([]);
-              }}
+              onClick={handleBatchApprove}
             >
               <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
               {t.pages.transactions.batchApprove}
@@ -379,7 +518,16 @@ export default function TransactionsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((tx) => (
+            {paginatedTx.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
+                  {isLoading
+                    ? "Tranzaksiyalar Supabase bazasidan yuklanmoqda..."
+                    : "Ushbu korxona boʻyicha mos tranzaksiya topilmadi."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedTx.map((tx) => (
               <TableRow
                 key={tx.id}
                 className="cursor-pointer hover:bg-muted/60 transition-colors"
@@ -422,9 +570,37 @@ export default function TransactionsPage() {
                   )}
                 </TableCell>
               </TableRow>
-            ))}
+            ))
+            )}
           </TableBody>
         </Table>
+
+        {/* Pagination Footer */}
+        <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+          <span>
+            Jami: <strong className="text-foreground">{totalCount}</strong> ta operatsiya (Sahifa {currentPage} / {totalPages})
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            >
+              Oldingi
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Keyingi
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Slide-over Detail Panel */}
@@ -515,35 +691,38 @@ export default function TransactionsPage() {
                     <p className="text-[10px] text-muted-foreground">{t.nav.documents}</p>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="h-7 text-xs">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => router.push("/documents")}
+                >
                   {t.common.details} <ArrowUpRight className="ml-1 h-3 w-3" />
                 </Button>
               </div>
             )}
 
             {/* Actions */}
-            <div className="pt-4 flex items-center gap-2">
-              <Button
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-9"
-                onClick={() => {
-                  toast.success(t.common.approve);
-                  setSelectedTx(null);
-                }}
-              >
-                <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                {t.common.approve}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-9"
-                onClick={() => {
-                  toast.info(t.common.reject);
-                  setSelectedTx(null);
-                }}
-              >
-                {t.common.reject}
-              </Button>
-            </div>
+            {currentRole !== "viewer" && currentRole !== "auditor" && (
+              <div className="pt-4 flex items-center gap-2">
+                <Button
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-9"
+                  disabled={selectedTx.status === "posted"}
+                  onClick={() => handleApproveTx(selectedTx)}
+                >
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                  {selectedTx.status === "posted" ? "Tasdiqlangan" : t.common.approve}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  disabled={selectedTx.status === "rejected"}
+                  onClick={() => handleRejectTx(selectedTx)}
+                >
+                  {t.common.reject}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -802,5 +981,13 @@ export default function TransactionsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+      <TransactionsContent />
+    </Suspense>
   );
 }

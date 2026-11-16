@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { mockDocuments } from "@/lib/mock/documents";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { DocumentItem } from "@/lib/mock/types";
-import { fetchDocuments, createDocument, signDocumentWithEImzo } from "@/lib/services/supabase-service";
+import {
+  fetchDocumentsPaginated,
+  createDocument,
+  signDocumentWithEImzo,
+  rejectDocumentInDb,
+} from "@/lib/services/supabase-service";
+import { documentSchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,17 +40,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { useAppState } from "@/lib/mock/store";
 
-export default function DocumentsPage() {
-  const { currentEntity } = useAppState();
+function DocumentsContent() {
+  const searchParams = useSearchParams();
+  const initialDocId = searchParams.get("id");
+  const { currentEntity, currentRole } = useAppState();
   const { t } = useTranslation();
-  const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+
+  const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attachedFileInfo, setAttachedFileInfo] = useState<{ name: string; sizeLabel: string } | null>(null);
 
   // Form state
   const [newDoc, setNewDoc] = useState({
@@ -57,90 +71,100 @@ export default function DocumentsPage() {
     contractNumber: "",
   });
 
-  useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
-    fetchDocuments(currentEntity?.id)
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          const mapped: DocumentItem[] = data.map((d: any) => ({
-            id: d.id,
-            entityId: d.entityId || currentEntity?.id,
-            number: d.documentNumber,
-            type: d.type,
-            title: `${d.type === "invoice" ? "Elektron hisob-faktura" : d.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${d.documentNumber}`,
-            counterparty: d.counterparty,
-            counterpartyStir: d.counterpartyStir || "309112233",
-            amount: d.amount,
-            date: d.date,
-            status: d.status,
-            format: "pdf",
-            fileSize: "1.4 MB",
-            signedByLocal: d.eImzoSigned ? "Imzolangan (E-IMZO)" : undefined,
-            signedByPartner: "Tasdiqlangan",
-            aiExtractedData: {
-              vatAmount: d.vatAmount,
-              itemsCount: 3,
-            },
-          }));
-          setDocuments(mapped);
-        }
-      })
-      .catch((err) => console.error("Error loading documents:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+  const mapDbDoc = useCallback(
+    (d: any): DocumentItem => {
+      const titleMap: Record<string, string> = {
+        invoice: "Elektron hisob-faktura (Chiquvchi)",
+        incoming_invoice: "Kiruvchi hisob-faktura (Xarid)",
+        act: "Bajarilgan ishlar dalolatnomasi",
+        contract: "Shartnoma / Bitim",
+      };
+      return {
+        id: d.id,
+        entityId: d.entityId || currentEntity?.id || "",
+        number: d.documentNumber,
+        type: d.type,
+        title: `${titleMap[d.type] || "Elektron hujjat"} №${d.documentNumber}`,
+        counterparty: d.counterparty,
+        counterpartyStir: d.counterpartyStir || "—",
+        amount: d.amount,
+        date: d.date,
+        status: d.status,
+        format: "pdf",
+        fileSize: d.fileSize || "1.4 MB",
+        signedByLocal: d.eImzoSigned ? "Imzolangan (E-IMZO)" : undefined,
+        signedByPartner: d.status === "signed" ? "Tasdiqlangan" : "Kutilmoqda",
+        aiExtractedData: {
+          vatAmount: d.vatAmount,
+          itemsCount: 1,
+        },
+      };
+    },
+    [currentEntity?.id]
+  );
 
-    return () => {
-      isMounted = false;
-    };
-  }, [currentEntity?.id]);
+  const loadDocuments = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setDocuments([]);
+      setTotalCount(0);
+      setIsLoading(false);
+      return;
+    }
 
-  const handleSyncDidox = async () => {
     setIsLoading(true);
     try {
-      const data = await fetchDocuments(currentEntity?.id);
-      if (data && data.length > 0) {
-        const mapped: DocumentItem[] = data.map((d: any) => ({
-          id: d.id,
-          entityId: d.entityId || currentEntity?.id,
-          number: d.documentNumber,
-          type: d.type,
-          title: `${d.type === "invoice" ? "Elektron hisob-faktura" : d.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${d.documentNumber}`,
-          counterparty: d.counterparty,
-          counterpartyStir: d.counterpartyStir || "309112233",
-          amount: d.amount,
-          date: d.date,
-          status: d.status,
-          format: "pdf",
-          fileSize: "1.4 MB",
-          signedByLocal: d.eImzoSigned ? "Imzolangan (E-IMZO)" : undefined,
-          signedByPartner: "Tasdiqlangan",
-          aiExtractedData: {
-            vatAmount: d.vatAmount,
-            itemsCount: 3,
-          },
-        }));
-        setDocuments(mapped);
+      const { data, count } = await fetchDocumentsPaginated(currentEntity.id, {
+        page: currentPage,
+        pageSize,
+        type: selectedType,
+        search,
+      });
+      const mapped = (data || []).map(mapDbDoc);
+      setDocuments(mapped);
+      setTotalCount(count);
+      if (initialDocId) {
+        const found = mapped.find((doc) => doc.id === initialDocId);
+        if (found) setSelectedDoc(found);
       }
-      toast.success("Didox EDO tizimidan barcha elektron hujjatlar yangilandi!");
     } catch (err: any) {
-      toast.error("Didox sinxronizatsiya xatosi: " + err.message);
+      console.error("Error loading documents:", err);
+      toast.error("Hujjatlarni yuklashda xatolik: " + err.message);
     } finally {
       setIsLoading(false);
     }
+  }, [currentEntity?.id, currentPage, pageSize, selectedType, search, initialDocId, mapDbDoc]);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentEntity?.id, selectedType, search]);
+
+  const handleSyncDidox = async () => {
+    await loadDocuments();
+    toast.success("Didox EDO hujjatlar reestri Supabase bazasidan yangilandi!");
   };
 
   const handleSignDocument = async (docId: string) => {
     try {
-      await signDocumentWithEImzo(docId);
-      setDocuments((prev) =>
-        prev.map((d) =>
-          d.id === docId
-            ? { ...d, status: "signed", signedByLocal: "Imzolangan (E-IMZO Oʻzbekiston)" }
-            : d
-        )
+      const target = documents.find((d) => d.id === docId);
+      await signDocumentWithEImzo(
+        docId,
+        target
+          ? {
+              entityId: currentEntity?.id,
+              documentNumber: target.number,
+              type: target.type,
+              counterparty: target.counterparty,
+              date: target.date,
+              amount: target.amount || 0,
+              vatAmount: target.aiExtractedData?.vatAmount,
+            }
+          : undefined
       );
+      await loadDocuments();
       if (selectedDoc && selectedDoc.id === docId) {
         setSelectedDoc((prev) =>
           prev
@@ -148,54 +172,82 @@ export default function DocumentsPage() {
             : null
         );
       }
-      toast.success("Hujjat E-IMZO elektron raqamli imzosi bilan muvaffaqiyatli tasdiqlandi!");
+      toast.success("Hujjat E-IMZO bilan tasdiqlandi va Bosh kitobga (Ledger) provodka tushirildi!");
     } catch (err: any) {
       toast.error("Imzolashda xatolik yuz berdi: " + err.message);
     }
   };
 
+  const handleRejectDocument = async (docId: string) => {
+    try {
+      await rejectDocumentInDb(docId);
+      await loadDocuments();
+      toast.success("Hujjat rad etildi va holat bazada yangilandi.");
+      setSelectedDoc(null);
+    } catch (err: any) {
+      toast.error("Rad etishda xatolik: " + err.message);
+    }
+  };
+
+  const handleExportSingleDoc = (doc: DocumentItem) => {
+    const content = [
+      `FIRMUS — DIDOX EDO ELEKTRON HUJJAT NUSXASI`,
+      `==========================================`,
+      `Hujjat raqami: ${doc.number}`,
+      `Sarlavha: ${doc.title}`,
+      `Korxona: ${currentEntity?.name || "—"} (STIR: ${currentEntity?.tinStir || "—"})`,
+      `Kontragent: ${doc.counterparty} (STIR: ${doc.counterpartyStir})`,
+      `Sana: ${doc.date}`,
+      `Summa: ${doc.amount.toLocaleString()} UZS`,
+      `QQS (12%): ${(doc.aiExtractedData?.vatAmount || 0).toLocaleString()} UZS`,
+      `Holati: ${doc.status}`,
+      `E-IMZO: ${doc.signedByLocal || "Imzolanmagan"}`,
+    ].join("\n");
+    const blob = new Blob(["\uFEFF" + content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `didox_${doc.number.replace(/[^a-zA-Z0-9_-]/g, "_")}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`«${doc.number}» hujjat nusxasi yuklab olindi!`);
+  };
+
   const handleCreateDocument = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDoc.counterparty || !newDoc.amount || !newDoc.number) {
-      toast.error("Iltimos, hujjat raqami, kontragent va summani kiriting");
+    const parsed = documentSchema.safeParse({
+      number: newDoc.number,
+      type: newDoc.type,
+      counterparty: newDoc.counterparty,
+      counterpartyStir: newDoc.counterpartyStir || undefined,
+      amount: newDoc.amount,
+      date: newDoc.date,
+      contractNumber: newDoc.contractNumber || undefined,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
+
     setIsSubmitting(true);
     try {
-      const created = await createDocument({
+      await createDocument({
         entityId: currentEntity?.id,
-        documentNumber: newDoc.number,
-        type: newDoc.type,
-        counterparty: newDoc.counterparty,
-        counterpartyStir: newDoc.counterpartyStir || undefined,
-        amount: Number(newDoc.amount),
-        date: newDoc.date,
-        contractNumber: newDoc.contractNumber || undefined,
+        documentNumber: parsed.data.number,
+        type: parsed.data.type,
+        counterparty: parsed.data.counterparty,
+        counterpartyStir: parsed.data.counterpartyStir || undefined,
+        amount: parsed.data.amount,
+        date: parsed.data.date,
+        contractNumber: parsed.data.contractNumber || undefined,
       });
 
-      const newDocItem: DocumentItem = {
-        id: created.id,
-        entityId: created.entityId || currentEntity?.id,
-        number: created.documentNumber,
-        type: created.type as any,
-        title: `${created.type === "invoice" ? "Elektron hisob-faktura" : created.type === "act" ? "Bajarilgan ishlar dalolatnomasi" : "Shartnoma"} №${created.documentNumber}`,
-        counterparty: created.counterparty,
-        counterpartyStir: created.counterpartyStir || "309112233",
-        amount: created.amount,
-        date: created.date,
-        status: created.status as any,
-        format: "pdf",
-        fileSize: "1.2 MB",
-        signedByPartner: "Kutilmoqda",
-        aiExtractedData: {
-          vatAmount: created.vatAmount,
-          itemsCount: 1,
-        },
-      };
-
-      setDocuments((prev) => [newDocItem, ...prev]);
+      await loadDocuments();
       toast.success("Hujjat Didox va Supabase tizimiga muvaffaqiyatli yuklandi!");
       setIsUploadOpen(false);
+      setAttachedFileInfo(null);
       setNewDoc({
         number: `SF-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
         type: "invoice",
@@ -212,17 +264,8 @@ export default function DocumentsPage() {
     }
   };
 
-  const filteredDocs = documents.filter((doc) => {
-    if (selectedType !== "all" && doc.type !== selectedType) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      const matchTitle = doc.title.toLowerCase().includes(q);
-      const matchCounterparty = doc.counterparty.toLowerCase().includes(q);
-      const matchNumber = doc.number.toLowerCase().includes(q);
-      if (!matchTitle && !matchCounterparty && !matchNumber) return false;
-    }
-    return true;
-  });
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const filteredDocs = documents;
 
   return (
     <div className="space-y-5">
@@ -249,21 +292,23 @@ export default function DocumentsPage() {
             {t.pages.documents.syncDidox}
           </Button>
 
-          <Button
-            size="sm"
-            className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => setIsUploadOpen(true)}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {t.pages.documents.uploadDoc}
-          </Button>
+          {currentRole !== "viewer" && currentRole !== "auditor" && (
+            <Button
+              size="sm"
+              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => setIsUploadOpen(true)}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {t.pages.documents.uploadDoc}
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Filters and View Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          {["all", "invoice", "act", "contract"].map((typeKey) => (
+          {["all", "invoice", "incoming_invoice", "act", "contract"].map((typeKey) => (
             <Button
               key={typeKey}
               variant={selectedType === typeKey ? "default" : "outline"}
@@ -272,9 +317,11 @@ export default function DocumentsPage() {
               className="text-xs h-8 capitalize"
             >
               {typeKey === "all"
-                ? t.pages.documents.tabs.all
+                ? `${t.pages.documents.tabs.all} (${totalCount})`
                 : typeKey === "invoice"
                 ? t.pages.documents.tabs.invoices
+                : typeKey === "incoming_invoice"
+                ? "Kiruvchi E-SF"
                 : typeKey === "act"
                 ? t.pages.documents.tabs.acts
                 : t.pages.documents.tabs.contracts}
@@ -326,7 +373,16 @@ export default function DocumentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredDocs.map((doc) => (
+              {filteredDocs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
+                    {isLoading
+                      ? "Hujjatlar Supabase bazasidan yuklanmoqda..."
+                      : "Ushbu korxona boʻyicha mos hujjat topilmadi."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredDocs.map((doc) => (
                 <TableRow
                   key={doc.id}
                   className="cursor-pointer hover:bg-muted/60"
@@ -356,10 +412,15 @@ export default function DocumentsPage() {
                     </Badge>
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </div>
+      ) : filteredDocs.length === 0 ? (
+        <Card className="p-8 text-center text-xs text-muted-foreground">
+          {isLoading ? "Hujjatlar yuklanmoqda..." : "Ushbu korxona boʻyicha hujjatlar topilmadi."}
+        </Card>
       ) : (
         /* Grid View */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -401,6 +462,33 @@ export default function DocumentsPage() {
         </div>
       )}
 
+      {/* Server-side Pagination Bar */}
+      <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-2.5 text-xs text-muted-foreground">
+        <span>
+          Jami: <strong className="text-foreground">{totalCount}</strong> ta hujjat (Sahifa {currentPage} / {totalPages})
+        </span>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            disabled={currentPage <= 1 || isLoading}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Oldingi
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            disabled={currentPage >= totalPages || isLoading}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Keyingi
+          </Button>
+        </div>
+      </div>
+
       {/* Document Detail Slide-over Panel */}
       {selectedDoc && (
         <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[540px] flex-col border-l border-border bg-card shadow-2xl p-6 duration-200 animate-in slide-in-from-right overflow-y-auto">
@@ -430,9 +518,14 @@ export default function DocumentsPage() {
               <p className="font-semibold text-foreground text-xs">{selectedDoc.number}.pdf</p>
               <p className="text-[10px] text-muted-foreground">Didox E-SF elektron nusxasi ({selectedDoc.fileSize})</p>
               <div className="pt-2">
-                <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => handleExportSingleDoc(selectedDoc)}
+                >
                   <Download className="h-3 w-3" />
-                  PDF {t.common.export}
+                  Hujjat nusxasi (Yuklash)
                 </Button>
               </div>
             </div>
@@ -468,43 +561,43 @@ export default function DocumentsPage() {
               </span>
               <div className="space-y-2 text-[11px]">
                 <div className="flex items-center justify-between p-2 rounded bg-muted/30">
-                  <span className="text-muted-foreground">Entity:</span>
-                  <span className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <span className="text-muted-foreground">Korxona imzosi:</span>
+                  <span className={`font-medium flex items-center gap-1 ${selectedDoc.signedByLocal ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
                     <CheckCircle2 className="h-3 w-3" />
-                    {selectedDoc.signedByLocal || t.statuses.signed}
+                    {selectedDoc.signedByLocal || "Imzolanmagan (Kutilmoqda)"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-muted/30">
                   <span className="text-muted-foreground">{t.common.counterparty}:</span>
                   <span className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
-                    {selectedDoc.signedByPartner || t.statuses.posted}
+                    {selectedDoc.signedByPartner || "Kutilmoqda"}
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Action buttons */}
-            <div className="pt-2 flex items-center gap-2">
-              <Button
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white h-9"
-                onClick={() => handleSignDocument(selectedDoc.id)}
-                disabled={selectedDoc.status === "signed"}
-              >
-                <ShieldCheck className="mr-1.5 h-4 w-4" />
-                {selectedDoc.status === "signed" ? "E-IMZO bilan imzolangan" : `E-IMZO ${t.statuses.signed}`}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-9"
-                onClick={() => {
-                  toast.info(t.common.reject);
-                  setSelectedDoc(null);
-                }}
-              >
-                {t.common.reject}
-              </Button>
-            </div>
+            {currentRole !== "viewer" && currentRole !== "auditor" && (
+              <div className="pt-2 flex items-center gap-2">
+                <Button
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white h-9"
+                  onClick={() => handleSignDocument(selectedDoc.id)}
+                  disabled={selectedDoc.status === "signed"}
+                >
+                  <ShieldCheck className="mr-1.5 h-4 w-4" />
+                  {selectedDoc.status === "signed" ? "E-IMZO bilan imzolangan" : `E-IMZO bilan tasdiqlash`}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  disabled={selectedDoc.status === "rejected" as any}
+                  onClick={() => handleRejectDocument(selectedDoc.id)}
+                >
+                  {t.common.reject}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -530,7 +623,8 @@ export default function DocumentsPage() {
                   onChange={(e) => setNewDoc({ ...newDoc, type: e.target.value })}
                   className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
                 >
-                  <option value="invoice">Elektron hisob-faktura (E-SF)</option>
+                  <option value="invoice">Chiquvchi E-SF (Sotuv)</option>
+                  <option value="incoming_invoice">Kiruvchi E-SF (Xarid)</option>
                   <option value="act">Bajarilgan ishlar dalolatnomasi</option>
                   <option value="contract">Shartnoma / Bitim</option>
                 </select>
@@ -603,6 +697,30 @@ export default function DocumentsPage() {
               />
             </div>
 
+            <div>
+              <Label className="text-[11px] font-medium text-foreground">Fayl biriktirish (PDF / XML — ixtiyoriy)</Label>
+              <Input
+                type="file"
+                accept=".pdf,.xml,.json,.jpg,.png,.txt"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const kb = Math.max(1, Math.round(file.size / 1024));
+                    setAttachedFileInfo({
+                      name: file.name,
+                      sizeLabel: kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`,
+                    });
+                  }
+                }}
+                className="h-8 text-[11px] mt-1 file:text-[11px] file:mr-2"
+              />
+              {attachedFileInfo && (
+                <p className="text-[10px] text-emerald-600 mt-1 font-mono">
+                  Biriktirildi: {attachedFileInfo.name} ({attachedFileInfo.sizeLabel})
+                </p>
+              )}
+            </div>
+
             <DialogFooter className="pt-2 gap-2">
               <Button
                 type="button"
@@ -627,5 +745,13 @@ export default function DocumentsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function DocumentsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+      <DocumentsContent />
+    </Suspense>
   );
 }

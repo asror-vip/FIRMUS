@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { mockInventoryItems, mockStockMovements } from "@/lib/mock/inventory";
-import { fetchInventoryItems, createInventoryItem } from "@/lib/services/supabase-service";
+import React, { useState, useEffect, useCallback } from "react";
+import { fetchInventoryItems, createInventoryItem, createJournalEntryRecord } from "@/lib/services/supabase-service";
+import { inventorySchema, getFirstZodError } from "@/lib/validations/accounting";
+import { useAppState } from "@/lib/mock/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,10 @@ import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function InventoryPage() {
+  const { currentEntity, currentRole } = useAppState();
   const { t } = useTranslation();
-  const [items, setItems] = useState<any[]>(mockInventoryItems);
-  const [isLoading, setIsLoading] = useState(false);
+  const [items, setItems] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,35 +34,38 @@ export default function InventoryPage() {
     unitPrice: "",
   });
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadInventory = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setItems([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
-    fetchInventoryItems()
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          const mapped = data.map((d: any) => ({
-            id: d.id,
-            sku: d.sku,
-            name: d.name,
-            category: d.category,
-            quantity: d.quantity,
-            unit: d.unit,
-            costPrice: d.unitPrice,
-            totalValue: d.totalValue,
-            status: d.status,
-          }));
-          setItems(mapped);
-        }
-      })
-      .catch((err) => console.error("Error loading inventory:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    try {
+      const data = await fetchInventoryItems(currentEntity.id);
+      const mapped = (data || []).map((d: any) => ({
+        id: d.id,
+        sku: d.sku,
+        name: d.name,
+        category: d.category,
+        quantity: d.quantity,
+        unit: d.unit,
+        costPrice: d.unitPrice || d.costPrice,
+        totalValue: d.totalValue,
+        status: d.status,
+      }));
+      setItems(mapped);
+    } catch (err) {
+      console.error("Error loading inventory:", err);
+      toast.error("Ombor qoldiqlarini yuklashda xatolik yuz berdi");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentEntity?.id]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    loadInventory();
+  }, [loadInventory]);
 
   const handleExport = () => {
     const headers = ["ID", "SKU", "Nomi", "Kategoriya", "Miqdor", "Birlik", "Tannarx", "Jami qiymat", "Holat"];
@@ -88,35 +93,60 @@ export default function InventoryPage() {
 
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.quantity || !newItem.unitPrice) {
-      toast.error("Iltimos, tovar nomi, miqdori va narxini kiriting");
+    const parsed = inventorySchema.safeParse({
+      sku: newItem.sku,
+      name: newItem.name,
+      category: newItem.category,
+      quantity: newItem.quantity,
+      unit: newItem.unit,
+      unitPrice: newItem.unitPrice,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
+
     setIsSubmitting(true);
     try {
+      const qty = parsed.data.quantity;
+      const price = parsed.data.unitPrice;
+      const totalVal = qty * price;
+
       const created = await createInventoryItem({
-        sku: newItem.sku,
-        name: newItem.name,
-        category: newItem.category,
-        quantity: Number(newItem.quantity),
-        unit: newItem.unit,
-        unitPrice: Number(newItem.unitPrice),
+        entityId: currentEntity?.id,
+        sku: parsed.data.sku,
+        name: parsed.data.name,
+        category: parsed.data.category,
+        quantity: qty,
+        unit: parsed.data.unit,
+        unitPrice: price,
       });
 
-      const mapped = {
-        id: created.id,
-        sku: created.sku,
-        name: created.name,
-        category: created.category,
-        quantity: created.quantity,
-        unit: created.unit,
-        costPrice: created.unitPrice,
-        totalValue: created.totalValue,
-        status: created.status,
-      };
+      let ledgerPosted = false;
+      if (currentEntity?.id && totalVal > 0) {
+        await createJournalEntryRecord({
+          entityId: currentEntity.id,
+          entryNumber: `JE-INV-${parsed.data.sku}-${String(created.id).slice(0, 4).toUpperCase()}`,
+          entryDate: new Date().toISOString().split("T")[0],
+          description: `Omborga tovar kirimi: ${parsed.data.name} (${qty} ${parsed.data.unit})`,
+          debitAccountCode: "2910",
+          debitAccountName: "Ombordagi tovarlar",
+          creditAccountCode: "6010",
+          creditAccountName: "Mol yetkazib beruvchilarga toʻlanadigan schyotlar",
+          amount: totalVal,
+          sourceType: "inventory_receipt",
+          sourceReferenceId: String(created.id),
+          idempotencyKey: `idem-inv-${created.id}`,
+        });
+        ledgerPosted = true;
+      }
 
-      setItems((prev) => [mapped, ...prev]);
-      toast.success("Yangi tovar-moddiy boylik Supabase bazasiga muvaffaqiyatli saqlandi!");
+      await loadInventory();
+      toast.success(
+        ledgerPosted
+          ? "Yangi tovar-moddiy boylik omborga va Bosh kitobga (Dt 2910 / Kt 6010) saqlandi!"
+          : "Yangi tovar-moddiy boylik ombor bazasiga saqlandi!"
+      );
       setIsAddOpen(false);
       setNewItem({
         sku: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -127,10 +157,42 @@ export default function InventoryPage() {
         unitPrice: "",
       });
     } catch (err: any) {
-      toast.error("Tovar qoʻshishda xatolik: " + err.message);
+      await loadInventory();
+      toast.error("Tovar/provodka saqlashda xatolik: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleOrderLowStock = () => {
+    const lowStockItems = items.filter((i) => i.status === "low_stock");
+    if (lowStockItems.length === 0) return;
+
+    const headers = ["SKU", "Tovar nomi", "Joriy qoldiq", "Buyurtma miqdori", "Birlik", "Taxminiy narx", "Jami buyurtma summasi"];
+    const rows = lowStockItems.map((i) => {
+      const orderQty = 500;
+      return [
+        i.sku,
+        `"${(i.name || "").replace(/"/g, '""')}"`,
+        i.quantity,
+        orderQty,
+        i.unit,
+        i.costPrice,
+        orderQty * (i.costPrice || 0),
+      ];
+    });
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `xarid_buyurtmasi_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success(`${lowStockItems.length} ta kam qolgan tovar uchun Taʼminot xarid buyurtmasi (CSV) yuklab olindi!`);
   };
 
   const filteredItems = items.filter(
@@ -165,14 +227,16 @@ export default function InventoryPage() {
             {t.common.export}
           </Button>
 
-          <Button
-            size="sm"
-            className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t.pages.inventory.addItem}
-          </Button>
+          {currentRole !== "viewer" && currentRole !== "auditor" && (
+            <Button
+              size="sm"
+              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => setIsAddOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t.pages.inventory.addItem}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -192,9 +256,9 @@ export default function InventoryPage() {
             size="sm"
             variant="outline"
             className="h-7 text-xs border-amber-500/40 text-amber-900 dark:text-amber-100"
-            onClick={() => toast.info("Xarid buyurtmasi shakllantirilmoqda...")}
+            onClick={handleOrderLowStock}
           >
-            Buyurtma berish
+            Buyurtma berish (CSV)
           </Button>
         </div>
       )}
@@ -230,7 +294,16 @@ export default function InventoryPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredItems.map((item) => (
+              {filteredItems.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
+                    {isLoading
+                      ? "Ombor qoldiqlari yuklanmoqda..."
+                      : "Ushbu korxonada tovar-moddiy boyliklar topilmadi."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredItems.map((item) => (
                 <TableRow key={item.id} className="hover:bg-muted/50">
                   <TableCell className="font-mono text-xs font-semibold text-primary">
                     {item.sku}
@@ -256,46 +329,59 @@ export default function InventoryPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Stock Movements Feed */}
+      {/* Stock Movements Feed (Derived from real inventory items) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <ArrowDownUp className="h-4 w-4 text-indigo-500" />
-            {t.pages.inventory.title} ({t.common.income} / {t.common.expense})
+            Ombor kirim-chiqim qaydnomasi
           </CardTitle>
-          <CardDescription>{t.pages.inventory.subtitle}</CardDescription>
+          <CardDescription>2910 schyot boʻyicha tovar harakati</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{t.common.date}</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead>Turi</TableHead>
                 <TableHead>{t.pages.inventory.tabs.goods}</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>{t.nav.documents}</TableHead>
-                <TableHead>User</TableHead>
+                <TableHead>Miqdor</TableHead>
+                <TableHead>Schyot</TableHead>
+                <TableHead>Qiymat</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockStockMovements.map((sm) => (
-                <TableRow key={sm.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{sm.date}</TableCell>
-                  <TableCell className="font-medium text-xs text-foreground">{sm.type}</TableCell>
-                  <TableCell className="text-xs text-foreground">{sm.itemName}</TableCell>
-                  <TableCell className={`font-mono text-xs font-bold ${sm.quantity.startsWith("+") ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
-                    {sm.quantity}
+              {items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">
+                    Hozircha tovar harakati mavjud emas.
                   </TableCell>
-                  <TableCell className="text-xs text-primary font-mono">{sm.docRef}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{sm.user}</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                items.map((item) => (
+                  <TableRow key={`mov-${item.id}`}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {new Date().toISOString().split("T")[0]}
+                    </TableCell>
+                    <TableCell className="font-medium text-xs text-foreground">Kirim (Prixod)</TableCell>
+                    <TableCell className="text-xs text-foreground">{item.name}</TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      +{item.quantity} {item.unit}
+                    </TableCell>
+                    <TableCell className="text-xs text-primary font-mono">Dt 2910 / Kt 6010</TableCell>
+                    <TableCell className="text-xs font-mono font-semibold text-foreground">
+                      <Money amount={item.totalValue} />
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

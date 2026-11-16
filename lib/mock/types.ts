@@ -8,6 +8,7 @@ export type UserRole =
 
 export interface BusinessEntity {
   id: string;
+  workspaceId?: string;
   name: string;
   tradeName?: string;
   tinStir: string; // 9-digit STIR
@@ -32,7 +33,7 @@ export interface Workspace {
 }
 
 export type TransactionSource = "bank" | "1c" | "didox" | "manual";
-export type TransactionStatus = "posted" | "pending" | "exception" | "draft" | "reconciled";
+export type TransactionStatus = "posted" | "pending" | "exception" | "rejected" | "draft" | "reconciled";
 export type TransactionType = "income" | "expense";
 
 export interface Transaction {

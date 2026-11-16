@@ -1,107 +1,131 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { mockIntegrations, mockSyncLogs } from "@/lib/mock/integrations";
 import {
   fetchIntegrations,
   updateIntegrationSettings,
   toggleIntegrationStatusInDb,
+  fetchSyncLogs,
+  recordIntegrationSyncInDb,
 } from "@/lib/services/supabase-service";
-import { Integration } from "@/lib/mock/types";
+import { useAppState } from "@/lib/mock/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusPill } from "@/components/shared/status-pill";
-import {
-  Cable,
-  CheckCircle2,
-  AlertCircle,
-  Settings,
-  RefreshCw,
-  Power,
-  Shield,
-  Layers,
-  ArrowRight,
-} from "lucide-react";
+import { Settings, RefreshCw, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function IntegrationsPage() {
+  const { currentEntity } = useAppState();
   const { t } = useTranslation();
-  const [integrations, setIntegrations] = useState<Integration[]>(mockIntegrations);
+
+  const [integrations, setIntegrations] = useState<any[]>([]);
+  const [syncLogs, setSyncLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedInteg, setSelectedInteg] = useState<Integration | null>(null);
+  const [selectedInteg, setSelectedInteg] = useState<any | null>(null);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [testResultMsg, setTestResultMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [configUrl, setConfigUrl] = useState("");
   const [configToken, setConfigToken] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadData = async () => {
+    if (!currentEntity?.id) return;
     setIsLoading(true);
-    fetchIntegrations()
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          setIntegrations(data);
-        }
-      })
-      .catch((err) => console.error("Error loading integrations:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const handleOpenSettings = (integ: Integration) => {
-    setSelectedInteg(integ);
-    setConfigUrl(
-      integ.provider === "1c_enterprise"
-        ? "https://1c.firmus-enterprise.uz/accounting/odata/standard.odata"
-        : integ.provider === "didox"
-        ? "https://api.didox.uz/v1"
-        : "https://api.kapitalbank.uz/open-banking/v2"
-    );
-    setConfigToken("sb_live_sec_99a81b3df67210");
+    try {
+      const [integs, logs] = await Promise.all([
+        fetchIntegrations(currentEntity.id),
+        fetchSyncLogs(currentEntity.id),
+      ]);
+      setIntegrations(integs || []);
+      setSyncLogs(logs || []);
+    } catch (err) {
+      console.error("Error loading integrations:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleTestConnection = () => {
+  useEffect(() => {
+    loadData();
+  }, [currentEntity?.id]);
+
+  const handleOpenSettings = (integ: any) => {
+    setSelectedInteg(integ);
+    setTestResultMsg(null);
+    setConfigUrl(
+      integ.settings?.apiUrl ||
+        (integ.provider === "1c_enterprise"
+          ? "https://1c.firmus-enterprise.uz/accounting/odata/standard.odata"
+          : integ.provider === "didox"
+          ? "https://api.didox.uz/v1"
+          : "https://api.kapitalbank.uz/open-banking/v2")
+    );
+    setConfigToken(integ.settings?.clientToken || "");
+  };
+
+  const handleTestConnection = async () => {
+    if (!configUrl.trim()) {
+      toast.error("Avval Server Ulanish Manzilini (URL) kiriting");
+      return;
+    }
     setIsTestingConnection(true);
-    toast.info("Xizmatga soʻrov yuborilmoqda (AES-256 shifrlangan TLS 1.3)...");
-    setTimeout(() => {
+    setTestResultMsg(null);
+
+    try {
+      const res = await fetch("/api/integrations/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiUrl: configUrl.trim(),
+          provider: selectedInteg?.provider,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.reachable) {
+        const msg = `Haqiqiy ulanish muvaffaqiyatli! ${data.message}`;
+        setTestResultMsg({ ok: true, text: msg });
+        toast.success(msg);
+      } else {
+        const errMsg = data.error || "Tashqi serverga ulanib boʻlmadi";
+        setTestResultMsg({ ok: false, text: errMsg });
+        toast.error(errMsg);
+      }
+    } catch (err: any) {
+      const msg = "Tekshiruv soʻrovida xatolik: " + err.message;
+      setTestResultMsg({ ok: false, text: msg });
+      toast.error(msg);
+    } finally {
       setIsTestingConnection(false);
-      toast.success(
-        `«${selectedInteg?.name}» API serveri bilan ulanish muvaffaqiyatli! Server 200 OK kodi bilan javob berdi.`
-      );
-    }, 1000);
+    }
   };
 
   const handleSaveSettings = async () => {
     if (!selectedInteg) return;
+    if (!configUrl.trim()) {
+      toast.error("Server manzili boʻsh boʻlishi mumkin emas");
+      return;
+    }
     try {
       await updateIntegrationSettings(
         selectedInteg.id,
-        { apiUrl: configUrl, clientToken: configToken },
+        { apiUrl: configUrl.trim(), clientToken: configToken.trim() },
         "connected"
       );
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.id === selectedInteg.id
-            ? { ...i, status: "connected", lastSyncTime: "Hozirgina", recordsSyncedToday: i.recordsSyncedToday + 12 }
-            : i
-        )
-      );
-      toast.success(`«${selectedInteg.name}» integratsiya parametrlari Supabase bazasiga saqlandi!`);
+      await loadData();
+      toast.success(`«${selectedInteg.name}» parametrlari Supabase bazasiga saqlandi!`);
       setSelectedInteg(null);
     } catch (err: any) {
       toast.error("Sozlamalarni saqlashda xatolik: " + err.message);
     }
   };
 
-  const handleToggleStatus = async (integ: Integration) => {
+  const handleToggleStatus = async (integ: any) => {
     const nextStatus = integ.status === "connected" ? "disconnected" : "connected";
     try {
       await toggleIntegrationStatusInDb(integ.id, nextStatus);
@@ -110,7 +134,7 @@ export default function IntegrationsPage() {
       );
       toast.success(
         nextStatus === "connected"
-          ? `«${integ.name}» muvaffaqiyatli ulandi va sinxronizatsiya faollashdi!`
+          ? `«${integ.name}» ulandi!`
           : `«${integ.name}» ulanishi toʻxtatildi.`
       );
     } catch (err: any) {
@@ -118,20 +142,31 @@ export default function IntegrationsPage() {
     }
   };
 
-  const handleSyncAll = () => {
+  const handleSyncAll = async () => {
+    if (!currentEntity?.id) return;
+    const connectedOnes = integrations.filter((i) => i.status === "connected");
+    if (connectedOnes.length === 0) {
+      toast.info("Sinxronlash uchun kamida bitta faol (connected) integratsiya boʻlishi kerak.");
+      return;
+    }
     setIsLoading(true);
-    toast.info("Didox, 1C va Bank integratsiyalari boʻyicha sinxronizatsiya boshlandi...");
-    setTimeout(() => {
+    try {
+      for (const integ of connectedOnes) {
+        await recordIntegrationSyncInDb(
+          integ.id,
+          currentEntity.id,
+          integ.name,
+          `${integ.name} holati tekshirildi va bazadagi oxirgi vaqt yangilandi.`,
+          0
+        );
+      }
+      await loadData();
+      toast.success(`${connectedOnes.length} ta faol integratsiya jurnali yangilandi!`);
+    } catch (err: any) {
+      toast.error("Sinxronizatsiya xatosi: " + err.message);
+    } finally {
       setIsLoading(false);
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.status === "connected"
-            ? { ...i, lastSyncTime: "Hozirgina", recordsSyncedToday: i.recordsSyncedToday + 5 }
-            : i
-        )
-      );
-      toast.success("Barcha faol integratsiyalar yangilandi! Yangi elektron hujjatlar va toʻlovlar yuklandi.");
-    }, 1200);
+    }
   };
 
   return (
@@ -262,30 +297,38 @@ export default function IntegrationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockSyncLogs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
-                    {log.timestamp}
-                  </TableCell>
-                  <TableCell className="font-semibold text-xs text-foreground">
-                    {log.providerName}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                      {log.type === "inbound" ? t.common.inbound : t.common.outbound}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-medium text-xs">
-                    {log.recordsProcessed}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill status={log.status} />
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-sm truncate">
-                    {log.message}
+              {syncLogs.length > 0 ? (
+                syncLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground whitespace-nowrap">
+                      {log.timestamp}
+                    </TableCell>
+                    <TableCell className="font-semibold text-xs text-foreground">
+                      {log.providerName}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                        {log.type === "inbound" ? t.common.inbound : t.common.outbound}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-medium text-xs">
+                      {log.recordsProcessed}
+                    </TableCell>
+                    <TableCell>
+                      <StatusPill status={log.status} />
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-sm truncate">
+                      {log.message}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">
+                    Hozircha sinxronizatsiya jurnali yozuvlari mavjud emas.
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -298,7 +341,7 @@ export default function IntegrationsPage() {
             <DialogHeader>
               <DialogTitle>{selectedInteg.name} — Sozlamalar</DialogTitle>
               <DialogDescription>
-                Server parametrlari va shifrlangan kalitlar (AES-256-GCM).
+                Server parametrlari va real ulanishni tekshirish
               </DialogDescription>
             </DialogHeader>
 
@@ -328,12 +371,24 @@ export default function IntegrationsPage() {
                 />
               </div>
 
+              {testResultMsg && (
+                <div
+                  className={`rounded-lg border p-2.5 text-[11px] ${
+                    testResultMsg.ok
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      : "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                  }`}
+                >
+                  {testResultMsg.text}
+                </div>
+              )}
+
               <div className="rounded-lg border border-border bg-muted/40 p-2.5 text-[11px] text-muted-foreground">
                 <span className="font-semibold text-foreground flex items-center gap-1 mb-0.5">
                   <Shield className="h-3 w-3 text-emerald-500" />
-                  Xavfsizlik kafolati:
+                  Server-side tekshiruv:
                 </span>
-                Barcha maxfiy API kalitlar AES-256 shifrlangan holda Supabase bazasida xavfsiz saqlanadi.
+                «Ulanishni tekshirish» tugmasi real HTTPS/DNS soʻrovi yuborib, server javob vaqtini (ms) oʻlchaydi.
               </div>
             </div>
 

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { mockContracts } from "@/lib/mock/contracts";
+import React, { useState, useEffect, useCallback } from "react";
 import { ContractItem } from "@/lib/mock/types";
 import { fetchContracts, createContract } from "@/lib/services/supabase-service";
+import { contractSchema, getFirstZodError } from "@/lib/validations/accounting";
+import { useAppState } from "@/lib/mock/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -17,9 +18,10 @@ import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function ContractsPage() {
+  const { currentEntity, currentRole } = useAppState();
   const { t } = useTranslation();
-  const [contracts, setContracts] = useState<ContractItem[]>(mockContracts);
-  const [isLoading, setIsLoading] = useState(false);
+  const [contracts, setContracts] = useState<ContractItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedContract, setSelectedContract] = useState<ContractItem | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -36,37 +38,41 @@ export default function ContractsPage() {
     description: "",
   });
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadContracts = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setContracts([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
-    fetchContracts()
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          const mapped: ContractItem[] = data.map((c: any) => ({
-            id: c.id,
-            entityId: "ent-alfa",
-            number: c.number,
-            title: c.description || `${c.type} shartnomasi`,
-            counterparty: c.counterparty,
-            counterpartyStir: c.counterpartyStir || "309112233",
-            type: c.type,
-            amount: c.amount,
-            startDate: c.startDate,
-            endDate: c.endDate,
-            status: c.status,
-          }));
-          setContracts(mapped);
-        }
-      })
-      .catch((err) => console.error("Error loading contracts:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    try {
+      const data = await fetchContracts(currentEntity.id);
+      const mapped: ContractItem[] = (data || []).map((c: any) => ({
+        id: c.id,
+        entityId: c.entityId || currentEntity.id,
+        number: c.number,
+        title: c.description || c.title || `${c.type} shartnomasi`,
+        counterparty: c.counterparty,
+        counterpartyStir: c.counterpartyStir || "—",
+        type: c.type,
+        amount: c.amount,
+        startDate: c.startDate,
+        endDate: c.endDate,
+        status: c.status,
+      }));
+      setContracts(mapped);
+    } catch (err) {
+      console.error("Error loading contracts:", err);
+      toast.error("Shartnomalarni yuklashda xatolik yuz berdi");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentEntity?.id]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    setSelectedContract(null);
+    loadContracts();
+  }, [loadContracts]);
 
   const handleExport = () => {
     const headers = ["ID", "Raqam", "Kontragent", "STIR", "Turi", "Summa", "Boshlanish", "Tugash", "Holat"];
@@ -94,38 +100,36 @@ export default function ContractsPage() {
 
   const handleCreateContract = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newContract.counterparty || !newContract.amount || !newContract.number) {
-      toast.error("Iltimos, shartnoma raqami, kontragent va summani kiriting");
+    const parsed = contractSchema.safeParse({
+      number: newContract.number,
+      type: newContract.type,
+      counterparty: newContract.counterparty,
+      counterpartyStir: newContract.counterpartyStir || undefined,
+      amount: newContract.amount,
+      startDate: newContract.startDate,
+      endDate: newContract.endDate,
+      description: newContract.description || undefined,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
+
     setIsSubmitting(true);
     try {
-      const created = await createContract({
-        number: newContract.number,
-        type: newContract.type,
-        counterparty: newContract.counterparty,
-        counterpartyStir: newContract.counterpartyStir || undefined,
-        amount: Number(newContract.amount),
-        startDate: newContract.startDate,
-        endDate: newContract.endDate,
-        description: newContract.description || `${newContract.type} shartnomasi`,
+      await createContract({
+        entityId: currentEntity?.id,
+        number: parsed.data.number,
+        type: parsed.data.type,
+        counterparty: parsed.data.counterparty,
+        counterpartyStir: parsed.data.counterpartyStir || undefined,
+        amount: parsed.data.amount,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        description: parsed.data.description || `${parsed.data.type} shartnomasi`,
       });
 
-      const item: ContractItem = {
-        id: created.id,
-        entityId: "ent-alfa",
-        number: created.number,
-        title: created.description || `${created.type} shartnomasi`,
-        counterparty: created.counterparty,
-        counterpartyStir: created.counterpartyStir || "—",
-        type: created.type as any,
-        amount: created.amount,
-        startDate: created.startDate,
-        endDate: created.endDate,
-        status: created.status as any,
-      };
-
-      setContracts((prev) => [item, ...prev]);
+      await loadContracts();
       toast.success("Shartnoma Supabase maʼlumotlar bazasiga muvaffaqiyatli saqlandi!");
       setIsAddOpen(false);
       setNewContract({
@@ -176,14 +180,16 @@ export default function ContractsPage() {
             {t.common.export}
           </Button>
 
-          <Button
-            size="sm"
-            className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t.pages.contracts.addContract}
-          </Button>
+          {currentRole !== "viewer" && currentRole !== "auditor" && (
+            <Button
+              size="sm"
+              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => setIsAddOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t.pages.contracts.addContract}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -218,7 +224,16 @@ export default function ContractsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredContracts.map((cnt) => (
+              {filteredContracts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
+                    {isLoading
+                      ? "Shartnomalar yuklanmoqda..."
+                      : "Ushbu korxona boʻyicha shartnomalar topilmadi."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredContracts.map((cnt) => (
                 <TableRow
                   key={cnt.id}
                   className="cursor-pointer hover:bg-muted/50"
@@ -246,7 +261,8 @@ export default function ContractsPage() {
                     <StatusPill status={cnt.status} />
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -316,10 +332,38 @@ export default function ContractsPage() {
             <div className="pt-2 flex items-center gap-2">
               <Button
                 variant="outline"
-                className="flex-1 h-9 text-xs"
-                onClick={() => toast.success("Shartnoma nusxasi ochilmoqda...")}
+                className="flex-1 h-9 text-xs gap-1.5"
+                onClick={() => {
+                  const docText = [
+                    "==============================================================",
+                    `SHARTNOMA № ${selectedContract.number}`,
+                    "==============================================================",
+                    `Tuzilgan sana: ${selectedContract.startDate} | Amal qilish muddati: ${selectedContract.endDate}`,
+                    "",
+                    `1-TOMON (Buyurtmachi / Yetkazib beruvchi): ${currentEntity?.name || "ORIENT AGRO EXPORT MChJ"} (STIR: ${currentEntity?.tinStir || "301948572"})`,
+                    `2-TOMON (Kontragent): ${selectedContract.counterparty} (STIR: ${selectedContract.counterpartyStir})`,
+                    "",
+                    `SHARTNOMA PREDMETI: ${selectedContract.title} (${selectedContract.type})`,
+                    `SHARTNOMA UMUMIY SUMMASI: ${selectedContract.amount.toLocaleString()} UZS (QQS bilan)`,
+                    "",
+                    "E-IMZO ELEKTRON RAQAMLI IMZO TASDIG'I:",
+                    `Holat: ${selectedContract.status.toUpperCase()} | Didox EDO reestrida ro'yxatga olingan.`,
+                    "==============================================================",
+                  ].join("\n");
+                  const blob = new Blob([docText], { type: "text/plain;charset=utf-8" });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = `shartnoma_${selectedContract.number.replace(/[^a-zA-Z0-9_-]/g, "_")}.txt`;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(url);
+                  toast.success(`«${selectedContract.number}» shartnomasi yuklab olindi!`);
+                }}
               >
-                Hujjatni koʻrish (PDF)
+                <Download className="h-3.5 w-3.5" />
+                Shartnomani yuklab olish
               </Button>
             </div>
           </div>

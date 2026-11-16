@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { useAppState } from "@/lib/mock/store";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import {
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
 export function EntitySwitcher() {
+  const router = useRouter();
   const { entities, currentEntity, setCurrentEntityId } = useAppState();
   const { t } = useTranslation();
 
@@ -34,10 +36,10 @@ export function EntitySwitcher() {
             </div>
             <div className="flex flex-col text-left truncate leading-tight">
               <span className="truncate font-semibold text-foreground">
-                {currentEntity.tradeName || currentEntity.name}
+                {currentEntity?.tradeName || currentEntity?.name || "Korxona tanlanmagan"}
               </span>
               <span className="text-[10px] text-muted-foreground font-mono">
-                {t.entity.tin}: {currentEntity.tinStir}
+                {t.entity.tin}: {currentEntity?.tinStir || "—"}
               </span>
             </div>
           </div>
@@ -75,7 +77,7 @@ export function EntitySwitcher() {
                 </Badge>
               </div>
             </div>
-            {ent.id === currentEntity.id && (
+            {ent.id === currentEntity?.id && (
               <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             )}
           </DropdownMenuItem>
@@ -83,7 +85,7 @@ export function EntitySwitcher() {
 
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => toast.info(`${t.entity.add}...`)}
+          onClick={() => router.push("/settings?action=add-entity")}
           className="text-xs text-primary font-medium cursor-pointer"
         >
           <Plus className="mr-2 h-3.5 w-3.5" />

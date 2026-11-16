@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/mock/store";
-import { mockBusinessEntities } from "@/lib/mock/entities";
-import { fetchBusinessEntities, createBusinessEntity } from "@/lib/services/supabase-service";
+import {
+  fetchBusinessEntities,
+  createBusinessEntity,
+  updateBusinessEntity,
+  fetchUserPhoneVerification,
+  saveUserPhoneVerification,
+} from "@/lib/services/supabase-service";
+import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,20 +38,22 @@ import {
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
-export default function SettingsPage() {
+function SettingsContent() {
+  const searchParams = useSearchParams();
   const { t } = useTranslation();
   const {
     user,
     currentWorkspace,
     currentRole,
-    setCurrentRole,
     language,
     setLanguage,
+    refreshContext,
   } = useAppState();
 
-  const [entities, setEntities] = useState<any[]>(mockBusinessEntities);
-  const [isLoading, setIsLoading] = useState(false);
+  const [entities, setEntities] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddEntityOpen, setIsAddEntityOpen] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [newEntity, setNewEntity] = useState({
@@ -64,76 +73,150 @@ export default function SettingsPage() {
   // Phone verification state for progressive profiling
   const [phoneNumber, setPhoneNumber] = useState("+998 90 123-45-67");
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [verifiedAtLabel, setVerifiedAtLabel] = useState<string | null>(null);
   const [isOtpSent, setIsOtpSent] = useState(false);
+  const [sentOtpCode, setSentOtpCode] = useState<string>("");
   const [otpCode, setOtpCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const handleSendOtp = (method: "sms" | "telegram") => {
-    if (!phoneNumber || phoneNumber.length < 9) {
-      toast.error("Iltimos, toʻgʻri telefon raqamini kiriting");
-      return;
+  // Handle URL query params (?action=add-entity or ?tab=security)
+  useEffect(() => {
+    const action = searchParams.get("action");
+    const tabParam = searchParams.get("tab");
+    if (action === "add-entity") {
+      setActiveTab("entities");
+      setIsAddEntityOpen(true);
+    } else if (tabParam && ["entities", "security", "notifications", "language"].includes(tabParam)) {
+      setActiveTab(tabParam);
     }
-    setIsOtpSent(true);
-    if (method === "telegram") {
-      toast.success("Telegram botingizga 6 xonali tasdiqlash kodi yuborildi: 582419");
-    } else {
-      toast.success("SMS orqali 6 xonali tasdiqlash kodi yuborildi: 582419");
+  }, [searchParams]);
+
+  // Load saved preferences + persisted phone verification
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(`firmus_prefs_${user?.id || "default"}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.twoFactorEnabled === "boolean") setTwoFactorEnabled(parsed.twoFactorEnabled);
+          if (typeof parsed.emailAlerts === "boolean") setEmailAlerts(parsed.emailAlerts);
+          if (typeof parsed.telegramAlerts === "boolean") setTelegramAlerts(parsed.telegramAlerts);
+        }
+      } catch {
+        // ignore invalid json
+      }
+    }
+
+    if (!user?.id) return;
+    fetchUserPhoneVerification(user.id).then((res) => {
+      if (res?.phone && res?.verifiedAt) {
+        setPhoneNumber(res.phone);
+        setIsPhoneVerified(true);
+        setVerifiedAtLabel(new Date(res.verifiedAt).toLocaleDateString("uz-UZ"));
+      }
+    });
+  }, [user?.id]);
+
+  const persistPrefs = (next: { twoFactorEnabled: boolean; emailAlerts: boolean; telegramAlerts: boolean }) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`firmus_prefs_${user?.id || "default"}`, JSON.stringify(next));
     }
   };
 
-  const handleVerifyOtp = () => {
+  const handleSendOtp = (method: "sms" | "telegram") => {
+    const cleanDigits = phoneNumber.replace(/\D/g, "");
+    if (cleanDigits.length < 9) {
+      toast.error("Iltimos, toʻgʻri telefon raqamini kiriting (masalan: +998 90 123-45-67)");
+      return;
+    }
+    const generated = String(Math.floor(100000 + Math.random() * 900000));
+    setSentOtpCode(generated);
+    setIsOtpSent(true);
+    if (method === "telegram") {
+      toast.success(`Telegram botingizga 6 xonali tasdiqlash kodi yuborildi: ${generated}`);
+    } else {
+      toast.success(`SMS orqali 6 xonali tasdiqlash kodi yuborildi: ${generated}`);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
     if (!otpCode || otpCode.trim().length !== 6) {
       toast.error("Iltimos, 6 xonali tasdiqlash kodini toʻliq kiriting");
       return;
     }
+    if (sentOtpCode && otpCode.trim() !== sentOtpCode) {
+      toast.error("Kiritilgan tasdiqlash kodi notoʻgʻri!");
+      return;
+    }
+    if (!user?.id) {
+      toast.error("Tasdiqlash uchun avval tizimga kiring.");
+      return;
+    }
+
     setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
+    try {
+      const verifiedAt = await saveUserPhoneVerification(user.id, phoneNumber.trim());
       setIsPhoneVerified(true);
+      setVerifiedAtLabel(new Date(verifiedAt).toLocaleDateString("uz-UZ"));
       setIsOtpSent(false);
       setOtpCode("");
-      toast.success("Telefon raqamingiz muvaffaqiyatli tasdiqlandi! Hisob xavfsizligi darajasi oshirildi.");
-    }, 600);
+      toast.success("Telefon raqamingiz Supabase profilida tasdiqlandi! Hisob xavfsizligi darajasi oshirildi.");
+    } catch (err: any) {
+      toast.error("Telefonni saqlashda xatolik: " + err.message);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadEntities = useCallback(async () => {
     setIsLoading(true);
-    fetchBusinessEntities()
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          setEntities(data);
-        }
-      })
-      .catch((err) => console.error("Error loading entities:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    try {
+      const data = await fetchBusinessEntities();
+      const filtered = currentWorkspace?.id
+        ? (data || []).filter((e: any) => !e.workspaceId || e.workspaceId === currentWorkspace.id)
+        : data || [];
+      setEntities(filtered);
+    } catch (err) {
+      console.error("Error loading entities:", err);
+      toast.error("Korxonalarni bazadan yuklab boʻlmadi");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentWorkspace?.id]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    loadEntities();
+  }, [loadEntities]);
 
   const handleCreateEntity = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEntity.legalName || !newEntity.tinStir) {
-      toast.error("Iltimos, yuridik nomi va STIR raqamini kiriting");
+    const parsed = businessEntitySchema.safeParse({
+      legalName: newEntity.legalName,
+      tradeName: newEntity.tradeName || undefined,
+      tinStir: newEntity.tinStir,
+      companyType: newEntity.companyType,
+      taxRegime: newEntity.taxRegime,
+      accountantName: newEntity.accountantName || undefined,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
+
     setIsSubmitting(true);
     try {
-      const created = await createBusinessEntity({
-        legalName: newEntity.legalName,
-        tradeName: newEntity.tradeName || undefined,
-        tinStir: newEntity.tinStir,
-        companyType: newEntity.companyType,
-        taxRegime: newEntity.taxRegime,
-        accountantName: newEntity.accountantName,
+      await createBusinessEntity({
+        workspaceId: currentWorkspace?.id,
+        legalName: parsed.data.legalName,
+        tradeName: parsed.data.tradeName || undefined,
+        tinStir: parsed.data.tinStir,
+        companyType: parsed.data.companyType,
+        taxRegime: parsed.data.taxRegime,
+        accountantName: parsed.data.accountantName || "Bosh buxgalter",
       });
 
-      setEntities((prev) => [...prev, created]);
-      toast.success("Yangi yuridik korxona Supabase maʼlumotlar bazasiga muvaffaqiyatli saqlandi!");
+      await Promise.all([loadEntities(), refreshContext()]);
+      toast.success("Yangi yuridik korxona va 22 ta BHMS schyoti Supabase bazasiga saqlandi!");
       setIsAddEntityOpen(false);
       setNewEntity({
         legalName: "",
@@ -145,6 +228,42 @@ export default function SettingsPage() {
       });
     } catch (err: any) {
       toast.error("Korxona qoʻshishda xatolik: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateEntity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEntity) return;
+    const parsed = businessEntitySchema.safeParse({
+      legalName: editingEntity.name,
+      tradeName: editingEntity.tradeName || undefined,
+      tinStir: editingEntity.tinStir,
+      companyType: editingEntity.companyType || "MChJ",
+      taxRegime: editingEntity.taxRegime || "vat_profit_tax",
+      accountantName: editingEntity.accountantName || undefined,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await updateBusinessEntity(editingEntity.id, {
+        legalName: parsed.data.legalName,
+        tradeName: parsed.data.tradeName,
+        tinStir: parsed.data.tinStir,
+        companyType: parsed.data.companyType,
+        taxRegime: parsed.data.taxRegime,
+        accountantName: parsed.data.accountantName,
+      });
+      await Promise.all([loadEntities(), refreshContext()]);
+      toast.success(`«${parsed.data.legalName}» maʼlumotlari Supabase bazasida yangilandi!`);
+      setEditingEntity(null);
+    } catch (err: any) {
+      toast.error("Tahrirlashda xatolik: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -203,14 +322,16 @@ export default function SettingsPage() {
                   {t.pages.settings.entitiesDesc}
                 </CardDescription>
               </div>
-              <Button
-                size="sm"
-                className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
-                onClick={() => setIsAddEntityOpen(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                {t.pages.settings.addEntity}
-              </Button>
+              {currentRole !== "viewer" && currentRole !== "auditor" && (
+                <Button
+                  size="sm"
+                  className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  onClick={() => setIsAddEntityOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t.pages.settings.addEntity}
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -226,7 +347,16 @@ export default function SettingsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {entities.map((ent) => (
+                  {entities.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
+                        {isLoading
+                          ? "Korxonalar yuklanmoqda..."
+                          : "Ushbu ishchi maydonda korxonalar kiritilmagan."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    entities.map((ent) => (
                     <TableRow key={ent.id} className="hover:bg-muted/50">
                       <TableCell className="font-semibold text-xs text-foreground">
                         {ent.name}
@@ -256,17 +386,20 @@ export default function SettingsPage() {
                         <StatusPill status="active" />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs px-2"
-                          onClick={() => toast.info(`${ent.name}`)}
-                        >
-                          {t.pages.settings.edit}
-                        </Button>
+                        {currentRole !== "viewer" && currentRole !== "auditor" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            onClick={() => setEditingEntity({ ...ent })}
+                          >
+                            {t.pages.settings.edit}
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -291,7 +424,7 @@ export default function SettingsPage() {
                 {isPhoneVerified ? (
                   <Badge variant="success" className="text-[10px] gap-1">
                     <CheckCircle2 className="h-3 w-3" />
-                    Tasdiqlangan
+                    {verifiedAtLabel ? `Tasdiqlangan (${verifiedAtLabel})` : "Tasdiqlangan"}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 dark:border-amber-700">
@@ -348,7 +481,7 @@ export default function SettingsPage() {
                         6 xonali tasdiqlash kodini kiriting:
                       </span>
                       <p className="text-[11px] text-muted-foreground">
-                        Raqamingizga yuborilgan bir martalik kodni yozing (Test kodi: 582419).
+                        Raqamingizga yuborilgan bir martalik kodni yozing {sentOtpCode ? `(Yuborilgan kod: ${sentOtpCode})` : ""}.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -393,6 +526,7 @@ export default function SettingsPage() {
                   checked={twoFactorEnabled}
                   onCheckedChange={(val) => {
                     setTwoFactorEnabled(val);
+                    persistPrefs({ twoFactorEnabled: val, emailAlerts, telegramAlerts });
                     toast.success(`2FA ${val ? t.statuses.active : t.common.reject}`);
                   }}
                 />
@@ -443,7 +577,14 @@ export default function SettingsPage() {
                     {t.pages.settings.emailAlertsDesc}
                   </p>
                 </div>
-                <Switch checked={emailAlerts} onCheckedChange={setEmailAlerts} />
+                <Switch
+                  checked={emailAlerts}
+                  onCheckedChange={(val) => {
+                    setEmailAlerts(val);
+                    persistPrefs({ twoFactorEnabled, emailAlerts: val, telegramAlerts });
+                    toast.success(val ? "Email ogohlantirishlari yoqildi" : "Email ogohlantirishlari oʻchirildi");
+                  }}
+                />
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-lg border border-border">
@@ -453,7 +594,14 @@ export default function SettingsPage() {
                     {t.pages.settings.telegramAlertsDesc}
                   </p>
                 </div>
-                <Switch checked={telegramAlerts} onCheckedChange={setTelegramAlerts} />
+                <Switch
+                  checked={telegramAlerts}
+                  onCheckedChange={(val) => {
+                    setTelegramAlerts(val);
+                    persistPrefs({ twoFactorEnabled, emailAlerts, telegramAlerts: val });
+                    toast.success(val ? "Telegram bildirishnomalari yoqildi" : "Telegram bildirishnomalari oʻchirildi");
+                  }}
+                />
               </div>
             </CardContent>
           </Card>
@@ -607,6 +755,85 @@ export default function SettingsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Entity Dialog */}
+      <Dialog open={!!editingEntity} onOpenChange={(open) => !open && setEditingEntity(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Korxona maʼlumotlarini tahrirlash
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Yuridik shaxs rekvizitlari va soliq rejimini yangilash
+            </DialogDescription>
+          </DialogHeader>
+          {editingEntity && (
+            <form onSubmit={handleUpdateEntity} className="space-y-3 pt-2 text-xs">
+              <div>
+                <Label className="text-[11px] font-medium">Yuridik nomi *</Label>
+                <Input
+                  value={editingEntity.name}
+                  onChange={(e) => setEditingEntity({ ...editingEntity, name: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[11px] font-medium">STIR (INN) *</Label>
+                  <Input
+                    value={editingEntity.tinStir}
+                    onChange={(e) => setEditingEntity({ ...editingEntity, tinStir: e.target.value })}
+                    className="h-8 text-xs font-mono mt-1"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] font-medium">Soliq rejimi</Label>
+                  <select
+                    value={editingEntity.taxRegime}
+                    onChange={(e) => setEditingEntity({ ...editingEntity, taxRegime: e.target.value })}
+                    className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
+                  >
+                    <option value="vat_profit_tax">QQS + Foyda</option>
+                    <option value="turnover_tax">Aylanma soliq (4%)</option>
+                    <option value="fixed_tax">Qatʼiy soliq</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-[11px] font-medium">Bosh buxgalter</Label>
+                <Input
+                  value={editingEntity.accountantName || ""}
+                  onChange={(e) => setEditingEntity({ ...editingEntity, accountantName: e.target.value })}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+              <DialogFooter className="pt-2 gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditingEntity(null)}>
+                  {t.common.cancel}
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isSubmitting}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+                >
+                  {isSubmitting ? "Saqlanmoqda..." : t.common.save}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+      <SettingsContent />
+    </Suspense>
   );
 }

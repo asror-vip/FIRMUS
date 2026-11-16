@@ -2,53 +2,131 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAppState } from "@/lib/mock/store";
+import {
+  createWorkspaceRecord,
+  createBusinessEntity,
+  createTeamMember,
+} from "@/lib/services/supabase-service";
+import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Building2,
   Briefcase,
-  Users,
-  Cable,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
-  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user, refreshContext } = useAppState();
   const [step, setStep] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form states
   const [accountType, setAccountType] = useState<"accounting_firm" | "individual_company">("accounting_firm");
-  const [workspaceName, setWorkspaceName] = useState("Toshkent Buxgalteriya Firmasi");
-  const [entityName, setEntityName] = useState("MCHJ Yangi Davr Savdo");
-  const [stir, setStir] = useState("309118742");
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [entityName, setEntityName] = useState("");
+  const [stir, setStir] = useState("");
   const [taxRegime, setTaxRegime] = useState("vat_profit_tax");
-  const [integrations, setIntegrations] = useState({
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [integrations, setIntegrations] = useState<Record<string, boolean>>({
     didox: true,
     onec: true,
     bank: true,
     eimzo: true,
   });
 
-  const nextStep = () => setStep((s) => Math.min(s + 1, 6));
+  const nextStep = () => {
+    if (step === 2 && workspaceName.trim().length < 3) {
+      toast.error("Ishchi maydon (Workspace) nomini kamida 3 ta belgi bilan kiriting");
+      return;
+    }
+    if (step === 3) {
+      const parsed = businessEntitySchema.safeParse({
+        legalName: entityName,
+        tinStir: stir,
+        companyType: "MChJ",
+        taxRegime,
+      });
+      if (!parsed.success) {
+        toast.error(getFirstZodError(parsed.error));
+        return;
+      }
+    }
+    if (step === 4 && inviteEmail.trim()) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail.trim())) {
+        toast.error("Taklif etilayotgan xodim elektron pochtasi notoʻgʻri formatda");
+        return;
+      }
+    }
+    setStep((s) => Math.min(s + 1, 6));
+  };
+
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
+
+  const handleCompleteOnboarding = async () => {
+    if (!user?.id) {
+      toast.error("Saqlash uchun avval tizimga kiring.");
+      router.push("/login");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const ws = await createWorkspaceRecord(workspaceName.trim(), accountType);
+      const ent = await createBusinessEntity({
+        workspaceId: ws.id,
+        legalName: entityName.trim(),
+        tinStir: stir.trim(),
+        companyType: "MChJ",
+        taxRegime,
+        accountantName: user.user_metadata?.full_name || user.email || "Bosh buxgalter",
+      });
+
+      if (inviteEmail.trim()) {
+        await createTeamMember({
+          workspaceId: ws.id,
+          name: inviteEmail.trim().split("@")[0],
+          email: inviteEmail.trim(),
+          role: "accountant",
+        });
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("firmus_workspace", ws.id);
+        localStorage.setItem("firmus_entity", ent.id);
+      }
+
+      await refreshContext();
+      toast.success("Ishchi maydon, korxona va 22 ta BHMS schyoti muvaffaqiyatli yaratildi!");
+      router.push("/");
+    } catch (err: any) {
+      toast.error("Sozlashni saqlashda xatolik: " + (err.message || "Nomaʼlum xatolik"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-xl space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-1">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold text-base shadow-sm mb-2">
-            AU
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl overflow-hidden shadow-sm mb-2 border border-border">
+            <img
+              src="/brand/firmus-f.jpg"
+              alt="FIRMUS Logo"
+              className="h-full w-full object-cover"
+            />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            AUVRIO ga xush kelibsiz!
+            FIRMUS ga xush kelibsiz!
           </h1>
           <p className="text-xs text-muted-foreground">
             {step}-bosqich / 6: Tizimni korxonangizga moslashtirish
@@ -155,9 +233,10 @@ export default function OnboardingPage() {
               </CardHeader>
               <CardContent className="space-y-3 pt-0 text-xs">
                 <div>
-                  <label className="font-semibold text-foreground block mb-1">STIR (9 ta raqam):</label>
+                  <label className="font-semibold text-foreground block mb-1">STIR (9 ta raqam) *:</label>
                   <Input
                     value={stir}
+                    maxLength={9}
                     onChange={(e) => setStir(e.target.value)}
                     placeholder="309118742"
                     className="font-mono text-xs h-9"
@@ -202,10 +281,16 @@ export default function OnboardingPage() {
               <CardContent className="space-y-3 pt-0 text-xs">
                 <div>
                   <label className="font-semibold text-foreground block mb-1">Xodim elektron pochtasi:</label>
-                  <Input placeholder="hamkasb@buxgalter.uz" className="text-xs h-9" />
+                  <Input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="hamkasb@buxgalter.uz"
+                    className="text-xs h-9"
+                  />
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Hozir oʻtkazib yuborishingiz va keyinroq Sozlamalar boʻlimidan taklif qilishingiz mumkin.
+                  Hozir oʻtkazib yuborishingiz va keyinroq Jamoa boʻlimidan taklif qilishingiz mumkin.
                 </p>
               </CardContent>
             </div>
@@ -232,7 +317,12 @@ export default function OnboardingPage() {
                       <span className="font-semibold text-foreground text-xs block">{item.name}</span>
                       <span className="text-[10px] text-muted-foreground">{item.desc}</span>
                     </div>
-                    <Checkbox defaultChecked />
+                    <Checkbox
+                      checked={Boolean(integrations[item.key])}
+                      onCheckedChange={(checked) =>
+                        setIntegrations((prev) => ({ ...prev, [item.key]: !!checked }))
+                      }
+                    />
                   </div>
                 ))}
               </CardContent>
@@ -248,19 +338,17 @@ export default function OnboardingPage() {
               <div>
                 <h3 className="text-lg font-bold text-foreground">Barchasi tayyor!</h3>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 leading-relaxed">
-                  AUVRIO GPT-6 Luna AI koordinatori maʼlumotlarni tahlil qilishga va avtomatlashtirishga shay.
+                  FIRMUS AI buxgalteriya tizimi «{workspaceName}» maydoni va «{entityName}» korxonasi uchun ishga tushirishga tayyor.
                 </p>
               </div>
 
               <div className="pt-2">
                 <Button
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 px-6"
-                  onClick={() => {
-                    toast.success("Xush kelibsiz! Boshqaruv paneli ishga tushirildi.");
-                    router.push("/");
-                  }}
+                  disabled={isSaving}
+                  onClick={handleCompleteOnboarding}
                 >
-                  Dashboardga oʻtish <ArrowRight className="ml-2 h-4 w-4" />
+                  {isSaving ? "Saqlanmoqda..." : "Saqlash va Dashboardga oʻtish"} <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </div>

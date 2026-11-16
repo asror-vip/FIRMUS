@@ -1,9 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { mockTeamMembers } from "@/lib/mock/team";
-import { mockBusinessEntities } from "@/lib/mock/entities";
-import { fetchTeamMembers, createTeamMember } from "@/lib/services/supabase-service";
+import {
+  fetchTeamMembers,
+  createTeamMember,
+  updateTeamMemberAssignments,
+} from "@/lib/services/supabase-service";
+import { teamInviteSchema, getFirstZodError } from "@/lib/validations/accounting";
+import { useAppState } from "@/lib/mock/store";
 import { TeamMember, UserRole } from "@/lib/mock/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,14 +16,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Users, UserPlus, Shield, Check, Mail, Phone } from "lucide-react";
+import { UserPlus, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function TeamPage() {
+  const { currentWorkspace, entities } = useAppState();
   const { t } = useTranslation();
-  const [members, setMembers] = useState<TeamMember[]>(mockTeamMembers);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,18 +35,22 @@ export default function TeamPage() {
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
-    fetchTeamMembers()
+    fetchTeamMembers(currentWorkspace?.id)
       .then((data) => {
-        if (isMounted && data && data.length > 0) {
+        if (isMounted && data) {
+          const defaultIds = entities.map((e) => e.id);
           const mapped: TeamMember[] = data.map((d: any) => ({
             id: d.id,
             name: d.name,
             email: d.email,
-            phone: "+998 90 123-45-67",
+            phone: d.phone || "+998 90 123-45-67",
             role: d.role,
-            assignedEntityIds: ["ent-alfa"],
+            assignedEntityIds:
+              d.assignedEntityIds && d.assignedEntityIds.length > 0
+                ? d.assignedEntityIds
+                : defaultIds.slice(0, d.assignedCompaniesCount || 1),
             status: d.status,
-            lastActive: "Faol",
+            lastActive: d.phoneVerifiedAt ? "Tasdiqlangan" : "Faol",
           }));
           setMembers(mapped);
         }
@@ -54,27 +63,34 @@ export default function TeamPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentWorkspace?.id, entities.length]);
 
   const rolesCatalog = [
     { role: "Workspace Owner", desc: "Barcha korxonalar, obuna, jamoa va tizim sozlamalarini toʻliq boshqarish." },
     { role: "Bosh buxgalter", desc: "Barcha moliyaviy provodkalar, hisobotlarni tasdiqlash va Didox/1C sinxronizatsiyasi." },
-    { role: "Buxgalter", desc: "Faqat oʻziga biriktirilgan mijoz korxonalarining tranzaksiyalarini kiritish va tahrirlash." },
+    { role: "Buxgalter", desc: "Biriktirilgan mijoz korxonalarining tranzaksiyalarini kiritish va tahrirlash." },
     { role: "Auditor", desc: "Faqat oʻqish (Read-only) huquqi. Hech qanday maʼlumotni oʻzgartira olmaydi." },
-    { role: "Bosh direktor", desc: "Oʻz korxonasining moliyaviy koʻrsatkichlari (P&L, Balans) va yirik toʻlovlarni tasdiqlash." },
+    { role: "Bosh direktor", desc: "Oʻz korxonasining moliyaviy koʻrsatkichlari (P&L, Balans) va toʻlovlarni tasdiqlash." },
   ];
 
   const handleInvite = async () => {
-    if (!inviteName || !inviteEmail) {
-      toast.error("Iltimos, ism va elektron pochtani kiriting");
+    const parsed = teamInviteSchema.safeParse({
+      name: inviteName,
+      email: inviteEmail,
+      role: inviteRole,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
+
     setIsSubmitting(true);
     try {
       const created = await createTeamMember({
-        name: inviteName,
-        email: inviteEmail,
-        role: inviteRole,
+        workspaceId: currentWorkspace?.id,
+        name: parsed.data.name,
+        email: parsed.data.email,
+        role: parsed.data.role,
       });
 
       const newMember: TeamMember = {
@@ -83,35 +99,49 @@ export default function TeamPage() {
         email: created.email,
         phone: "+998 90 000-00-00",
         role: created.role as UserRole,
-        assignedEntityIds: ["ent-alfa"],
+        assignedEntityIds: entities[0]?.id ? [entities[0].id] : [],
         status: created.status as any,
         lastActive: "Taklif yuborildi",
       };
 
       setMembers((prev) => [...prev, newMember]);
-      toast.success(`${inviteName} ga taklifnoma yuborildi va Supabase bazasiga saqlandi!`);
+      toast.success(`${parsed.data.name} jamoaga qoʻshildi va Supabase bazasiga saqlandi!`);
       setIsInviteOpen(false);
       setInviteName("");
       setInviteEmail("");
     } catch (err: any) {
-      toast.error("Xatolik yuz berdi: " + err.message);
+      toast.error("Taklif qilishda xatolik (Huquqlarni tekshiring): " + err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleToggleAssignment = (memberId: string, entityId: string) => {
+  const handleToggleAssignment = async (memberId: string, entityId: string) => {
+    const targetMember = members.find((m) => m.id === memberId);
+    if (!targetMember) return;
+
+    const has = targetMember.assignedEntityIds.includes(entityId);
+    const updated = has
+      ? targetMember.assignedEntityIds.filter((id) => id !== entityId)
+      : [...targetMember.assignedEntityIds, entityId];
+
+    // Optimistic update then real DB save
     setMembers((prev) =>
-      prev.map((m) => {
-        if (m.id !== memberId) return m;
-        const has = m.assignedEntityIds.includes(entityId);
-        const updated = has
-          ? m.assignedEntityIds.filter((id) => id !== entityId)
-          : [...m.assignedEntityIds, entityId];
-        return { ...m, assignedEntityIds: updated };
-      })
+      prev.map((m) => (m.id === memberId ? { ...m, assignedEntityIds: updated } : m))
     );
-    toast.success("Korxona biriktiruvi yangilandi!");
+
+    try {
+      await updateTeamMemberAssignments(memberId, updated);
+      toast.success("Korxona biriktiruvi Supabase bazasida saqlandi!");
+    } catch (err: any) {
+      // Revert on failure
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === memberId ? { ...m, assignedEntityIds: targetMember.assignedEntityIds } : m
+        )
+      );
+      toast.error("Biriktiruvni saqlashda xatolik: " + err.message);
+    }
   };
 
   return (
@@ -143,52 +173,58 @@ export default function TeamPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">{t.pages.team.title}</CardTitle>
-          <CardDescription>{t.pages.team.subtitle}</CardDescription>
+          <CardDescription>{currentWorkspace?.name}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>{t.nav.team}</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Aloqa</TableHead>
+                <TableHead>Roli</TableHead>
                 <TableHead>{t.pages.team.assignedCompanies}</TableHead>
                 <TableHead>{t.common.status}</TableHead>
-                <TableHead>Activity</TableHead>
+                <TableHead>Holat</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {members.map((m) => (
-                <TableRow key={m.id} className="hover:bg-muted/50">
-                  <TableCell className="font-semibold text-xs text-foreground">
-                    {m.name}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    <div>{m.email}</div>
-                    <div className="text-[10px]">{m.phone}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="indigo" className="text-[10px] capitalize">
-                      {t.roles[m.role] || m.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs font-mono">
-                    {m.assignedEntityIds.length}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill status={m.status} />
-                  </TableCell>
-                  <TableCell className="text-[11px] text-muted-foreground">
-                    {m.lastActive}
+              {members.length > 0 ? (
+                members.map((m) => (
+                  <TableRow key={m.id} className="hover:bg-muted/50">
+                    <TableCell className="font-semibold text-xs text-foreground">{m.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      <div>{m.email}</div>
+                      <div className="text-[10px]">{m.phone}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="indigo" className="text-[10px] capitalize">
+                        {(t.roles as any)[m.role] || m.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-mono">
+                      {m.assignedEntityIds.length}
+                    </TableCell>
+                    <TableCell>
+                      <StatusPill status={m.status} />
+                    </TableCell>
+                    <TableCell className="text-[11px] text-muted-foreground">
+                      {m.lastActive}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground">
+                    {isLoading ? "Yuklanmoqda..." : "Jamoa aʼzolari topilmadi."}
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Entity Assignments Matrix (Members × Entities) */}
+      {/* Entity Assignments Matrix (Real Entities × Team Members) */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">
@@ -203,7 +239,7 @@ export default function TeamPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-56">Buxgalter / Xodim</TableHead>
-                {mockBusinessEntities.map((ent) => (
+                {entities.map((ent) => (
                   <TableHead key={ent.id} className="text-center font-medium">
                     {ent.tradeName || ent.name}
                   </TableHead>
@@ -219,7 +255,7 @@ export default function TeamPage() {
                       {m.role.replace("_", " ")}
                     </span>
                   </TableCell>
-                  {mockBusinessEntities.map((ent) => {
+                  {entities.map((ent) => {
                     const isAssigned = m.assignedEntityIds.includes(ent.id);
                     return (
                       <TableCell key={ent.id} className="text-center">
@@ -245,9 +281,7 @@ export default function TeamPage() {
               <Shield className="h-3.5 w-3.5 text-indigo-500" />
               {r.role}
             </span>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              {r.desc}
-            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">{r.desc}</p>
           </div>
         ))}
       </div>
@@ -258,7 +292,7 @@ export default function TeamPage() {
           <DialogHeader>
             <DialogTitle>{t.pages.team.inviteMember}</DialogTitle>
             <DialogDescription>
-              FIRMUS • {t.pages.team.subtitle}
+              FIRMUS • {currentWorkspace?.name}
             </DialogDescription>
           </DialogHeader>
 
@@ -301,10 +335,11 @@ export default function TeamPage() {
 
           <DialogFooter>
             <Button
+              disabled={isSubmitting}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs w-full"
               onClick={handleInvite}
             >
-              Taklifnomani Yuborish
+              {isSubmitting ? "Yuborilmoqda..." : "Taklifnomani Saqlash"}
             </Button>
           </DialogFooter>
         </DialogContent>

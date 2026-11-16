@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { mockNotifications, NotificationItem } from "@/lib/mock/notifications";
+import { NotificationItem } from "@/lib/mock/notifications";
+import { fetchExceptions, fetchTaxDeadlines, fetchSyncLogs } from "@/lib/services/supabase-service";
+import { useAppState } from "@/lib/mock/store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,10 +30,91 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export function NotificationsPopover() {
   const router = useRouter();
+  const { currentEntity } = useAppState();
   const { t } = useTranslation();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [unreadOnly] = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setNotifications([]);
+      return;
+    }
+
+    let readIds: string[] = [];
+    try {
+      const saved = localStorage.getItem(`firmus_read_notifs_${currentEntity.id}`);
+      if (saved) readIds = JSON.parse(saved);
+    } catch {}
+
+    try {
+      const [excs, deadlines, logs] = await Promise.all([
+        fetchExceptions(currentEntity.id),
+        fetchTaxDeadlines(currentEntity.id),
+        fetchSyncLogs(currentEntity.id),
+      ]);
+
+      const built: NotificationItem[] = [];
+
+      (excs || [])
+        .filter((e: any) => e.status === "open" || e.status === "in_review")
+        .forEach((e: any) => {
+          const nid = `exc-${e.id}`;
+          built.push({
+            id: nid,
+            category: "exception",
+            severity: e.severity === "critical" ? "critical" : "warning",
+            title: e.title,
+            description: e.description,
+            timestamp: e.date || "Bugun",
+            isRead: readIds.includes(nid),
+            actionLabel: "AI Auditorda koʻrish",
+            actionUrl: `/ai-auditor?id=${e.id}`,
+          });
+        });
+
+      (deadlines || [])
+        .filter((d: any) => d.status !== "completed")
+        .forEach((d: any) => {
+          const nid = `tax-${d.id}`;
+          built.push({
+            id: nid,
+            category: "tax",
+            severity: d.status === "urgent" ? "warning" : "info",
+            title: d.title,
+            description: d.description || `Muddat: ${d.date}`,
+            timestamp: d.date,
+            isRead: readIds.includes(nid),
+            actionLabel: "Soliq boʻlimiga oʻtish",
+            actionUrl: "/tax",
+          });
+        });
+
+      (logs || []).slice(0, 3).forEach((l: any) => {
+        const nid = `sync-${l.id}`;
+        built.push({
+          id: nid,
+          category: "sync",
+          severity: l.status === "error" ? "critical" : "success",
+          title: `${l.provider}: ${l.status === "error" ? "Sinxronlash xatosi" : "Muvaffaqiyatli"}`,
+          description: l.message,
+          timestamp: l.timestamp || "Bugun",
+          isRead: readIds.includes(nid),
+          actionLabel: "Integratsiyalar",
+          actionUrl: "/integrations",
+        });
+      });
+
+      setNotifications(built);
+    } catch (err) {
+      console.error("Failed loading notifications:", err);
+    }
+  }, [currentEntity?.id]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -41,16 +124,29 @@ export function NotificationsPopover() {
     return true;
   });
 
+  const persistReadIds = (items: NotificationItem[]) => {
+    if (!currentEntity?.id) return;
+    try {
+      const readList = items.filter((n) => n.isRead).map((n) => n.id);
+      localStorage.setItem(`firmus_read_notifs_${currentEntity.id}`, JSON.stringify(readList));
+    } catch {}
+  };
+
   const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, isRead: true }));
+      persistReadIds(next);
+      return next;
+    });
     toast.success(t.notifications.markAllRead);
   };
 
   const handleNotificationClick = (item: NotificationItem) => {
-    // Mark this one as read
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n))
-    );
+    setNotifications((prev) => {
+      const next = prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n));
+      persistReadIds(next);
+      return next;
+    });
     if (item.actionUrl) {
       router.push(item.actionUrl);
     }

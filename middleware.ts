@@ -45,6 +45,12 @@ export async function middleware(request: NextRequest) {
 
   // If user is unauthenticated and attempting to access protected routes
   if (!user && !isAuthPage) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Autentifikatsiya talab qilinadi" },
+        { status: 401 }
+      );
+    }
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     if (pathname !== "/") {

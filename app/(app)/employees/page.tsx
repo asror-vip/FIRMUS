@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { mockEmployees } from "@/lib/mock/employees";
-import { fetchEmployees, createEmployee } from "@/lib/services/supabase-service";
+import React, { useState, useEffect, useCallback } from "react";
+import { fetchEmployees, createEmployee, createJournalEntryRecord } from "@/lib/services/supabase-service";
+import { employeeSchema, getFirstZodError } from "@/lib/validations/accounting";
+import { useAppState } from "@/lib/mock/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,10 @@ import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 
 export default function EmployeesPage() {
+  const { currentEntity, currentRole } = useAppState();
   const { t } = useTranslation();
-  const [employees, setEmployees] = useState<any[]>(mockEmployees);
-  const [isLoading, setIsLoading] = useState(false);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isPayrollRunning, setIsPayrollRunning] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,46 +34,76 @@ export default function EmployeesPage() {
     hireDate: new Date().toISOString().split("T")[0],
   });
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadEmployees = useCallback(async () => {
+    if (!currentEntity?.id) {
+      setEmployees([]);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
-    fetchEmployees()
-      .then((data) => {
-        if (isMounted && data && data.length > 0) {
-          const mapped = data.map((d: any) => ({
-            id: d.id,
-            fullName: d.name,
-            position: d.position,
-            department: d.department,
-            salary: d.salary,
-            pinfl: d.pinfl,
-            startDate: d.hireDate,
-            status: d.status,
-          }));
-          setEmployees(mapped);
-        }
-      })
-      .catch((err) => console.error("Error loading employees:", err))
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    try {
+      const data = await fetchEmployees(currentEntity.id);
+      const mapped = (data || []).map((d: any) => ({
+        id: d.id,
+        fullName: d.name || d.fullName,
+        position: d.position,
+        department: d.department,
+        salary: d.salary,
+        pinfl: d.pinfl,
+        startDate: d.hireDate || d.startDate,
+        status: d.status,
+      }));
+      setEmployees(mapped);
+    } catch (err) {
+      console.error("Error loading employees:", err);
+      toast.error("Xodimlarni yuklashda xatolik yuz berdi");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentEntity?.id]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    loadEmployees();
+  }, [loadEmployees]);
 
   const totalPayroll = employees.reduce((acc, curr) => acc + (curr.salary || 0), 0);
 
-  const handleRunPayroll = () => {
+  const handleRunPayroll = async () => {
+    if (totalPayroll <= 0) {
+      toast.error("Ish haqi hisoblash uchun faol xodimlar boʻlishi kerak");
+      return;
+    }
     setIsPayrollRunning(true);
-    toast.info("Noyabr oyi ish haqi hisob-kitobi (6710, JShDS, INPS) shakllanmoqda...");
-    setTimeout(() => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const monthTag = today.slice(0, 7);
+
+      const res = await createJournalEntryRecord({
+        entityId: currentEntity?.id,
+        entryNumber: `JE-PAY-${monthTag}-${Math.floor(100 + Math.random() * 900)}`,
+        entryDate: today,
+        description: `${monthTag} oyi uchun xodimlar ish haqi hisoblandi (6710 schyot va JShDS 12%)`,
+        debitAccountCode: "9420",
+        debitAccountName: "Maʼmuriy xarajatlar",
+        creditAccountCode: "6710",
+        creditAccountName: "Mehnat haqi boʻyicha xodimlar bilan hisob-kitoblar",
+        amount: totalPayroll,
+        sourceType: "payroll",
+        idempotencyKey: `idem-payroll-${currentEntity?.id}-${monthTag}-${employees.length}-${Math.round(totalPayroll)}`,
+      });
+
+      if (res?.idempotent) {
+        toast.info(`Ushbu tarkib (${employees.length} xodim) uchun ${monthTag} ish haqi provodkasi allaqachon Bosh kitobda mavjud.`);
+      } else {
+        toast.success(
+          `Ish haqi vedomosti shakllantirildi va Bosh kitobga (Dt 9420 / Kt 6710) ${totalPayroll.toLocaleString()} soʻm provodka tushirildi!`
+        );
+      }
+    } catch (err: any) {
+      toast.error("Ish haqi provodkasini saqlashda xatolik: " + err.message);
+    } finally {
       setIsPayrollRunning(false);
-      toast.success(
-        `Noyabr oyi ish haqi reyestri muvaffaqiyatli shakllantirildi! Jami: ${totalPayroll.toLocaleString()} soʻm (Bankka to'lov vedomosti tayyor)`
-      );
-    }, 1000);
+    }
   };
 
   const handleExport = () => {
@@ -99,33 +131,32 @@ export default function EmployeesPage() {
 
   const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmp.fullName || !newEmp.position || !newEmp.salary || !newEmp.pinfl) {
-      toast.error("Iltimos, ism, lavozim, maosh va PINFL maydonlarini toʻldiring");
+    const parsed = employeeSchema.safeParse({
+      fullName: newEmp.fullName,
+      position: newEmp.position,
+      department: newEmp.department,
+      salary: newEmp.salary,
+      pinfl: newEmp.pinfl,
+      hireDate: newEmp.hireDate,
+    });
+    if (!parsed.success) {
+      toast.error(getFirstZodError(parsed.error));
       return;
     }
+
     setIsSubmitting(true);
     try {
-      const created = await createEmployee({
-        fullName: newEmp.fullName,
-        position: newEmp.position,
-        department: newEmp.department,
-        salary: Number(newEmp.salary),
-        pinfl: newEmp.pinfl,
-        hireDate: newEmp.hireDate,
+      await createEmployee({
+        entityId: currentEntity?.id,
+        fullName: parsed.data.fullName,
+        position: parsed.data.position,
+        department: parsed.data.department,
+        salary: parsed.data.salary,
+        pinfl: parsed.data.pinfl,
+        hireDate: parsed.data.hireDate,
       });
 
-      const mapped = {
-        id: created.id,
-        fullName: created.name,
-        position: created.position,
-        department: created.department,
-        salary: created.salary,
-        pinfl: created.pinfl,
-        startDate: created.hireDate,
-        status: created.status,
-      };
-
-      setEmployees((prev) => [mapped, ...prev]);
+      await loadEmployees();
       toast.success("Yangi xodim Supabase maʼlumotlar bazasiga muvaffaqiyatli qoʻshildi!");
       setIsAddOpen(false);
       setNewEmp({
@@ -167,24 +198,28 @@ export default function EmployeesPage() {
             {t.common.export} (Excel)
           </Button>
 
-          <Button
-            size="sm"
-            className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => setIsAddOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t.pages.employees.addEmployee}
-          </Button>
+          {currentRole !== "viewer" && currentRole !== "auditor" && (
+            <>
+              <Button
+                size="sm"
+                className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setIsAddOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t.pages.employees.addEmployee}
+              </Button>
 
-          <Button
-            size="sm"
-            className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={handleRunPayroll}
-            disabled={isPayrollRunning}
-          >
-            <DollarSign className="h-3.5 w-3.5" />
-            {isPayrollRunning ? t.common.loading : t.pages.employees.monthlyPayroll}
-          </Button>
+              <Button
+                size="sm"
+                className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={handleRunPayroll}
+                disabled={isPayrollRunning}
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                {isPayrollRunning ? t.common.loading : t.pages.employees.monthlyPayroll}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -235,7 +270,16 @@ export default function EmployeesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {employees.map((emp) => (
+              {employees.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
+                    {isLoading
+                      ? "Xodimlar roʻyxati yuklanmoqda..."
+                      : "Ushbu korxonada xodimlar kiritilmagan."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                employees.map((emp) => (
                 <TableRow key={emp.id} className="hover:bg-muted/50">
                   <TableCell className="font-semibold text-xs text-foreground">
                     {emp.fullName}
@@ -255,7 +299,8 @@ export default function EmployeesPage() {
                     <StatusPill status={emp.status} />
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
