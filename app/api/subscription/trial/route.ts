@@ -12,12 +12,27 @@ function sha256(value: string): string {
 }
 
 function extractClientIp(req: NextRequest): string {
+  const cf = req.headers.get("cf-connecting-ip")?.trim();
+  if (cf) return cf;
+
+  const vercel = req.headers.get("x-vercel-forwarded-for")?.trim();
+  if (vercel) return vercel;
+
+  const real = req.headers.get("x-real-ip")?.trim();
+  if (real) return real;
+
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
+    const parts = forwarded
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length > 0) {
+      return parts[parts.length - 1];
+    }
   }
-  return req.headers.get("x-real-ip")?.trim() || "";
+
+  return "";
 }
 
 export async function POST(req: NextRequest) {

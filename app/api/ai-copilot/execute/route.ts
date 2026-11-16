@@ -36,7 +36,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Korxona topilmadi yoki ruxsat yoʻq" }, { status: 403 });
     }
 
-    const userRole = await resolveUserEntityRole(supabase, user.id, user.email, entity);
+    const userRole = await resolveUserEntityRole(
+      supabase,
+      user.id,
+      user.email,
+      entity,
+      Boolean(user.email_confirmed_at)
+    );
     if (!isMutatingRole(userRole)) {
       return NextResponse.json(
         { error: `Sizning rolingiz (${userRole}) moliyaviy amallarni bajarish huquqiga ega emas` },

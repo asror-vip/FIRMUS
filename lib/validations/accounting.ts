@@ -126,7 +126,6 @@ export const teamInviteSchema = z.object({
   name: z.string().trim().min(2, "Xodim ismini kiriting"),
   email: z.string().trim().email("Elektron pochta manzili notoʻgʻri formatda"),
   role: z.enum([
-    "workspace_owner",
     "chief_accountant",
     "accountant",
     "auditor",

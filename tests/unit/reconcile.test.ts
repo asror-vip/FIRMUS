@@ -7,7 +7,12 @@ import {
   buildSafeAiReconcileInput,
   sanitizeReconcileRowsForStorage,
   detectVatIncluded,
+  buildReconcileCsvReport,
 } from "../../lib/services/reconcile-engine";
+import {
+  generate1CClientBankText,
+  generate1CEnterpriseDataXml,
+} from "../../lib/services/one-c-export";
 
 const SAMPLE_BANK_TXT = [
   "1CClientBankExchange",
@@ -193,5 +198,130 @@ describe("Bank <-> 1C AI Reconciliation Engine", () => {
     expect(json).toContain("[KARTA_MASKED]");
     expect(json).toContain("[PINFL_MASKED]");
     expect(json).toContain("[TELEFON_MASKED]");
+  });
+
+  it("sanitizes CSV formula injection characters in buildReconcileCsvReport", () => {
+    const csv = buildReconcileCsvReport([
+      {
+        id: "rec-inj-1",
+        status: "matched",
+        confidence: 95,
+        date: "2026-11-16",
+        type: "income",
+        counterparty: "=cmd|' /C calc'!A0",
+        counterpartyStir: "301223344",
+        bankAmount: 1000000,
+        oneCAmount: 1000000,
+        diffAmount: 0,
+        suggestedAccountCode: "4010",
+        suggestedAccountName: "Xaridorlar",
+        explanation: "+12345 formula test",
+      },
+      {
+        id: "rec-inj-2",
+        status: "bank_only",
+        confidence: 90,
+        date: "2026-11-16",
+        type: "expense",
+        counterparty: "-SUM(A1:A10)",
+        counterpartyStir: "301223344",
+        bankAmount: 500000,
+        oneCAmount: 0,
+        diffAmount: 500000,
+        suggestedAccountCode: "6010",
+        suggestedAccountName: "Yetkazib beruvchilar",
+        explanation: "@SUM(1+1)",
+      },
+    ]);
+
+    expect(csv).toContain("\"'=cmd|' /C calc'!A0\"");
+    expect(csv).toContain("\"'+12345 formula test\"");
+    expect(csv).toContain("\"'-SUM(A1:A10)\"");
+    expect(csv).toContain("\"'@SUM(1+1)\"");
+  });
+
+  it("avoids false fuzzy counterparty matches when bNormName is shorter than 5 chars", () => {
+    // b has short counterparty name < 5 chars (e.g. "OOO")
+    // c has "OOO BARAKA SAVDO"
+    const result = reconcileBankAnd1C(
+      [
+        {
+          date: "2026-11-15",
+          amount: 5000000,
+          type: "income",
+          counterparty: "OOO",
+          description: "Test short name",
+          accountCode: "4010",
+          accountName: "",
+        },
+      ],
+      [
+        {
+          date: "2026-11-15",
+          amount: 5000000,
+          type: "income",
+          counterparty: "OOO BARAKA SAVDO",
+          description: "Test different company",
+          accountCode: "4010",
+          accountName: "",
+        },
+      ]
+    );
+
+    // Because bNormName is "ooo" (< 5 chars), it should NOT fuzzy match "OOO BARAKA SAVDO"
+    expect(result.rows[0].status).toBe("bank_only");
+    expect(result.rows[1].status).toBe("one_c_only");
+  });
+
+  it("sanitizes 1C Client-Bank newlines and escapes XML in EnterpriseData export", () => {
+    const txt = generate1CClientBankText(
+      [
+        {
+          id: "tx-1",
+          date: "2026-11-16",
+          amount: 100000,
+          type: "income",
+          counterparty: "OOO MALIKA\r\nINJECTION",
+          description: "Tolov\nQQS bilan",
+          documentNumber: "101\r\nEVIL",
+        },
+      ],
+      {
+        name: "OUR COMPANY\nLTD",
+        inn: "308112233",
+        account: "20208000999888777001",
+        bank: "KAPITALBANK",
+      }
+    );
+
+    // Should not contain raw newlines inside values
+    expect(txt).not.toContain("Плательщик=OOO MALIKA\r\nINJECTION");
+    expect(txt).toContain("Плательщик=OOO MALIKA INJECTION");
+    expect(txt).toContain("Номер=101 EVIL");
+    expect(txt).toContain("НазначениеПлатежа=Tolov QQS bilan");
+    expect(txt).toContain("Получатель=OUR COMPANY LTD");
+
+    const xml = generate1CEnterpriseDataXml([
+      {
+        entryNumber: "JE<01>&TEST",
+        date: "2026-11-16",
+        description: "Sinov & operatsiya <muhim>",
+        totalDebit: 100000,
+        lines: [
+          {
+            accountCode: "5110<A>",
+            accountName: "Hisob & kitob",
+            debit: 100000,
+            credit: 0,
+            memo: "Izoh <1>",
+          },
+        ],
+      },
+    ]);
+
+    expect(xml).toContain('<Operation id="JE&lt;01&gt;&amp;TEST">');
+    expect(xml).toContain("<Number>JE&lt;01&gt;&amp;TEST</Number>");
+    expect(xml).toContain("<AccountCode>5110&lt;A&gt;</AccountCode>");
+    expect(xml).toContain("<Comment>Sinov &amp; operatsiya &lt;muhim&gt;</Comment>");
   });
 });

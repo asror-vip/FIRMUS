@@ -31,6 +31,16 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
+function maskEmail(email?: string | null): string {
+  if (!email || !email.includes("@")) return email || "—";
+  const [local, domain] = email.split("@");
+  if (!domain) return email;
+  if (local.length <= 2) {
+    return `${local[0] || ""}***@${domain}`;
+  }
+  return `${local.slice(0, 2)}***${local.slice(-1)}@${domain}`;
+}
+
 export function Topbar() {
   const router = useRouter();
   const {
@@ -51,7 +61,7 @@ export function Topbar() {
     user?.user_metadata?.name ||
     (user?.email ? user.email.split("@")[0] : "Bosh buxgalter");
 
-  const displayEmail = user?.email || "FIRMUS";
+  const displayEmail = user?.email ? maskEmail(user.email) : "FIRMUS";
 
   const initials = displayName
     .split(" ")

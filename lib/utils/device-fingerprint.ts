@@ -9,10 +9,25 @@ export async function getClientDeviceHash(): Promise<string | undefined> {
     return undefined;
   }
   try {
+    let deviceToken = "";
+    try {
+      deviceToken = window.localStorage?.getItem("firmus_device_token") || "";
+      if (!deviceToken) {
+        deviceToken =
+          typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2) + Date.now().toString(36);
+        window.localStorage?.setItem("firmus_device_token", deviceToken);
+      }
+    } catch {
+      // Private mode or storage disabled
+    }
+
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
     const screenInfo =
       typeof screen !== "undefined" ? `${screen.width}x${screen.height}x${screen.colorDepth}` : "";
     const raw = [
+      deviceToken,
       navigator.userAgent || "",
       navigator.language || "",
       navigator.platform || "",

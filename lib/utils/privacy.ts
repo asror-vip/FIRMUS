@@ -27,9 +27,26 @@ export function maskPinfl(pinfl: string): string {
   return `${clean.slice(0, 4)}••••••${clean.slice(10, 14)}`;
 }
 
+export function maskEmail(email?: string | null): string {
+  if (!email || typeof email !== "string") return "—";
+  const trimmed = email.trim();
+  if (!trimmed) return "—";
+  const atIdx = trimmed.indexOf("@");
+  if (atIdx <= 0 || atIdx === trimmed.length - 1) return trimmed;
+
+  const user = trimmed.slice(0, atIdx);
+  const domain = trimmed.slice(atIdx);
+
+  if (user.length <= 2) {
+    return `${user[0]}***${domain}`;
+  }
+  const prefix = user.length >= 4 ? user.slice(0, 2) : user.slice(0, 1);
+  return `${prefix}***${user.slice(-1)}${domain}`;
+}
+
 /**
  * Strips 20-digit bank accounts, 16-digit bank card numbers (Uzcard/Humo/Visa/Mastercard),
- * 14-digit PINFLs, +998 phones, and corporate STIR tokens from string values.
+ * 14-digit PINFLs, +998 phones, passport numbers, email addresses, and corporate STIR tokens from string values.
  */
 export function sanitizeStringForAi(value: string): string {
   return value
@@ -37,7 +54,9 @@ export function sanitizeStringForAi(value: string): string {
     .replace(/\b(?:8600|9860|5614|6262|4\d{3}|5[1-5]\d{2})[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, "[KARTA_MASKED]")
     .replace(/\b\d{14}\b/g, "[PINFL_MASKED]")
     .replace(/\+?998[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}/g, "[TELEFON_MASKED]")
-    .replace(/\b[23]\d{8}\b/g, "[STIR_MASKED]");
+    .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, "[EMAIL_MASKED]")
+    .replace(/\b[A-Z]{2}\d{7}\b/g, "[PASSPORT_MASKED]")
+    .replace(/(?<!\d)[23]\d{8}(?!\d)(?!\s*(?:so['ʻ’]?m|som|uzs|сум|tiyin))/gi, "[STIR_MASKED]");
 }
 
 function sanitizeNodeForAi(node: unknown, keyHint = ""): unknown {

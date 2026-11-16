@@ -4,7 +4,12 @@ vi.mock("@/lib/supabase/client", () => ({
   supabase: {},
 }));
 
-import { parse1CClientBankText, parseBankCsv } from "@/lib/services/bank-import";
+import {
+  parse1CClientBankText,
+  parseBankCsv,
+  normalizeDateString,
+  parseMoneyString,
+} from "@/lib/services/bank-import";
 
 describe("1C Client-Bank & CSV Statement Parsers", () => {
   it("parses standard Uzbekistan 1CClientBankExchange income and expense records", () => {
@@ -140,5 +145,24 @@ describe("1C Client-Bank & CSV Statement Parsers", () => {
     expect(xlsParsed).toHaveLength(1);
     expect(xlsParsed[0].amount).toBe(3200000);
     expect(xlsParsed[0].type).toBe("income");
+  });
+
+  it("normalizes date strings with timestamps cleanly without falling back to today", () => {
+    expect(normalizeDateString("1.5.2024 10:20:00")).toBe("2024-05-01");
+    expect(normalizeDateString("15.11.2026 23:59:59")).toBe("2026-11-15");
+    expect(normalizeDateString("2026-11-16T12:00:00Z")).toBe("2026-11-16");
+    expect(normalizeDateString("02/08/2025 09:30")).toBe("2025-08-02");
+  });
+
+  it("parses dotted thousand separators and European decimals in parseMoneyString", () => {
+    expect(parseMoneyString("1.250.000")).toBe(1250000);
+    expect(parseMoneyString("15.000.000")).toBe(15000000);
+    expect(parseMoneyString("150.000")).toBe(150000);
+    expect(parseMoneyString("125.50")).toBe(125.5);
+    expect(parseMoneyString("1.250.000,50")).toBe(1250000.5);
+    expect(parseMoneyString("1,250,000.50")).toBe(1250000.5);
+    expect(parseMoneyString("(500.000)")).toBe(-500000);
+    expect(parseMoneyString("-1.250.000")).toBe(-1250000);
+    expect(parseMoneyString("")).toBe(0);
   });
 });

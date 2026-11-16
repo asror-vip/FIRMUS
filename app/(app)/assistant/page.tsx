@@ -69,6 +69,31 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {}
+  try {
+    if (typeof document !== "undefined") {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.pointerEvents = "none";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return success;
+    }
+  } catch {}
+  return false;
+}
 
 const TOOL_PAGE_TITLES: Record<string, string> = {
   chat: "AI Chat",
@@ -263,6 +288,26 @@ function AssistantContent() {
   const [contractFileInfo, setContractFileInfo] = useState<{ name: string; mimeType: string; base64: string } | null>(null);
   const [isCheckingContract, setIsCheckingContract] = useState(false);
   const [contractResult, setContractResult] = useState<ScannedDocResult | null>(null);
+
+  const batchIdParam = searchParams.get("batchId");
+  useEffect(() => {
+    if (!batchIdParam) return;
+    fetchWorkBatchById(batchIdParam)
+      .then((full) => {
+        if (!full?.sanitizedPayload) return;
+        if (full.batchType === "document_scan") {
+          setScanResult(full.sanitizedPayload as ScannedDocResult);
+          setScanFileName(full.bankFileName || full.title);
+          setScanPreviewUrl(null);
+          setActiveScanBatchId(full.id);
+          setActiveTab("scan");
+        } else if (full.batchType === "contract_risk") {
+          setContractResult(full.sanitizedPayload as ScannedDocResult);
+          setActiveTab("contract");
+        }
+      })
+      .catch(() => {});
+  }, [batchIdParam]);
 
   const payrollCalc = useMemo(
     () => calculatePayrollUz({ amount: parseFloat(calcSalaryAmount) || 0, direction: calcSalaryDir }),
@@ -828,7 +873,7 @@ function AssistantContent() {
       <QuickEntityBanner />
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        {FEATURES.fullAccountingErp && (
+        {FEATURES.fullAccountingErp ? (
           <TabsList className="h-9 text-xs flex-wrap">
             <TabsTrigger value="chat" className="gap-1.5 text-xs">
               <Sparkles className="h-3.5 w-3.5" />
@@ -851,6 +896,36 @@ function AssistantContent() {
               Tarix ({allHistoryCount})
             </TabsTrigger>
           </TabsList>
+        ) : (
+          /* Solo Tools Mode mobile-only horizontal pill bar */
+          <div className="flex lg:hidden overflow-x-auto no-scrollbar gap-1.5 pb-1 -mx-1 px-1">
+            {[
+              { id: "chat", label: "AI Chat", icon: Sparkles },
+              { id: "scan", label: "Skaner", icon: Camera },
+              { id: "calc", label: "Kalkulyator", icon: Calculator },
+              { id: "contract", label: "Shartnoma", icon: FileWarning },
+              { id: "history", label: "Tarix", icon: History },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors shrink-0",
+                    isSelected
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         )}
 
         {/* TAB 1: AI CHAT */}
@@ -1183,10 +1258,10 @@ function AssistantContent() {
                               scanResult.vatAmount > 0 ? ` (+ QQS ${scanResult.vatAccountCode})` : ""
                             }`,
                           ].join("\n");
-                          try {
-                            await navigator.clipboard.writeText(text);
+                          const ok = await copyToClipboard(text);
+                          if (ok) {
                             toast.success("Natija va provodka nusxalandi");
-                          } catch {
+                          } else {
                             toast.error("Nusxalab boʻlmadi");
                           }
                         }}

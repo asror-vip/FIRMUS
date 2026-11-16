@@ -46,12 +46,16 @@ async function inflateRaw(compressed: Uint8Array): Promise<Uint8Array> {
   const reader = stream.readable.getReader();
   const chunks: Uint8Array[] = [];
   let totalLen = 0;
+  const MAX_DECOMPRESSED_BYTES = 30 * 1024 * 1024; // 30 MB zip bomb protection
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
     if (value) {
-      chunks.push(value);
       totalLen += value.byteLength;
+      if (totalLen > MAX_DECOMPRESSED_BYTES) {
+        throw new Error("Decompressed size exceeds 30 MB limit");
+      }
+      chunks.push(value);
     }
   }
 
@@ -178,6 +182,8 @@ function parseWorksheetRows(sheetXml: string, sharedStrings: string[]): string[]
       const colMatch = ref.match(/^([A-Z]+)/i);
       const colIdx = colMatch ? colLettersToIndex(colMatch[1]) : cursorCol;
       cursorCol = colIdx + 1;
+
+      if (colIdx > 500) continue;
 
       while (rowCells.length <= colIdx) {
         rowCells.push("");

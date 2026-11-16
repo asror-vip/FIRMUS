@@ -27,7 +27,8 @@ export function calculatePayrollUz(params: {
   amount: number;
   direction: "gross_to_net" | "net_to_gross";
 }): PayrollCalculationResult {
-  const input = Math.max(0, roundMoney(params.amount));
+  const rawAmount = Number.isFinite(params?.amount) ? params.amount : 0;
+  const input = Math.max(0, roundMoney(rawAmount));
   const gross =
     params.direction === "net_to_gross"
       ? roundMoney(input / 0.88)
@@ -76,7 +77,8 @@ export function calculateVatUz(params: {
   amount: number;
   mode: "included" | "excluded";
 }): VatCalculationResult {
-  const input = Math.max(0, roundMoney(params.amount));
+  const rawAmount = Number.isFinite(params?.amount) ? params.amount : 0;
+  const input = Math.max(0, roundMoney(rawAmount));
   let net: number;
   let vat12: number;
   let total: number;
@@ -112,8 +114,9 @@ export function calculateTurnoverTaxUz(params: {
   revenue: number;
   ratePercent?: number;
 }) {
-  const revenue = Math.max(0, roundMoney(params.revenue));
-  const rate = params.ratePercent ?? 4;
+  const rawRevenue = Number.isFinite(params?.revenue) ? params.revenue : 0;
+  const revenue = Math.max(0, roundMoney(rawRevenue));
+  const rate = Number.isFinite(params?.ratePercent) ? params.ratePercent! : 4;
   const tax = roundMoney(revenue * (rate / 100));
   const netAfterTax = roundMoney(revenue - tax);
   return {
@@ -130,14 +133,91 @@ export function calculateTurnoverTaxUz(params: {
   };
 }
 
+export interface CorporateTaxCalculationResult {
+  taxableProfit: number;
+  ratePercent: number;
+  tax: number;
+  netProfitAfterTax: number;
+  taxArticleRef: string;
+  lexUrl: string;
+  provodka: ProvodkaLine[];
+}
+
+export function calculateCorporateTaxUz(params: {
+  taxableProfit: number;
+  ratePercent?: number;
+}): CorporateTaxCalculationResult {
+  const rawProfit = Number.isFinite(params?.taxableProfit) ? params.taxableProfit : 0;
+  const taxableProfit = Math.max(0, roundMoney(rawProfit));
+  const rate = Number.isFinite(params?.ratePercent) ? params.ratePercent! : 15;
+  const tax = roundMoney(taxableProfit * (rate / 100));
+  const netProfitAfterTax = roundMoney(taxableProfit - tax);
+
+  return {
+    taxableProfit,
+    ratePercent: rate,
+    tax,
+    netProfitAfterTax,
+    taxArticleRef: "Soliq kodeksi 337-modda (Foyda soligʻi asosiy stavkasi 15%)",
+    lexUrl: LEX_UZ_TAX_CODE_URL,
+    provodka: [
+      { debitCode: "9810", creditCode: "6810", amount: tax, description: `Foyda soligʻi (${rate}%) hisoblandi` },
+      { debitCode: "6810", creditCode: "5110", amount: tax, description: "Budjetga foyda soligʻi toʻlandi" },
+    ],
+  };
+}
+
+export interface DividendTaxCalculationResult {
+  grossDividend: number;
+  ratePercent: number;
+  tax: number;
+  netDividend: number;
+  isNonResident: boolean;
+  taxArticleRef: string;
+  lexUrl: string;
+  provodka: ProvodkaLine[];
+}
+
+export function calculateDividendTaxUz(params: {
+  grossDividend: number;
+  isNonResident?: boolean;
+}): DividendTaxCalculationResult {
+  const rawDiv = Number.isFinite(params?.grossDividend) ? params.grossDividend : 0;
+  const grossDividend = Math.max(0, roundMoney(rawDiv));
+  const isNonResident = Boolean(params?.isNonResident);
+  const ratePercent = isNonResident ? 10 : 5;
+  const tax = roundMoney(grossDividend * (ratePercent / 100));
+  const netDividend = roundMoney(grossDividend - tax);
+
+  return {
+    grossDividend,
+    ratePercent,
+    tax,
+    netDividend,
+    isNonResident,
+    taxArticleRef: isNonResident
+      ? "Soliq kodeksi 353-modda (Norezidentlar dividendlariga 10% soliq stavkasi)"
+      : "Soliq kodeksi 381-modda (Oʻzbekiston rezidentlari dividendlariga 5% soliq stavkasi)",
+    lexUrl: LEX_UZ_TAX_CODE_URL,
+    provodka: [
+      { debitCode: "8710", creditCode: "6610", amount: grossDividend, description: "Taʼsischilarga dividend hisoblandi" },
+      { debitCode: "6610", creditCode: "6410", amount: tax, description: `Dividenddan soliq (${ratePercent}%) ushlandi` },
+      { debitCode: "6610", creditCode: "5110", amount: netDividend, description: "Taʼsischiga dividend toʻlandi" },
+    ],
+  };
+}
+
 export function calculateVacationPayUz(params: {
   monthlySalary: number;
-  days: number;
+  days?: number;
 }) {
-  const monthlySalary = Math.max(0, roundMoney(params.monthlySalary));
-  const days = Math.max(1, Math.min(60, Math.round(params.days || 21)));
+  const salaryRaw = Number.isFinite(params?.monthlySalary) ? params.monthlySalary : 0;
+  const monthlySalary = Math.max(0, roundMoney(salaryRaw));
+  const days = Number.isFinite(params?.days)
+    ? Math.max(1, Math.min(60, Math.round(params.days!)))
+    : 21;
   const dailyRate = roundMoney(monthlySalary / 25.4);
-  const grossVacation = roundMoney(dailyRate * days);
+  const grossVacation = roundMoney((monthlySalary / 25.4) * days);
   const jshds12 = roundMoney(grossVacation * 0.12);
   const netVacation = roundMoney(grossVacation - jshds12);
   const socialTax12 = roundMoney(grossVacation * 0.12);

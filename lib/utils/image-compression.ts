@@ -37,11 +37,24 @@ export function resolveSupportedImageMime(
   if (ALLOWED_AI_IMAGE_MIME_TYPES.has(mime)) {
     return mime as "image/jpeg" | "image/png" | "image/webp";
   }
-  if (!mime && file.name) {
+  if (file.name) {
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
     return IMAGE_EXT_TO_MIME[ext] ?? null;
   }
   return null;
+}
+
+export function validateImageUpload(
+  file: Pick<File, "type" | "name"> & { size?: number }
+): { valid: boolean; error?: string; mimeType?: "image/jpeg" | "image/png" | "image/webp" } {
+  const mime = resolveSupportedImageMime(file);
+  if (!mime) {
+    return { valid: false, error: AI_IMAGE_FORMAT_ERROR };
+  }
+  if (typeof file.size === "number" && file.size > MAX_RAW_IMAGE_BYTES) {
+    return { valid: false, error: "Rasm hajmi 25 MB dan oshmasligi kerak" };
+  }
+  return { valid: true, mimeType: mime };
 }
 
 export function isSupportedAiImageFile(

@@ -184,8 +184,21 @@ export async function resolveEffectiveSubscription(userId: string): Promise<Subs
     dailyLimit,
     bonusCredits,
     remainingCredits,
+    annualDiscountUsed: Boolean(sub?.annual_discount_used_at),
     limits: spec.limits,
   };
+}
+
+export const getUserSubscriptionSnapshot = resolveEffectiveSubscription;
+
+export async function getUserSubscriptionRow(userId: string) {
+  const svc = getServiceClient();
+  const { data: sub } = await svc
+    .from("subscriptions")
+    .select("*, annual_discount_used_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return sub;
 }
 
 export type AiRequestKind = "chat" | "scan" | "contract" | "reconcile";
@@ -196,6 +209,8 @@ export interface AuthorizedAiExecution {
   modelChain: string[];
   creditCost: number;
   snapshot: SubscriptionSnapshot;
+  periodMonth?: string;
+  periodDay?: string;
 }
 
 export interface RejectedAiExecution {
@@ -295,12 +310,16 @@ export async function authorizeAndConsumeAiCredits(params: {
 
   const updatedMonthlyUsed = Number(rpcData.monthly_used ?? snapshot.monthlyUsed + creditCost);
   const updatedDailyUsed = Number(rpcData.daily_used ?? snapshot.dailyUsed + creditCost);
+  const periodMonth = rpcData.period_month as string | undefined;
+  const periodDay = rpcData.period_day as string | undefined;
 
   return {
     ok: true,
     modelId,
     modelChain: AI_MODELS[modelId].fallbackChain,
     creditCost,
+    periodMonth,
+    periodDay,
     snapshot: {
       ...snapshot,
       monthlyUsed: updatedMonthlyUsed,
@@ -310,22 +329,30 @@ export async function authorizeAndConsumeAiCredits(params: {
   };
 }
 
+export const consumeAiCredits = authorizeAndConsumeAiCredits;
+
 export async function refundConsumedAiCredits(params: {
   userId: string;
   creditCost: number;
+  periodMonth?: string;
+  periodDay?: string;
   isScan?: boolean;
 }) {
   try {
     const svc = getServiceClient();
     await svc.rpc("refund_ai_credits_atomic", {
       p_user_id: params.userId,
-      p_credits: params.creditCost,
+      p_credit_cost: params.creditCost,
+      p_period_month: params.periodMonth || null,
+      p_period_day: params.periodDay || null,
       p_is_scan: Boolean(params.isScan),
     });
   } catch (err) {
     console.warn("refundConsumedAiCredits warning:", err);
   }
 }
+
+export const refundAiCredits = refundConsumedAiCredits;
 
 export async function updateSubscriptionPreferredModel(userId: string, modelId: AiModelId) {
   const snapshot = await resolveEffectiveSubscription(userId);

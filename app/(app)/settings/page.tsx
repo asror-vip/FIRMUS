@@ -30,9 +30,21 @@ import {
   Plus,
   User,
   CreditCard,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+
+function maskEmail(email?: string | null): string {
+  if (!email || !email.includes("@")) return email || "—";
+  const [local, domain] = email.split("@");
+  if (!domain) return email;
+  if (local.length <= 2) {
+    return `${local[0] || ""}***@${domain}`;
+  }
+  return `${local.slice(0, 2)}***${local.slice(-1)}@${domain}`;
+}
 
 function SettingsContent() {
   const searchParams = useSearchParams();
@@ -63,6 +75,7 @@ function SettingsContent() {
   });
 
   const [activeTab, setActiveTab] = useState(FEATURES.multiCompanyMode ? "entities" : "profile");
+  const [showEmail, setShowEmail] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [telegramAlerts, setTelegramAlerts] = useState(true);
@@ -272,9 +285,24 @@ function SettingsContent() {
                   </span>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <span className="text-[11px] text-muted-foreground block">Elektron pochta</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-muted-foreground">Elektron pochta</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowEmail((prev) => !prev)}
+                      className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
+                      title={showEmail ? "Yashirish" : "Koʻrsatish"}
+                      aria-label={showEmail ? "Elektron pochtani yashirish" : "Elektron pochtani koʻrsatish"}
+                    >
+                      {showEmail ? (
+                        <EyeOff className="h-3.5 w-3.5" />
+                      ) : (
+                        <Eye className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
                   <span className="font-mono font-medium text-foreground mt-0.5 block truncate">
-                    {user?.email || "—"}
+                    {showEmail ? (user?.email || "—") : maskEmail(user?.email)}
                   </span>
                 </div>
               </div>
@@ -432,7 +460,7 @@ function SettingsContent() {
                 <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
                   <div className="flex justify-between font-mono text-[11px]">
                     <span className="font-semibold text-foreground">
-                      {user?.email || "Autentifikatsiya qilingan sessiya"} • {t.pages.settings.currentSession}
+                      {(user?.email ? maskEmail(user.email) : "Autentifikatsiya qilingan sessiya")} • {t.pages.settings.currentSession}
                     </span>
                     <span className="text-emerald-600 dark:text-emerald-400">{t.pages.settings.online}</span>
                   </div>

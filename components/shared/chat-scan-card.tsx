@@ -7,6 +7,30 @@ import { CheckCircle2, AlertTriangle, Loader2, Copy, Check } from "lucide-react"
 import { toast } from "sonner";
 import type { ScannedDocResult } from "@/lib/services/doc-scan-client";
 
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {}
+  try {
+    if (typeof document !== "undefined") {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.pointerEvents = "none";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return success;
+    }
+  } catch {}
+  return false;
+}
+
 interface ChatScanCardProps {
   scan: ScannedDocResult;
   isDuplicate?: boolean;
@@ -47,12 +71,12 @@ export function ChatScanCard({
       }`,
       `Provodka: Dt ${debitCode} / Kt ${creditCode}${scan.vatAmount > 0 ? ` (+ QQS ${scan.vatAccountCode})` : ""}`,
     ].join("\n");
-    try {
-      await navigator.clipboard.writeText(text);
+    const ok = await copyToClipboard(text);
+    if (ok) {
       setCopied(true);
       toast.success("Natija nusxalandi");
       setTimeout(() => setCopied(false), 1600);
-    } catch {
+    } else {
       toast.error("Nusxalab boʻlmadi");
     }
   };

@@ -40,16 +40,17 @@ export async function middleware(request: NextRequest) {
   const isAuthPage =
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
-    pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/auth/callback");
+    pathname.startsWith("/forgot-password");
 
-  const isPublicLegalPage =
+  const isPublicPage =
     pathname.startsWith("/privacy") ||
     pathname.startsWith("/terms") ||
+    pathname.startsWith("/auth/callback") ||
+    pathname.startsWith("/api/payments/") ||
     pathname === "/api/health";
 
   // If user is unauthenticated and attempting to access protected routes
-  if (!user && !isAuthPage && !isPublicLegalPage) {
+  if (!user && !isAuthPage && !isPublicPage) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
         { error: "Autentifikatsiya talab qilinadi" },

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useRef, useMemo, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -80,7 +81,9 @@ function downloadFileBlob(content: string, fileName: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
-export default function ReconcilePage() {
+function ReconcileContent() {
+  const searchParams = useSearchParams();
+  const batchIdParam = searchParams.get("batchId");
   const { currentEntity, subscription, setSubscriptionSnapshot } = useAppState();
   const bankInputRef = useRef<HTMLInputElement | null>(null);
   const oneCInputRef = useRef<HTMLInputElement | null>(null);
@@ -185,13 +188,10 @@ export default function ReconcilePage() {
   }, []);
 
   useEffect(() => {
-    try {
-      const batchIdParam = new URLSearchParams(window.location.search).get("batchId");
-      if (batchIdParam && currentEntity?.id) {
-        handleOpenBatch(batchIdParam);
-      }
-    } catch {}
-  }, [currentEntity?.id, handleOpenBatch]);
+    if (batchIdParam && currentEntity?.id) {
+      handleOpenBatch(batchIdParam);
+    }
+  }, [batchIdParam, currentEntity?.id, handleOpenBatch]);
 
   const runComparison = (nextBank: ParsedBankTransaction[], nextOneC: ParsedBankTransaction[]) => {
     if (nextBank.length === 0 && nextOneC.length === 0) {
@@ -1209,5 +1209,13 @@ export default function ReconcilePage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function ReconcilePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+      <ReconcileContent />
+    </Suspense>
   );
 }

@@ -12,9 +12,10 @@ export interface ParsedBankTransaction {
   documentNumber?: string;
 }
 
-function normalizeDateString(raw: string): string {
+export function normalizeDateString(raw: string): string {
   const trimmed = raw.trim();
-  const iso = trimmed.slice(0, 10);
+  const datePart = trimmed.split(/[\sT]/)[0].slice(0, 10);
+  const iso = datePart;
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
     return iso;
   }
@@ -30,7 +31,7 @@ function normalizeDateString(raw: string): string {
   return new Date().toISOString().split("T")[0];
 }
 
-function parseMoneyString(raw: string): number {
+export function parseMoneyString(raw: string): number {
   if (!raw) return 0;
   let cleaned = raw
     .replace(/\u00A0/g, " ")
@@ -61,6 +62,11 @@ function parseMoneyString(raw: string): number {
   } else if (lastComma > -1) {
     const decimals = cleaned.length - lastComma - 1;
     cleaned = decimals <= 2 ? cleaned.replace(",", ".") : cleaned.replace(/,/g, "");
+  } else if (lastDot > -1) {
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    if (dotCount > 1 || /^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
+      cleaned = cleaned.replace(/\./g, "");
+    }
   }
 
   const num = parseFloat(cleaned);

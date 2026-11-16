@@ -304,7 +304,7 @@ function SoloToolsHome() {
                   const targetHref =
                     item.batchType === "reconcile"
                       ? `/reconcile?batchId=${encodeURIComponent(item.id)}`
-                      : "/assistant?tab=history";
+                      : `/assistant?tab=history&batchId=${encodeURIComponent(item.id)}`;
 
                   return (
                     <TableRow key={item.id} className="text-xs">

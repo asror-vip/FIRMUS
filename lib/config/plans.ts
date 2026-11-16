@@ -61,6 +61,7 @@ export interface PlanSpec {
   monthlyPriceUzs: number;
   annualMonthlyPriceUzs: number;
   annualTotalPriceUzs: number;
+  regularAnnualTotalPriceUzs: number;
   badge?: string;
   trialDays?: number;
   limits: PlanLimits;
@@ -76,6 +77,7 @@ export const PLANS_CONFIG: Record<PlanId, PlanSpec> = {
     monthlyPriceUzs: 0,
     annualMonthlyPriceUzs: 0,
     annualTotalPriceUzs: 0,
+    regularAnnualTotalPriceUzs: 0,
     limits: {
       monthlyCredits: 25,
       dailyCredits: 6,
@@ -119,6 +121,7 @@ export const PLANS_CONFIG: Record<PlanId, PlanSpec> = {
     monthlyPriceUzs: 99_000,
     annualMonthlyPriceUzs: 79_000,
     annualTotalPriceUzs: 948_000,
+    regularAnnualTotalPriceUzs: 1_188_000,
     badge: "Tavsiya etiladi",
     trialDays: 7,
     limits: {
@@ -166,6 +169,7 @@ export const PLANS_CONFIG: Record<PlanId, PlanSpec> = {
     monthlyPriceUzs: 249_000,
     annualMonthlyPriceUzs: 199_000,
     annualTotalPriceUzs: 2_388_000,
+    regularAnnualTotalPriceUzs: 2_988_000,
     limits: {
       monthlyCredits: 1000,
       dailyCredits: 120,
@@ -240,6 +244,7 @@ export interface SubscriptionSnapshot {
   dailyLimit: number;
   bonusCredits: number;
   remainingCredits: number;
+  annualDiscountUsed: boolean;
   limits: PlanLimits;
 }
 
@@ -258,5 +263,78 @@ export const DEFAULT_STARTER_SNAPSHOT: SubscriptionSnapshot = {
   dailyLimit: PLANS_CONFIG.starter.limits.dailyCredits,
   bonusCredits: 0,
   remainingCredits: PLANS_CONFIG.starter.limits.monthlyCredits,
+  annualDiscountUsed: false,
   limits: PLANS_CONFIG.starter.limits,
 };
+
+export function getAnnualPricingForUser(
+  planId: PlanId,
+  annualDiscountUsed: boolean
+): {
+  totalUzs: number;
+  monthlyEquivalentUzs: number;
+  savedUzs: number;
+  isDiscounted: boolean;
+} {
+  const spec = PLANS_CONFIG[planId];
+  if (planId === "starter" || !spec) {
+    return {
+      totalUzs: 0,
+      monthlyEquivalentUzs: 0,
+      savedUzs: 0,
+      isDiscounted: false,
+    };
+  }
+
+  if (!annualDiscountUsed) {
+    return {
+      totalUzs: spec.annualTotalPriceUzs,
+      monthlyEquivalentUzs: spec.annualMonthlyPriceUzs,
+      savedUzs: spec.regularAnnualTotalPriceUzs - spec.annualTotalPriceUzs,
+      isDiscounted: true,
+    };
+  }
+
+  return {
+    totalUzs: spec.regularAnnualTotalPriceUzs,
+    monthlyEquivalentUzs: spec.monthlyPriceUzs,
+    savedUzs: 0,
+    isDiscounted: false,
+  };
+}
+
+export type PaymentMethodId = "bank_transfer_didox" | "payme" | "click";
+
+export interface PaymentMethodMeta {
+  id: PaymentMethodId;
+  label: string;
+  commissionLabel: string;
+  badge: string;
+  description: string;
+}
+
+export const PAYMENT_METHODS: PaymentMethodMeta[] = [
+  {
+    id: "bank_transfer_didox",
+    label: "Bank oʻtkazmasi / Hisob-faktura (B2B)",
+    commissionLabel: "0% komissiya",
+    badge: "Eng foydali (0%)",
+    description:
+      "MChJ va YaTTlar uchun STIR orqali toʻlov shartnomasi / hisob-faktura (Didox E-SF). Bank komissiyasi 0%.",
+  },
+  {
+    id: "payme",
+    label: "Payme (Uzcard / Humo)",
+    commissionLabel: "~1% shlyuz komissiyasi (qoʻshimcha ustamasiz)",
+    badge: "Tezkor avto-faollashtirish",
+    description:
+      "Uzcard va Humo kartalari orqali bir zumda toʻlov. Foydalanuvchidan qoʻshimcha foiz olinmaydi.",
+  },
+  {
+    id: "click",
+    label: "Click Up / QR-toʻlov",
+    commissionLabel: "~1% shlyuz komissiyasi (qoʻshimcha ustamasiz)",
+    badge: "QR va Karta",
+    description: "Click ilovasi, QR-kod yoki Uzcard/Humo orqali tezkor toʻlov.",
+  },
+];

@@ -54,7 +54,8 @@ export async function resolveUserEntityRole(
   supabase: SupabaseClient,
   userId: string,
   userEmail: string | undefined,
-  entity: { id: string; workspace_id: string }
+  entity: { id: string; workspace_id: string },
+  emailConfirmed?: boolean
 ): Promise<string> {
   const { data: ws } = await supabase
     .from("workspaces")
@@ -66,12 +67,13 @@ export async function resolveUserEntityRole(
     return "workspace_owner";
   }
 
+  const allowEmailFallback = Boolean(userEmail && emailConfirmed);
   const { data: member } = await supabase
     .from("team_members")
     .select("role, status")
     .eq("workspace_id", entity.workspace_id)
     .or(
-      userEmail
+      allowEmailFallback
         ? `user_id.eq.${userId},email.ilike.${userEmail}`
         : `user_id.eq.${userId}`
     )
@@ -938,6 +940,7 @@ export async function runFirmusAgent(params: {
   supabase: SupabaseClient;
   userId: string;
   userEmail: string | undefined;
+  emailConfirmed?: boolean;
   entity: any;
   message: string;
   history?: AgentHistoryItem[];
@@ -948,6 +951,7 @@ export async function runFirmusAgent(params: {
     supabase,
     userId,
     userEmail,
+    emailConfirmed,
     entity,
     message,
     history = [],
@@ -964,7 +968,7 @@ export async function runFirmusAgent(params: {
           .eq("business_entity_id", entity.id)
           .eq("is_active", true)
           .order("code", { ascending: true }),
-    resolveUserEntityRole(supabase, userId, userEmail, entity),
+    resolveUserEntityRole(supabase, userId, userEmail, entity, emailConfirmed),
   ]);
 
   const coaRows = (coaRes.data || []) as Array<{ code: string; name: string; type: string }>;

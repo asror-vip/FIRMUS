@@ -5,6 +5,11 @@
  * 2. EnterpriseData XML for accounting journal entries / double-entry ledger
  */
 
+function sanitizeClientBankField(val?: string | null): string {
+  if (!val) return "";
+  return String(val).replace(/[\r\n]+/g, " ").trim();
+}
+
 export function generate1CClientBankText(
   transactions: Array<{
     id: string;
@@ -35,6 +40,9 @@ export function generate1CClientBankText(
   const startDate = transactions[transactions.length - 1]?.date.split("-").reverse().join(".") || today;
   const endDate = transactions[0]?.date.split("-").reverse().join(".") || today;
   const openingBal = Number(entityInfo.openingBalance || 0).toFixed(2);
+  const safeAccount = sanitizeClientBankField(entityInfo.account);
+  const safeEntityName = sanitizeClientBankField(entityInfo.name);
+  const safeEntityInn = sanitizeClientBankField(entityInfo.inn);
 
   let txt = `1CClientBankExchange\r\n`;
   txt += `ВерсияФормата=1.02\r\n`;
@@ -45,17 +53,20 @@ export function generate1CClientBankText(
   txt += `ВремяСоздания=${new Date().toTimeString().split(" ")[0]}\r\n`;
   txt += `ДатаНачала=${startDate}\r\n`;
   txt += `ДатаКонца=${endDate}\r\n`;
-  txt += `РасчСчет=${entityInfo.account}\r\n`;
+  txt += `РасчСчет=${safeAccount}\r\n`;
   txt += `СекцияРасчСчет\r\n`;
   txt += `ДатаНачала=${startDate}\r\n`;
   txt += `ДатаКонца=${endDate}\r\n`;
   txt += `НачальныйОстаток=${openingBal}\r\n`;
-  txt += `РасчСчет=${entityInfo.account}\r\n`;
+  txt += `РасчСчет=${safeAccount}\r\n`;
   txt += `КонецРасчСчет\r\n`;
 
   transactions.forEach((tx, idx) => {
-    const formattedDate = tx.date.split("-").reverse().join(".");
-    const num = tx.documentNumber || String(idx + 101);
+    const formattedDate = sanitizeClientBankField(tx.date.split("-").reverse().join("."));
+    const num = sanitizeClientBankField(tx.documentNumber || String(idx + 101));
+    const counterparty = sanitizeClientBankField(tx.counterparty);
+    const counterpartyStir = sanitizeClientBankField(tx.counterpartyStir || "");
+    const description = sanitizeClientBankField(tx.description);
 
     txt += `СекцияДокумент=Платежное поручение\r\n`;
     txt += `Номер=${num}\r\n`;
@@ -64,23 +75,23 @@ export function generate1CClientBankText(
 
     if (tx.type === "income") {
       // Payer is Counterparty, Receiver is Us
-      txt += `Плательщик=${tx.counterparty}\r\n`;
-      txt += `ПлательщикИНН=${tx.counterpartyStir || ""}\r\n`;
+      txt += `Плательщик=${counterparty}\r\n`;
+      txt += `ПлательщикИНН=${counterpartyStir}\r\n`;
       txt += `ПлательщикРасчСчет=\r\n`;
-      txt += `Получатель=${entityInfo.name}\r\n`;
-      txt += `ПолучательИНН=${entityInfo.inn}\r\n`;
-      txt += `ПолучательРасчСчет=${entityInfo.account}\r\n`;
+      txt += `Получатель=${safeEntityName}\r\n`;
+      txt += `ПолучательИНН=${safeEntityInn}\r\n`;
+      txt += `ПолучательРасчСчет=${safeAccount}\r\n`;
     } else {
       // Payer is Us, Receiver is Counterparty
-      txt += `Плательщик=${entityInfo.name}\r\n`;
-      txt += `ПлательщикИНН=${entityInfo.inn}\r\n`;
-      txt += `ПлательщикРасчСчет=${entityInfo.account}\r\n`;
-      txt += `Получатель=${tx.counterparty}\r\n`;
-      txt += `ПолучательИНН=${tx.counterpartyStir || ""}\r\n`;
+      txt += `Плательщик=${safeEntityName}\r\n`;
+      txt += `ПлательщикИНН=${safeEntityInn}\r\n`;
+      txt += `ПлательщикРасчСчет=${safeAccount}\r\n`;
+      txt += `Получатель=${counterparty}\r\n`;
+      txt += `ПолучательИНН=${counterpartyStir}\r\n`;
       txt += `ПолучательРасчСчет=\r\n`;
     }
 
-    txt += `НазначениеПлатежа=${tx.description}\r\n`;
+    txt += `НазначениеПлатежа=${description}\r\n`;
     txt += `ВидОплаты=Электронно\r\n`;
     txt += `Очередность=1\r\n`;
     txt += `КонецДокумента\r\n`;
@@ -113,20 +124,22 @@ export function generate1CEnterpriseDataXml(
   xml += `  <Body>\n`;
 
   journalEntries.forEach((je) => {
-    xml += `    <Operation id="${je.entryNumber}">\n`;
-    xml += `      <Number>${je.entryNumber}</Number>\n`;
-    xml += `      <Date>${je.date}</Date>\n`;
-    xml += `      <Comment>${escapeXml(je.description)}</Comment>\n`;
+    const entryId = escapeXml(String(je.entryNumber || ""));
+    const dateStr = escapeXml(String(je.date || ""));
+    xml += `    <Operation id="${entryId}">\n`;
+    xml += `      <Number>${entryId}</Number>\n`;
+    xml += `      <Date>${dateStr}</Date>\n`;
+    xml += `      <Comment>${escapeXml(je.description || "")}</Comment>\n`;
     xml += `      <Amount>${je.totalDebit}</Amount>\n`;
     xml += `      <Lines>\n`;
 
     je.lines.forEach((l, idx) => {
       xml += `        <Line num="${idx + 1}">\n`;
-      xml += `          <AccountCode>${l.accountCode}</AccountCode>\n`;
-      xml += `          <AccountName>${escapeXml(l.accountName)}</AccountName>\n`;
+      xml += `          <AccountCode>${escapeXml(String(l.accountCode || ""))}</AccountCode>\n`;
+      xml += `          <AccountName>${escapeXml(String(l.accountName || ""))}</AccountName>\n`;
       xml += `          <Debit>${l.debit}</Debit>\n`;
       xml += `          <Credit>${l.credit}</Credit>\n`;
-      xml += `          <Memo>${escapeXml(l.memo || "")}</Memo>\n`;
+      xml += `          <Memo>${escapeXml(String(l.memo || ""))}</Memo>\n`;
       xml += `        </Line>\n`;
     });
 
@@ -140,8 +153,9 @@ export function generate1CEnterpriseDataXml(
   return xml;
 }
 
-function escapeXml(unsafe: string): string {
-  return unsafe
+function escapeXml(unsafe?: string | null): string {
+  if (!unsafe) return "";
+  return String(unsafe)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

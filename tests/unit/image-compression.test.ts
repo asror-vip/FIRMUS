@@ -4,6 +4,7 @@ import {
   inspectClipboardPaste,
   isSupportedAiImageFile,
   resolveSupportedImageMime,
+  validateImageUpload,
 } from "../../lib/utils/image-compression";
 
 describe("AI Chat Image Validation & Clipboard Inspection", () => {
@@ -50,5 +51,39 @@ describe("AI Chat Image Validation & Clipboard Inspection", () => {
     ).toEqual({ kind: "invalid_file", fileName: "shartnoma.pdf" });
 
     expect(AI_IMAGE_FORMAT_ERROR).toContain("Rasm formati toʻgʻri emas");
+  });
+
+  it("validates image uploads with extension fallback for application/octet-stream and image/x-png", () => {
+    expect(
+      validateImageUpload({
+        type: "application/octet-stream",
+        name: "check.jpg",
+        size: 1024 * 100,
+      })
+    ).toEqual({ valid: true, mimeType: "image/jpeg" });
+
+    expect(
+      validateImageUpload({
+        type: "image/x-png",
+        name: "screen.png",
+        size: 1024 * 100,
+      })
+    ).toEqual({ valid: true, mimeType: "image/png" });
+
+    expect(
+      validateImageUpload({
+        type: "application/pdf",
+        name: "file.pdf",
+        size: 1024 * 100,
+      }).valid
+    ).toBe(false);
+
+    expect(
+      validateImageUpload({
+        type: "image/png",
+        name: "huge.png",
+        size: 30 * 1024 * 1024,
+      })
+    ).toEqual({ valid: false, error: "Rasm hajmi 25 MB dan oshmasligi kerak" });
   });
 });

@@ -21,6 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   CreditCard,
   Check,
@@ -31,9 +33,40 @@ import {
   Clock,
   Cpu,
   Activity,
+  Building2,
+  Printer,
+  Copy,
+  Receipt,
+  QrCode,
+  ArrowRight,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {}
+  try {
+    if (typeof document !== "undefined") {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.pointerEvents = "none";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const success = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return success;
+    }
+  } catch {}
+  return false;
+}
 
 function formatUzs(amount: number): string {
   return `${new Intl.NumberFormat("uz-UZ").format(amount)} soʻm`;
@@ -71,12 +104,33 @@ export default function BillingPage() {
     refreshSubscription,
   } = useAppState();
 
+  const annualDiscountUsed = Boolean((subscription as any).annualDiscountUsed);
+
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const [isActivatingTrial, setIsActivatingTrial] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPlanForInfo, setSelectedPlanForInfo] = useState<PlanSpec | null>(null);
   const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
   const [isLoadingUsage, setIsLoadingUsage] = useState(true);
+
+  // Checkout modal states
+  const [paymentMethod, setPaymentMethod] = useState<"bank_transfer_didox" | "payme" | "click">("bank_transfer_didox");
+  const [b2bTinStir, setB2bTinStir] = useState(currentEntity?.tinStir || "");
+  const [b2bCompanyName, setB2bCompanyName] = useState(currentEntity?.name || "");
+  const [b2bBankAccount, setB2bBankAccount] = useState("");
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [checkoutOrder, setCheckoutOrder] = useState<any | null>(null);
+  const [isConfirmingOrder, setIsConfirmingOrder] = useState(false);
+  const [copiedInvoice, setCopiedInvoice] = useState(false);
+
+  useEffect(() => {
+    if (currentEntity?.tinStir && !b2bTinStir) {
+      setB2bTinStir(currentEntity.tinStir);
+    }
+    if (currentEntity?.name && !b2bCompanyName) {
+      setB2bCompanyName(currentEntity.name);
+    }
+  }, [currentEntity, b2bTinStir, b2bCompanyName]);
 
   const loadStats = useCallback(async () => {
     setIsLoadingUsage(true);
@@ -127,22 +181,179 @@ export default function BillingPage() {
     }
   };
 
-  const getMainPriceLabel = (plan: PlanSpec): { amount: string; unit: string; note?: string } => {
+  const getMainPriceLabel = (plan: PlanSpec): {
+    amount: string;
+    unit: string;
+    originalAmount?: string;
+    note?: string;
+  } => {
     if (plan.monthlyPriceUzs === 0) {
       return { amount: "0 soʻm", unit: "" };
     }
     if (billingCycle === "annual") {
-      const savedPerYear = plan.monthlyPriceUzs * 12 - plan.annualTotalPriceUzs;
+      const regularAnnual = plan.monthlyPriceUzs * 12;
+      if (!annualDiscountUsed) {
+        const savedPerYear = regularAnnual - plan.annualTotalPriceUzs;
+        return {
+          amount: formatUzs(plan.annualTotalPriceUzs),
+          originalAmount: formatUzs(regularAnnual),
+          unit: "/ yiliga",
+          note: `Oyiga ${formatUzs(plan.annualMonthlyPriceUzs)} • 1-yillik 20% chegirma (${formatUzs(savedPerYear)} tejaladi, faqat 1 marta amal qiladi)`,
+        };
+      }
       return {
-        amount: formatUzs(plan.annualTotalPriceUzs),
+        amount: formatUzs(regularAnnual),
         unit: "/ yiliga",
-        note: `Oyiga ${formatUzs(plan.annualMonthlyPriceUzs)} • Yillik ${formatUzs(savedPerYear)} tejaladi`,
+        note: "Bir martalik 20% yillik chegirma avval foydalanilgan • Standart yillik tarif",
       };
     }
     return {
       amount: formatUzs(plan.monthlyPriceUzs),
       unit: "/ oyiga",
     };
+  };
+
+  const handleInitiateCheckout = async () => {
+    if (!selectedPlanForInfo || selectedPlanForInfo.monthlyPriceUzs === 0) return;
+    setIsCheckingOut(true);
+    try {
+      const payload: any = {
+        planId: selectedPlanForInfo.id,
+        billingCycle,
+        paymentMethod,
+      };
+
+      if (paymentMethod === "bank_transfer_didox") {
+        if (!b2bTinStir.trim()) {
+          toast.error("Korxona yoki YaTT STIR (INN) raqamini kiriting");
+          setIsCheckingOut(false);
+          return;
+        }
+        payload.b2bMetadata = {
+          tinStir: b2bTinStir.trim(),
+          companyName: b2bCompanyName.trim() || currentEntity?.name || "Korxona",
+          bankAccount: b2bBankAccount.trim() || undefined,
+        };
+      }
+
+      const res = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Toʻlov buyurtmasini yaratib boʻlmadi");
+      }
+
+      if (paymentMethod === "payme" && data?.paymeCheckoutUrl) {
+        window.location.href = data.paymeCheckoutUrl;
+        return;
+      }
+      if (paymentMethod === "click" && data?.clickCheckoutUrl) {
+        window.location.href = data.clickCheckoutUrl;
+        return;
+      }
+
+      setCheckoutOrder(data);
+      toast.success(
+        paymentMethod === "bank_transfer_didox"
+          ? "Rasmiy hisob-faktura (invoys) shakllantirildi"
+          : "Toʻlov buyurtmasi yaratildi"
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "Toʻlov jarayonida xatolik yuz berdi");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
+  const handleConfirmOrder = async (orderId: string) => {
+    setIsConfirmingOrder(true);
+    try {
+      const res = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm_order",
+          orderId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Buyurtmani tasdiqlab boʻlmadi");
+      }
+      toast.success(data?.message || "Toʻlov muvaffaqiyatli tasdiqlandi! Obuna faollashdi.");
+      await refreshSubscription();
+      setIsPaymentModalOpen(false);
+      setCheckoutOrder(null);
+    } catch (err: any) {
+      toast.error(err?.message || "Tasdiqlashda xatolik yuz berdi");
+    } finally {
+      setIsConfirmingOrder(false);
+    }
+  };
+
+  const handleCopyInvoice = async () => {
+    if (!selectedPlanForInfo) return;
+    const invNum =
+      checkoutOrder?.invoiceNumber ||
+      checkoutOrder?.order?.orderId ||
+      `INV-${Date.now().toString().slice(-6)}`;
+    const buyerName =
+      checkoutOrder?.b2bMetadata?.companyName ||
+      b2bCompanyName ||
+      currentEntity?.name ||
+      "Mijoz";
+    const buyerStir =
+      checkoutOrder?.b2bMetadata?.tinStir ||
+      b2bTinStir ||
+      currentEntity?.tinStir ||
+      "—";
+    const buyerAccount =
+      checkoutOrder?.b2bMetadata?.bankAccount || b2bBankAccount || "—";
+    const regularAnnual = selectedPlanForInfo.monthlyPriceUzs * 12;
+    const finalPriceUzs =
+      billingCycle === "annual"
+        ? !annualDiscountUsed
+          ? selectedPlanForInfo.annualTotalPriceUzs
+          : regularAnnual
+        : selectedPlanForInfo.monthlyPriceUzs;
+    const amountStr = formatUzs(checkoutOrder?.amountUzs || finalPriceUzs);
+    const purpose =
+      checkoutOrder?.paymentPurpose ||
+      `FIRMUS AI ${selectedPlanForInfo.name} tarifi uchun ${
+        billingCycle === "annual" ? "yillik (12 oylik)" : "oylik"
+      } dasturiy taʼminot obuna toʻlovi. QQS siz`;
+
+    const text = [
+      `HISOB-FAKTURA (INVOYS) № ${invNum}`,
+      `Sana: ${new Date().toLocaleDateString("uz-UZ")}`,
+      `------------------------------------`,
+      `Yetkazib beruvchi (Sotuvchi): «FIRMUS TECH» MChJ`,
+      `STIR: 309888777`,
+      `H/R: 2020 8000 9005 1234 5001`,
+      `Bank: «Oʻzsanoatqurilishbank» ATB, MFO: 00440`,
+      `------------------------------------`,
+      `Buyurtmachi (Xaridor): ${buyerName}`,
+      `STIR: ${buyerStir}`,
+      `H/R: ${buyerAccount}`,
+      `------------------------------------`,
+      `Toʻlov summasi: ${amountStr} (0% komissiya)`,
+      `Toʻlov maqsadi: ${purpose}`,
+      `------------------------------------`,
+      `Buyurtma ID: ${checkoutOrder?.orderId || checkoutOrder?.order?.orderId || "—"}`,
+    ].join("\n");
+
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedInvoice(true);
+      toast.success("Invoys rekvizitlari nusxalandi");
+      setTimeout(() => setCopiedInvoice(false), 2000);
+    } else {
+      toast.error("Nusxalab boʻlmadi");
+    }
   };
 
   const trialDaysLeft = daysRemaining(subscription.trialEndsAt);
@@ -189,9 +400,15 @@ export default function BillingPage() {
             )}
           >
             <span>Yillik</span>
-            <Badge variant="success" className="text-[9px] px-1.5 py-0 h-4">
-              -20%
-            </Badge>
+            {!annualDiscountUsed ? (
+              <Badge variant="success" className="text-[9px] px-1.5 py-0 h-4">
+                -20% (1-marta)
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                Standart
+              </Badge>
+            )}
           </button>
         </div>
       </div>
@@ -334,6 +551,11 @@ export default function BillingPage() {
 
                   <div className="pt-2">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
+                      {priceInfo.originalAmount && (
+                        <span className="text-sm font-semibold line-through text-muted-foreground font-mono">
+                          {priceInfo.originalAmount}
+                        </span>
+                      )}
                       <span className="text-2xl font-bold tracking-tight font-mono text-foreground">
                         {priceInfo.amount}
                       </span>
@@ -385,6 +607,7 @@ export default function BillingPage() {
                   className="w-full h-9 text-xs gap-1.5"
                   onClick={() => {
                     setSelectedPlanForInfo(plan);
+                    setCheckoutOrder(null);
                     setIsPaymentModalOpen(true);
                   }}
                 >
@@ -405,48 +628,455 @@ export default function BillingPage() {
         })}
       </div>
 
-      {/* Honest Payment & Activation Info Modal */}
-      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="sm:max-w-md text-xs">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">
-              {selectedPlanForInfo ? `${selectedPlanForInfo.name} — Toʻlov tartibi` : "Toʻlov tartibi"}
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              {selectedPlanForInfo && selectedPlanForInfo.monthlyPriceUzs > 0
-                ? billingCycle === "annual"
-                  ? `Yillik toʻlov: ${formatUzs(selectedPlanForInfo.annualTotalPriceUzs)} (12 oy, -20%)`
-                  : `Oylik toʻlov: ${formatUzs(selectedPlanForInfo.monthlyPriceUzs)} / oy`
-                : "Bepul boshlangʻich tarif"}
-            </DialogDescription>
-          </DialogHeader>
+      {/* Interactive Low-Commission Payment Checkout Dialog */}
+      <Dialog
+        open={isPaymentModalOpen}
+        onOpenChange={(open) => {
+          setIsPaymentModalOpen(open);
+          if (!open) {
+            setCheckoutOrder(null);
+          }
+        }}
+      >
+        {!selectedPlanForInfo ? null : selectedPlanForInfo.monthlyPriceUzs === 0 ? (
+          <DialogContent className="sm:max-w-md text-xs">
+            <DialogHeader>
+              <DialogTitle className="text-base font-bold">Starter — Boshlangʻich tarif</DialogTitle>
+              <DialogDescription className="text-xs">
+                Ushbu tarif barcha foydalanuvchilar uchun 0 soʻm toʻlovsiz faol.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2 text-muted-foreground leading-relaxed">
+              Qoʻshimcha AI kreditlari, Gemini 4 Hydrogen modeli, PDF tahlili va kengaytirilgan 1C solishtirish imkoniyatlaridan foydalanish uchun Pro yoki Pro+ tarifini tanlashingiz mumkin.
+            </div>
+            <DialogFooter>
+              <Button type="button" size="sm" onClick={() => setIsPaymentModalOpen(false)}>
+                Tushunarli
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        ) : checkoutOrder ? (
+          paymentMethod === "bank_transfer_didox" ? (
+            /* 1. Bank transfer Didox Invoice card */
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto text-xs">
+              <DialogHeader>
+                <div className="flex items-center justify-between pr-6">
+                  <DialogTitle className="text-base font-bold flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-indigo-600" />
+                    Rasmiy Hisob-faktura (Invoys)
+                  </DialogTitle>
+                  <Badge variant="success" className="text-[10px]">
+                    0% komissiya
+                  </Badge>
+                </div>
+                <DialogDescription className="text-xs">
+                  Didox / Bank tizimiga kiritish uchun rasmiy rekvizitlar shakllantirildi
+                </DialogDescription>
+              </DialogHeader>
 
-          <div className="space-y-3 py-1">
-            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-1.5">
-              <div className="font-semibold text-foreground">
-                1. Click / Payme (tayyorlanmoqda)
+              <div className="space-y-3 py-1">
+                <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3 font-mono text-[11px]">
+                  <div className="flex items-center justify-between border-b border-border pb-2">
+                    <div>
+                      <span className="text-muted-foreground text-[10px] block font-sans">Hujjat raqami</span>
+                      <span className="font-bold text-foreground">
+                        {checkoutOrder.invoiceNumber ||
+                          checkoutOrder.order?.orderId ||
+                          `INV-${Date.now().toString().slice(-6)}`}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-muted-foreground text-[10px] block font-sans">Buyurtma ID</span>
+                      <span className="text-muted-foreground">
+                        {checkoutOrder.orderId || checkoutOrder.order?.orderId || "—"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Seller */}
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-sans font-semibold text-muted-foreground uppercase">
+                      Yetkazib beruvchi (Sotuvchi):
+                    </span>
+                    <div className="text-foreground font-semibold">«FIRMUS TECH» MChJ</div>
+                    <div className="text-muted-foreground">STIR: 309888777 • MFO: 00440</div>
+                    <div className="text-muted-foreground">
+                      H/R: 2020 8000 9005 1234 5001 («Oʻzsanoatqurilishbank» ATB)
+                    </div>
+                  </div>
+
+                  {/* Buyer */}
+                  <div className="space-y-0.5 border-t border-border/60 pt-2">
+                    <span className="text-[10px] font-sans font-semibold text-muted-foreground uppercase">
+                      Buyurtmachi (Xaridor):
+                    </span>
+                    <div className="text-foreground font-semibold">
+                      {checkoutOrder.b2bMetadata?.companyName ||
+                        b2bCompanyName ||
+                        currentEntity?.name ||
+                        "Mijoz"}
+                    </div>
+                    <div className="text-muted-foreground">
+                      STIR: {checkoutOrder.b2bMetadata?.tinStir || b2bTinStir || currentEntity?.tinStir || "—"}
+                      {(checkoutOrder.b2bMetadata?.bankAccount || b2bBankAccount) && (
+                        <span> • H/R: {checkoutOrder.b2bMetadata?.bankAccount || b2bBankAccount}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sum & Purpose */}
+                  <div className="space-y-1.5 border-t border-border/60 pt-2 font-sans">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Jami toʻlov summasi:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base font-bold font-mono text-foreground">
+                          {formatUzs(
+                            checkoutOrder.amountUzs ||
+                              (billingCycle === "annual"
+                                ? !annualDiscountUsed
+                                  ? selectedPlanForInfo.annualTotalPriceUzs
+                                  : selectedPlanForInfo.monthlyPriceUzs * 12
+                                : selectedPlanForInfo.monthlyPriceUzs)
+                          )}
+                        </span>
+                        <Badge variant="success" className="text-[9px] px-1 py-0 h-4">
+                          0% komissiya
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-background p-2.5 border border-border text-[11px] font-mono leading-relaxed text-muted-foreground">
+                      <span className="font-semibold text-foreground block font-sans text-[10px] mb-0.5">
+                        Toʻlov maqsadi:
+                      </span>
+                      {checkoutOrder.paymentPurpose ||
+                        `FIRMUS AI ${selectedPlanForInfo.name} tarifi uchun ${
+                          billingCycle === "annual" ? "yillik (12 oylik)" : "oylik"
+                        } dasturiy taʼminot obuna toʻlovi. QQS siz`}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1.5"
+                      onClick={handleCopyInvoice}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copiedInvoice ? "Nusxalandi!" : "Nusxa olish"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs gap-1.5"
+                      onClick={() => window.print()}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      Chop etish / PDF
+                    </Button>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-muted-foreground"
+                    onClick={() => setCheckoutOrder(null)}
+                  >
+                    Boshqa usul
+                  </Button>
+                </div>
               </div>
-              <p className="text-muted-foreground leading-relaxed">
-                Avtomatik karta toʻlov shlyuzi keyingi bosqichda ulanadi. Toʻlov tasdiqlangach obuna serverda avtomatik faollashadi.
-              </p>
+
+              <DialogFooter className="pt-2 border-t border-border flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  variant="success"
+                  size="sm"
+                  disabled={isConfirmingOrder}
+                  className="w-full sm:w-auto h-9 text-xs gap-1.5 ml-auto"
+                  onClick={() =>
+                    handleConfirmOrder(checkoutOrder.orderId || checkoutOrder.order?.orderId)
+                  }
+                >
+                  {isConfirmingOrder ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  )}
+                  Toʻlovni tasdiqlash (Demo / Sinov)
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          ) : (
+            /* 2/3. Payme / Click Sandbox Order Confirmation */
+            <DialogContent className="sm:max-w-md text-xs">
+              <DialogHeader>
+                <div className="flex items-center justify-between pr-6">
+                  <DialogTitle className="text-base font-bold flex items-center gap-2">
+                    {paymentMethod === "payme" ? (
+                      <CreditCard className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <QrCode className="h-4 w-4 text-sky-600" />
+                    )}
+                    {paymentMethod === "payme" ? "Payme toʻlov buyurtmasi" : "Click toʻlov buyurtmasi"}
+                  </DialogTitle>
+                  <Badge variant="outline" className="text-[10px]">
+                    {paymentMethod === "payme" ? "Payme Sandbox" : "Click Sandbox"}
+                  </Badge>
+                </div>
+                <DialogDescription className="text-xs">
+                  Toʻlov shlyuzi uchun buyurtma yaratildi
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3 py-2">
+                <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Buyurtma raqami:</span>
+                    <span className="font-mono font-semibold text-foreground">
+                      {checkoutOrder.orderId || checkoutOrder.order?.orderId || "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Tanlangan tarif:</span>
+                    <span className="font-semibold text-foreground">
+                      {selectedPlanForInfo.name} ({billingCycle === "annual" ? "Yillik" : "Oylik"})
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border pt-2">
+                    <span className="text-muted-foreground">Toʻlov summasi:</span>
+                    <span className="font-mono font-bold text-sm text-foreground">
+                      {formatUzs(
+                        checkoutOrder.amountUzs ||
+                          (billingCycle === "annual"
+                            ? !annualDiscountUsed
+                              ? selectedPlanForInfo.annualTotalPriceUzs
+                              : selectedPlanForInfo.monthlyPriceUzs * 12
+                            : selectedPlanForInfo.monthlyPriceUzs)
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Sandbox sinov muhitida toʻlovni 1 klikda tasdiqlab, tarifni darhol faollashtirishingiz mumkin.
+                </p>
+              </div>
+
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCheckoutOrder(null)}
+                >
+                  Boshqa usul
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isConfirmingOrder}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  onClick={() =>
+                    handleConfirmOrder(checkoutOrder.orderId || checkoutOrder.order?.orderId)
+                  }
+                >
+                  {isConfirmingOrder ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  )}
+                  {paymentMethod === "payme" ? "Payme" : "Click"} Sandbox toʻlovni tasdiqlash
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          )
+        ) : (
+          /* Payment Method Selection */
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto text-xs">
+            <DialogHeader>
+              <div className="flex items-center justify-between pr-6">
+                <DialogTitle className="text-base font-bold">
+                  {selectedPlanForInfo.name} tarifiga toʻlov
+                </DialogTitle>
+                <Badge variant="indigo" className="text-[10px]">
+                  {billingCycle === "annual" ? "Yillik obuna" : "Oylik obuna"}
+                </Badge>
+              </div>
+              <DialogDescription className="text-xs">
+                {billingCycle === "annual"
+                  ? !annualDiscountUsed
+                    ? `Yillik jami: ${formatUzs(
+                        selectedPlanForInfo.annualTotalPriceUzs
+                      )} (20% bir martalik chegirma hisobga olingan)`
+                    : `Yillik jami: ${formatUzs(
+                        selectedPlanForInfo.monthlyPriceUzs * 12
+                      )} (standart yillik tarif)`
+                  : `Oylik toʻlov: ${formatUzs(selectedPlanForInfo.monthlyPriceUzs)} / oy`}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                Toʻlov usulini tanlang (Oʻzbekistondagi eng past komissiyali usullar):
+              </div>
+
+              {/* 1. Bank transfer didox */}
+              <div
+                onClick={() => setPaymentMethod("bank_transfer_didox")}
+                className={cn(
+                  "cursor-pointer rounded-xl border p-3.5 transition-all text-xs space-y-2",
+                  paymentMethod === "bank_transfer_didox"
+                    ? "border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 ring-1 ring-indigo-600"
+                    : "border-border hover:border-slate-300 dark:hover:border-slate-700 bg-muted/20"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-indigo-600 shrink-0" />
+                    <span className="font-semibold text-foreground">
+                      Bank oʻtkazmasi / Didox Hisob-faktura
+                    </span>
+                  </div>
+                  <Badge variant="success" className="text-[9px] px-1.5 py-0 h-4">
+                    0% komissiya (Tavsiya etiladi — B2B / YaTT)
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Yuridik shaxslar va YaTT lar uchun rasmiy hisob-faktura (invoys) shakllantirish va E-SF orqali toʻlov.
+                </p>
+
+                {paymentMethod === "bank_transfer_didox" && (
+                  <div
+                    className="space-y-2.5 pt-2 border-t border-border/60"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">STIR (INN) *</Label>
+                        <Input
+                          placeholder="Masalan: 301234567"
+                          value={b2bTinStir}
+                          onChange={(e) => setB2bTinStir(e.target.value)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Korxona / YaTT nomi *</Label>
+                        <Input
+                          placeholder="MChJ yoki YaTT nomi"
+                          value={b2bCompanyName}
+                          onChange={(e) => setB2bCompanyName(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        Hisob raqam (20 xonali, ixtiyoriy)
+                      </Label>
+                      <Input
+                        placeholder="2020 8000 ..."
+                        value={b2bBankAccount}
+                        onChange={(e) => setB2bBankAccount(e.target.value)}
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Payme */}
+              <div
+                onClick={() => setPaymentMethod("payme")}
+                className={cn(
+                  "cursor-pointer rounded-xl border p-3.5 transition-all text-xs space-y-1.5",
+                  paymentMethod === "payme"
+                    ? "border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 ring-1 ring-indigo-600"
+                    : "border-border hover:border-slate-300 dark:hover:border-slate-700 bg-muted/20"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <span className="font-semibold text-foreground">
+                      Payme (Uzcard / Humo)
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                    ~1% shlyuz komissiyasi (foydalanuvchidan 0 soʻm ustama)
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Uzcard va Humo kartalari orqali lahzalik xavfsiz toʻlov va obunaning avtomatik faollashuvi.
+                </p>
+              </div>
+
+              {/* 3. Click */}
+              <div
+                onClick={() => setPaymentMethod("click")}
+                className={cn(
+                  "cursor-pointer rounded-xl border p-3.5 transition-all text-xs space-y-1.5",
+                  paymentMethod === "click"
+                    ? "border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 ring-1 ring-indigo-600"
+                    : "border-border hover:border-slate-300 dark:hover:border-slate-700 bg-muted/20"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <QrCode className="h-4 w-4 text-sky-600 shrink-0" />
+                    <span className="font-semibold text-foreground">
+                      Click Up / QR (Uzcard / Humo)
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                    ~1% shlyuz komissiyasi (foydalanuvchidan 0 soʻm ustama)
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Click ilovasi, QR-kod yoki bank kartasi orqali bir zumda toʻlov.
+                </p>
+              </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/30 p-3.5 space-y-1.5">
-              <div className="font-semibold text-foreground">
-                2. Bank oʻtkazmasi (Hisob-faktura / Didox E-SF)
-              </div>
-              <p className="text-muted-foreground leading-relaxed">
-                Yuridik shaxslar va YaTT lar uchun hisob raqamdan koʻchirish hamda E-SF asosida tarif faollashtirish qoʻllab-quvvatlanadi.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" size="sm" onClick={() => setIsPaymentModalOpen(false)}>
-              Tushunarli
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isCheckingOut}
+                onClick={() => setIsPaymentModalOpen(false)}
+              >
+                Bekor qilish
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isCheckingOut}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                onClick={handleInitiateCheckout}
+              >
+                {isCheckingOut ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : paymentMethod === "bank_transfer_didox" ? (
+                  <Receipt className="h-3.5 w-3.5" />
+                ) : (
+                  <ArrowRight className="h-3.5 w-3.5" />
+                )}
+                {paymentMethod === "bank_transfer_didox"
+                  ? "Hisob-faktura (Invoys) shakllantirish"
+                  : paymentMethod === "payme"
+                  ? "Payme orqali toʻlash"
+                  : "Click orqali toʻlash"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        )}
       </Dialog>
     </div>
   );

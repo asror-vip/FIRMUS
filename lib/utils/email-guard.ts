@@ -53,10 +53,15 @@ export function canonicalizeEmail(rawEmail?: string | null): string {
   return `${local}@${domain}`;
 }
 
+export { maskEmail } from "./privacy";
+
 export function isDisposableEmailDomain(rawEmail?: string | null): boolean {
   const clean = String(rawEmail || "").trim().toLowerCase();
   const atIdx = clean.lastIndexOf("@");
   if (atIdx <= 0) return false;
   const domain = clean.slice(atIdx + 1);
-  return DISPOSABLE_DOMAINS.has(domain);
+  return (
+    DISPOSABLE_DOMAINS.has(domain) ||
+    Array.from(DISPOSABLE_DOMAINS).some((d) => domain.endsWith("." + d))
+  );
 }

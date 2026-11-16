@@ -9,6 +9,7 @@ import {
 import {
   canonicalizeEmail,
   isDisposableEmailDomain,
+  maskEmail,
 } from "../../lib/utils/email-guard";
 
 describe("Subscription Plans, AI Models & Memory Limits", () => {
@@ -63,13 +64,22 @@ describe("Subscription Plans, AI Models & Memory Limits", () => {
     expect(normalizeModelId(null)).toBe("gemini-3.8-flash");
   });
 
-  it("canonicalizes Gmail aliases/dots and detects disposable email domains", () => {
+  it("canonicalizes Gmail aliases/dots and detects disposable email domains including subdomains", () => {
     expect(canonicalizeEmail("A.Sad.Bek+trial1@gmail.com")).toBe("asadbek@gmail.com");
     expect(canonicalizeEmail("user+promo@googlemail.com")).toBe("user@gmail.com");
     expect(canonicalizeEmail("finance.dept+1@firm.uz")).toBe("finance.dept@firm.uz");
 
     expect(isDisposableEmailDomain("test@mailinator.com")).toBe(true);
     expect(isDisposableEmailDomain("abc@tempmail.com")).toBe(true);
+    expect(isDisposableEmailDomain("test@sub.mailinator.com")).toBe(true);
+    expect(isDisposableEmailDomain("test@deep.sub.temp-mail.org")).toBe(true);
     expect(isDisposableEmailDomain("real.user@gmail.com")).toBe(false);
+    expect(isDisposableEmailDomain("accountant@korxona.uz")).toBe(false);
+  });
+
+  it("masks emails safely via email-guard helper", () => {
+    expect(maskEmail("asror@gmail.com")).toBe("as***r@gmail.com");
+    expect(maskEmail("ab@mail.uz")).toBe("a***@mail.uz");
+    expect(maskEmail("")).toBe("—");
   });
 });

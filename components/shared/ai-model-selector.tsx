@@ -23,7 +23,6 @@ export function AiModelSelector({ compact = false }: { compact?: boolean }) {
     if (subscription.preferredModel === modelId) return;
     try {
       await setPreferredAiModel(modelId);
-      toast.success(`Model tanlandi: ${AI_MODELS[modelId].label}`);
     } catch (err: any) {
       toast.error(err?.message || "Modelni almashtirib boʻlmadi");
     }

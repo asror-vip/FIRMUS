@@ -373,7 +373,11 @@ export function reconcileBankAnd1C(
       if (b.type !== c.type) continue;
 
       const stirMatch = Boolean(b.counterpartyStir && c.counterpartyStir && b.counterpartyStir === c.counterpartyStir);
-      const nameMatch = bNormName.length >= 3 && normalizeName(c.counterparty).includes(bNormName.slice(0, 6));
+      const cNormName = normalizeName(c.counterparty);
+      const nameMatch =
+        bNormName.length >= 5
+          ? cNormName.includes(bNormName.slice(0, 6))
+          : bNormName.length > 0 && bNormName === cNormName;
       const docMatch = Boolean(b.documentNumber && c.documentNumber && b.documentNumber === c.documentNumber);
       const days = dateDiffDays(b.date, c.date);
       const diffAmt = Math.abs(b.amount - c.amount);
@@ -615,6 +619,16 @@ export function buildSafeAiReconcileInput(rows: ReconcileRow[]) {
     }));
 }
 
+function sanitizeCsvField(val?: string | null): string {
+  const str = String(val || "");
+  const trimmed = str.trimStart();
+  const escaped = str.replace(/"/g, '""');
+  if (/^[=+\-@\t\r]/.test(trimmed)) {
+    return `"'${escaped}"`;
+  }
+  return `"${escaped}"`;
+}
+
 export function buildReconcileCsvReport(rows: ReconcileRow[]): string {
   const header = "Holat;Sana;Turi;Kontragent;STIR;Bank summasi;1C summasi;Farq;21-BHMS Schyot;QQS 12%;Izoh";
   const labelMap: Record<ReconcileStatus, string> = {
@@ -628,14 +642,14 @@ export function buildReconcileCsvReport(rows: ReconcileRow[]): string {
       labelMap[r.status],
       r.date,
       r.type === "income" ? "Kirim" : "Chiqim",
-      `"${r.counterparty.replace(/"/g, '""')}"`,
+      sanitizeCsvField(r.counterparty),
       r.counterpartyStir || "",
       r.bankAmount,
       r.oneCAmount,
       r.diffAmount,
       r.suggestedAccountCode,
       r.vatIncluded ? "Ha (12%)" : "Yo'q",
-      `"${r.explanation.replace(/"/g, '""')}"`,
+      sanitizeCsvField(r.explanation),
     ].join(";")
   );
   return "\uFEFF" + [header, ...body].join("\r\n");

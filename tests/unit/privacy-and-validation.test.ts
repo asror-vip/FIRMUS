@@ -3,14 +3,18 @@ import {
   normalizeUzPhone,
   formatUzPhoneDisplay,
   maskPinfl,
+  maskEmail,
   depersonalizeForAi,
+  sanitizeStringForAi,
 } from "@/lib/utils/privacy";
 import {
   journalEntrySchema,
   employeeSchema,
   bankAccountSchema,
   businessEntitySchema,
+  teamInviteSchema,
 } from "@/lib/validations/accounting";
+import { getClientDeviceHash } from "@/lib/utils/device-fingerprint";
 
 describe("Privacy, Eskiz Phone Normalization & Depersonalization", () => {
   it("normalizes 9-digit and +998 Uzbekistan numbers for Eskiz API", () => {
@@ -45,6 +49,31 @@ describe("Privacy, Eskiz Phone Normalization & Depersonalization", () => {
     expect(sanitized.memo).toBe("Uzcard [KARTA_MASKED] orqali tolov");
     expect(sanitized.balance).toBe(325000000);
     expect(sanitized.vatPayable).toBe(12000000);
+  });
+
+  it("masks emails cleanly for UI display", () => {
+    expect(maskEmail("asror@gmail.com")).toBe("as***r@gmail.com");
+    expect(maskEmail("ab@mail.uz")).toBe("a***@mail.uz");
+    expect(maskEmail("")).toBe("—");
+    expect(maskEmail(null)).toBe("—");
+    expect(maskEmail(undefined)).toBe("—");
+  });
+
+  it("preserves 9-digit monetary figures with currency words and masks emails/passports in sanitizeStringForAi", () => {
+    const textWithMoney = "Shartnoma bo'yicha 325000000 soʻm to'landi va 250000000 uzs kutilmoqda";
+    const sanitizedMoney = sanitizeStringForAi(textWithMoney);
+    expect(sanitizedMoney).toContain("325000000 soʻm");
+    expect(sanitizedMoney).toContain("250000000 uzs");
+    expect(sanitizedMoney).not.toContain("[STIR_MASKED]");
+
+    const textWithStir = "Kompaniya STIR raqami 301948572 va direktor email asror@firmus.uz pasport AA1234567";
+    const sanitizedPii = sanitizeStringForAi(textWithStir);
+    expect(sanitizedPii).toContain("[STIR_MASKED]");
+    expect(sanitizedPii).toContain("[EMAIL_MASKED]");
+    expect(sanitizedPii).toContain("[PASSPORT_MASKED]");
+    expect(sanitizedPii).not.toContain("301948572");
+    expect(sanitizedPii).not.toContain("asror@firmus.uz");
+    expect(sanitizedPii).not.toContain("AA1234567");
   });
 });
 
@@ -106,5 +135,59 @@ describe("Zod Financial Form Schemas", () => {
         taxRegime: "vat_profit_tax",
       }).success
     ).toBe(true);
+  });
+
+  it("prevents escalating invites to workspace_owner in teamInviteSchema", () => {
+    const invalidOwnerInvite = teamInviteSchema.safeParse({
+      name: "Ali Valiyev",
+      email: "ali@example.com",
+      role: "workspace_owner",
+    });
+    expect(invalidOwnerInvite.success).toBe(false);
+
+    const validChiefAccountant = teamInviteSchema.safeParse({
+      name: "Vali Aliyev",
+      email: "vali@example.com",
+      role: "chief_accountant",
+    });
+    expect(validChiefAccountant.success).toBe(true);
+  });
+
+  it("generates deterministic device fingerprint using persistent localStorage firmus_device_token", async () => {
+    const store: Record<string, string> = {};
+    const mockStorage = {
+      getItem: (k: string) => store[k] || null,
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+    };
+
+    const prevWindow = (globalThis as unknown as { window?: unknown }).window;
+    Object.defineProperty(globalThis, "window", {
+      value: { localStorage: mockStorage },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const hash1 = await getClientDeviceHash();
+      expect(hash1).toBeDefined();
+      expect(store["firmus_device_token"]).toBeDefined();
+      const token = store["firmus_device_token"];
+
+      const hash2 = await getClientDeviceHash();
+      expect(hash1).toBe(hash2);
+      expect(store["firmus_device_token"]).toBe(token);
+    } finally {
+      if (prevWindow === undefined) {
+        delete (globalThis as unknown as { window?: unknown }).window;
+      } else {
+        Object.defineProperty(globalThis, "window", {
+          value: prevWindow,
+          configurable: true,
+          writable: true,
+        });
+      }
+    }
   });
 });

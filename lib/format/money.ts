@@ -6,20 +6,21 @@ export function formatMoney(
     compact?: boolean;
   }
 ): string {
-  const num = typeof amount === "string" ? parseFloat(amount) : amount;
-  if (isNaN(num)) return "0 soʻm";
-
   const { currency = "soʻm", showSign = false, compact = false } = options || {};
+  const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (typeof num !== "number" || Number.isNaN(num)) return `0 ${currency}`;
+
+  const sign = showSign && num > 0 ? "+" : "";
 
   if (compact) {
     if (Math.abs(num) >= 1_000_000_000) {
-      return `${(num / 1_000_000_000).toFixed(1)} mlrd ${currency}`;
+      return `${sign}${(num / 1_000_000_000).toFixed(1)} mlrd ${currency}`;
     }
     if (Math.abs(num) >= 1_000_000) {
-      return `${(num / 1_000_000).toFixed(1)} mln ${currency}`;
+      return `${sign}${(num / 1_000_000).toFixed(1)} mln ${currency}`;
     }
     if (Math.abs(num) >= 1_000) {
-      return `${(num / 1_000).toFixed(0)} ming ${currency}`;
+      return `${sign}${(num / 1_000).toFixed(0)} ming ${currency}`;
     }
   }
 
@@ -28,6 +29,5 @@ export function formatMoney(
     maximumFractionDigits: 2,
   }).format(num);
 
-  const sign = showSign && num > 0 ? "+" : "";
   return `${sign}${formatted} ${currency}`;
 }
