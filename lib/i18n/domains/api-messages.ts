@@ -69,6 +69,8 @@ export interface ApiMessages {
   subscriptionFetchError: string;
   orderConfirmFailed: string;
   orderCancelFailed: string;
+  orderInFlightCannotCreate: string;
+  orderInFlightCannotCancel: string;
   b2bInvoicePurpose: (orderId: string) => string;
   b2bContractNotice: string;
   disposableEmailTrialForbidden: string;
@@ -236,6 +238,10 @@ const API_DICTIONARIES: Record<Locale, ApiMessages> = {
     subscriptionFetchError: "Obuna maʼlumotini olishda xatolik",
     orderConfirmFailed: "Buyurtmani tasdiqlashda xatolik yuz berdi",
     orderCancelFailed: "Buyurtmani bekor qilib boʻlmadi",
+    orderInFlightCannotCreate:
+      "Oldingi toʻlov jarayoni tugallanmoqda. Iltimos, biroz kuting yoki sahifani yangilang.",
+    orderInFlightCannotCancel:
+      "Toʻlov jarayoni allaqachon boshlangan — buyurtmani bekor qilib boʻlmaydi. Biroz kuting.",
     b2bInvoicePurpose: (orderId: string) => `FIRMUS SaaS obunasi uchun toʻlov (${orderId}). QQSsiz.`,
     b2bContractNotice:
       "Didox yoki 1C E-SF orqali hisob-faktura yuboriladi yoki bank ilovasida koʻrsatilgan hisob raqamga toʻlov qiling.",
@@ -331,6 +337,10 @@ const API_DICTIONARIES: Record<Locale, ApiMessages> = {
     subscriptionFetchError: "Ошибка при получении данных подписки",
     orderConfirmFailed: "Ошибка при подтверждении заказа",
     orderCancelFailed: "Не удалось отменить заказ",
+    orderInFlightCannotCreate:
+      "Предыдущий платёж ещё обрабатывается. Пожалуйста, подождите немного или обновите страницу.",
+    orderInFlightCannotCancel:
+      "Платёж уже обрабатывается и не может быть отменён. Пожалуйста, подождите.",
     b2bInvoicePurpose: (orderId: string) => `Оплата за подписку FIRMUS SaaS (${orderId}). Без НДС.`,
     b2bContractNotice:
       "Счёт-фактура будет отправлена через Didox или 1С ЭСФ, либо оплатите по указанным банковским реквизитам.",
@@ -426,6 +436,10 @@ const API_DICTIONARIES: Record<Locale, ApiMessages> = {
     subscriptionFetchError: "Failed to load subscription details",
     orderConfirmFailed: "Failed to confirm order",
     orderCancelFailed: "Failed to cancel order",
+    orderInFlightCannotCreate:
+      "A previous payment is still being processed. Please wait a moment or refresh the page.",
+    orderInFlightCannotCancel:
+      "Payment is already in progress and cannot be cancelled. Please wait a moment.",
     b2bInvoicePurpose: (orderId: string) => `Payment for FIRMUS SaaS subscription (${orderId}). VAT-exempt.`,
     b2bContractNotice:
       "An e-invoice will be sent via Didox or 1C E-SF, or transfer to the specified bank account.",
@@ -440,7 +454,13 @@ export function getApiMessages(locale: Locale): ApiMessages {
 }
 
 export function localizeServerError(message: string, locale: Locale): string {
-  if (!message || locale === "uz") return message;
+  if (!message) return message;
+
+  if (message.includes("Oldingi toʻlov jarayoni tugallanmoqda")) {
+    return (API_DICTIONARIES[locale] || API_DICTIONARIES.uz).orderInFlightCannotCreate;
+  }
+
+  if (locale === "uz") return message;
 
   // 1. Burst rate limit
   const burstMatch = message.match(/(\d+)\s*soniyadan keyin qayta urinib koʻring/);

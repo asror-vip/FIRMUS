@@ -33,11 +33,39 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
+    const orderIdParam = req.nextUrl.searchParams.get("orderId")?.trim() || "";
+    const safeColumns =
+      "order_id, plan_id, billing_cycle, regular_amount_uzs, discount_amount_uzs, final_amount_uzs, payment_method, status, provider_state, b2b_metadata, paid_at, created_at";
+
+    if (orderIdParam) {
+      const { data: order, error } = await supabase
+        .from("billing_orders")
+        .select(safeColumns)
+        .eq("user_id", user.id)
+        .eq("order_id", orderIdParam)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Checkout GET single order error:", error);
+        return NextResponse.json({ error: msg.systemError }, { status: 500 });
+      }
+
+      if (!order) {
+        return NextResponse.json(
+          { error: msg.orderNotFound, order: null, subscription: null },
+          { status: 404 }
+        );
+      }
+
+      const subscription =
+        order.status === "paid" ? await resolveEffectiveSubscription(user.id) : null;
+
+      return NextResponse.json({ order, subscription });
+    }
+
     const { data: orders, error } = await supabase
       .from("billing_orders")
-      .select(
-        "order_id, plan_id, billing_cycle, regular_amount_uzs, discount_amount_uzs, final_amount_uzs, payment_method, status, paid_at, created_at"
-      )
+      .select(safeColumns)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10);
@@ -159,10 +187,14 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const inFlight = Boolean(cancelRes?.in_flight);
+
       return NextResponse.json({
         success: true,
         orderId,
         cancelled: Boolean(cancelRes?.cancelled),
+        inFlight,
+        ...(inFlight ? { message: msg.orderInFlightCannotCancel } : {}),
       });
     }
 
@@ -231,7 +263,8 @@ export async function POST(req: NextRequest) {
       const isConflict =
         rawMsg.includes("allaqachon toʻlangan") ||
         rawMsg.includes("yuqoriroq tarif faol") ||
-        rawMsg.includes("faol!");
+        rawMsg.includes("faol!") ||
+        rawMsg.includes("Oldingi toʻlov jarayoni tugallanmoqda");
 
       return NextResponse.json(
         { error: rawMsg ? localizeServerError(rawMsg, locale) : msg.orderCreateFailed },
@@ -250,10 +283,13 @@ export async function POST(req: NextRequest) {
     } = orderData;
 
     // Checkout URLs
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://app.firmus.uz").replace(/\/+$/, "");
+    const returnUrl = `${appUrl}/billing?order=${encodeURIComponent(orderId)}`;
+
     const paymeMerchantId = process.env.PAYME_MERCHANT_ID?.trim();
     let paymeCheckoutUrl: string | null = null;
     if (paymeMerchantId) {
-      const params = `m=${paymeMerchantId};ac.order_id=${orderId};a=${finalAmountTiyin}`;
+      const params = `m=${paymeMerchantId};ac.order_id=${orderId};a=${finalAmountTiyin};c=${returnUrl}`;
       const encoded = Buffer.from(params).toString("base64");
       paymeCheckoutUrl = `https://checkout.paycom.uz/${encoded}`;
     }
@@ -262,9 +298,8 @@ export async function POST(req: NextRequest) {
     const clickServiceId = process.env.CLICK_SERVICE_ID?.trim();
     let clickCheckoutUrl: string | null = null;
     if (clickMerchantId && clickServiceId) {
-      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://app.firmus.uz").replace(/\/+$/, "");
-      const returnUrl = encodeURIComponent(`${appUrl}/billing?order=${encodeURIComponent(orderId)}`);
-      clickCheckoutUrl = `https://my.click.uz/services/pay?service_id=${clickServiceId}&merchant_id=${clickMerchantId}&amount=${finalAmountUzs}&transaction_param=${orderId}&return_url=${returnUrl}`;
+      const encodedReturnUrl = encodeURIComponent(returnUrl);
+      clickCheckoutUrl = `https://my.click.uz/services/pay?service_id=${clickServiceId}&merchant_id=${clickMerchantId}&amount=${finalAmountUzs}&transaction_param=${orderId}&return_url=${encodedReturnUrl}`;
     }
 
     // Invoice details for B2B bank transfer / Didox

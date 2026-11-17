@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { Suspense, useEffect, useState, useCallback, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import {
@@ -46,9 +47,99 @@ import {
   QrCode,
   ArrowRight,
   CheckCircle2,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+const LAST_CHECKOUT_ORDER_KEY = "firmus_last_checkout_order";
+
+interface BillingOrderSummary {
+  orderId: string;
+  planId: string;
+  billingCycle: "monthly" | "annual";
+  finalAmountUzs: number;
+  paymentMethod: "bank_transfer_didox" | "payme" | "click";
+  status: string;
+  createdAt?: string | null;
+  b2bMetadata?: { tinStir?: string; companyName?: string } | null;
+  invoiceDetails?: any;
+}
+
+function saveLastCheckoutOrder(orderId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(LAST_CHECKOUT_ORDER_KEY, orderId);
+  } catch {}
+}
+
+function readLastCheckoutOrder(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(LAST_CHECKOUT_ORDER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearLastCheckoutOrder(expectedOrderId?: string) {
+  if (typeof window === "undefined") return;
+  try {
+    if (expectedOrderId) {
+      const current = window.sessionStorage.getItem(LAST_CHECKOUT_ORDER_KEY);
+      if (current !== expectedOrderId) return;
+    }
+    window.sessionStorage.removeItem(LAST_CHECKOUT_ORDER_KEY);
+  } catch {}
+}
+
+function normalizeOrderRecord(raw: any): BillingOrderSummary | null {
+  if (!raw || typeof raw !== "object") return null;
+  const orderId = String(raw.orderId ?? raw.order_id ?? "").trim();
+  if (!orderId) return null;
+  const rawMethod = raw.paymentMethod ?? raw.payment_method;
+  const paymentMethod: "bank_transfer_didox" | "payme" | "click" =
+    rawMethod === "bank_transfer_didox" || rawMethod === "click" ? rawMethod : "payme";
+  const rawCycle = raw.billingCycle ?? raw.billing_cycle;
+  const billingCycle: "monthly" | "annual" = rawCycle === "annual" ? "annual" : "monthly";
+  return {
+    orderId,
+    planId: String(raw.planId ?? raw.plan_id ?? "professional"),
+    billingCycle,
+    finalAmountUzs: Number(raw.finalAmountUzs ?? raw.final_amount_uzs ?? raw.amountUzs ?? 0),
+    paymentMethod,
+    status: String(raw.status ?? ""),
+    createdAt: raw.createdAt ?? raw.created_at ?? null,
+    b2bMetadata: raw.b2bMetadata ?? raw.b2b_metadata ?? null,
+    invoiceDetails: raw.invoiceDetails ?? raw.invoice_details ?? null,
+  };
+}
+
+function extractSingleOrderFromResponse(data: any, targetOrderId?: string): BillingOrderSummary | null {
+  if (!data || typeof data !== "object") return null;
+  if (data.order) {
+    const normalized = normalizeOrderRecord(data.order);
+    if (normalized) return normalized;
+  }
+  if (typeof data.status === "string" && (data.orderId || data.order_id || targetOrderId)) {
+    const normalized = normalizeOrderRecord({
+      ...data,
+      orderId: data.orderId ?? data.order_id ?? targetOrderId,
+    });
+    if (normalized) return normalized;
+  }
+  if (Array.isArray(data.orders)) {
+    const normalizedList = data.orders
+      .map(normalizeOrderRecord)
+      .filter((item: BillingOrderSummary | null): item is BillingOrderSummary => Boolean(item));
+    if (targetOrderId) {
+      return normalizedList.find((o: BillingOrderSummary) => o.orderId === targetOrderId) ?? null;
+    }
+    return normalizedList[0] ?? null;
+  }
+  return null;
+}
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -97,7 +188,11 @@ function daysRemaining(isoDate: string | null): number {
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 
-export default function BillingPage() {
+function BillingContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderQueryParam = searchParams.get("order")?.trim() || null;
+
   const { locale } = useTranslation();
   const dict = getBillingHomeDict(locale);
   const b = dict.billing;
@@ -127,6 +222,12 @@ export default function BillingPage() {
   );
   const [isLoadingUsage, setIsLoadingUsage] = useState(!initialUsage);
 
+  // Recent orders & return-polling states
+  const [recentOrders, setRecentOrders] = useState<BillingOrderSummary[]>([]);
+  const [isPollingReturn, setIsPollingReturn] = useState(false);
+  const [isCheckingPendingOrder, setIsCheckingPendingOrder] = useState(false);
+  const [isCancellingPendingOrder, setIsCancellingPendingOrder] = useState(false);
+
   const activePlanSpec = selectedPlanForInfo
     ? getLocalizedPlanSpec(selectedPlanForInfo.id, locale)
     : null;
@@ -141,6 +242,12 @@ export default function BillingPage() {
   const [copiedInvoice, setCopiedInvoice] = useState(false);
 
   const initializedEntityRef = useRef<string | null>(null);
+  const dictRef = useRef(b);
+  useEffect(() => {
+    dictRef.current = b;
+  }, [b]);
+  const completedPollsRef = useRef<Set<string>>(new Set());
+  const activePollOrderRef = useRef<string | null>(null);
 
   useEffect(() => {
     const entityId = currentEntity?.id ?? null;
@@ -150,6 +257,22 @@ export default function BillingPage() {
       setB2bCompanyName(currentEntity?.name || "");
     }
   }, [currentEntity]);
+
+  const loadRecentOrders = useCallback(async () => {
+    try {
+      const res = await fetch("/api/subscription/checkout", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.orders)) {
+        const normalized = data.orders
+          .map(normalizeOrderRecord)
+          .filter((item: BillingOrderSummary | null): item is BillingOrderSummary => Boolean(item));
+        setRecentOrders(normalized);
+      }
+    } catch (err) {
+      console.warn("Failed to load recent billing orders:", err);
+    }
+  }, []);
 
   const loadStats = useCallback(async () => {
     const cached = peekQueryCache<{ monthlyBatches: number; aiThreadsCount: number }>(
@@ -162,19 +285,133 @@ export default function BillingPage() {
       setIsLoadingUsage(true);
     }
     try {
-      const res = await fetchWorkspaceUsageSummary({
-        workspaceId: currentWorkspace?.id,
-        entityId: currentEntity?.id,
-      });
+      const [res] = await Promise.all([
+        fetchWorkspaceUsageSummary({
+          workspaceId: currentWorkspace?.id,
+          entityId: currentEntity?.id,
+        }),
+        loadRecentOrders(),
+      ]);
       setUsage(res);
     } finally {
       setIsLoadingUsage(false);
     }
-  }, [currentWorkspace?.id, currentEntity?.id]);
+  }, [currentWorkspace?.id, currentEntity?.id, loadRecentOrders]);
 
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  // Automatic Order Return Polling (?order=... or sessionStorage)
+  useEffect(() => {
+    const storedOrderId = readLastCheckoutOrder();
+    const targetOrderId = orderQueryParam || storedOrderId;
+    if (!targetOrderId) return;
+    if (completedPollsRef.current.has(targetOrderId)) return;
+    if (activePollOrderRef.current === targetOrderId) return;
+
+    activePollOrderRef.current = targetOrderId;
+    let cancelled = false;
+
+    const pollOrderStatus = async () => {
+      setIsPollingReturn(true);
+      const maxAttempts = 6;
+      try {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          if (cancelled) return;
+
+          const res = await fetch(
+            `/api/subscription/checkout?orderId=${encodeURIComponent(targetOrderId)}`,
+            { cache: "no-store" }
+          );
+
+          if (cancelled) return;
+
+          if (res.ok) {
+            const data = await res.json();
+            const order = extractSingleOrderFromResponse(data, targetOrderId);
+            const status =
+              order?.status ?? (typeof data?.status === "string" ? data.status : "");
+
+            if (status === "paid") {
+              completedPollsRef.current.add(targetOrderId);
+              clearLastCheckoutOrder(targetOrderId);
+              await refreshSubscription();
+              await loadRecentOrders();
+              if (!cancelled) {
+                toast.success(dictRef.current.returnPolling.paidSuccessMsg);
+                if (orderQueryParam) {
+                  router.replace("/billing");
+                }
+              }
+              return;
+            }
+
+            if (status === "cancelled" || status === "failed") {
+              completedPollsRef.current.add(targetOrderId);
+              clearLastCheckoutOrder(targetOrderId);
+              await loadRecentOrders();
+              if (!cancelled) {
+                if (status === "cancelled") {
+                  toast.info(dictRef.current.returnPolling.cancelledMsg);
+                } else {
+                  toast.error(dictRef.current.returnPolling.failedMsg);
+                }
+                if (orderQueryParam) {
+                  router.replace("/billing");
+                }
+              }
+              return;
+            }
+
+            if (status && status !== "pending") {
+              completedPollsRef.current.add(targetOrderId);
+              await loadRecentOrders();
+              return;
+            }
+
+            if (!order && !status) {
+              completedPollsRef.current.add(targetOrderId);
+              clearLastCheckoutOrder(targetOrderId);
+              return;
+            }
+          } else if (res.status === 404) {
+            completedPollsRef.current.add(targetOrderId);
+            clearLastCheckoutOrder(targetOrderId);
+            return;
+          }
+
+          if (attempt < maxAttempts - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
+
+        completedPollsRef.current.add(targetOrderId);
+        await loadRecentOrders();
+        if (!cancelled) {
+          toast.info(dictRef.current.returnPolling.pendingStillMsg);
+        }
+      } catch (err) {
+        console.warn("Order return polling error:", err);
+      } finally {
+        if (activePollOrderRef.current === targetOrderId) {
+          activePollOrderRef.current = null;
+        }
+        if (!cancelled) {
+          setIsPollingReturn(false);
+        }
+      }
+    };
+
+    void pollOrderStatus();
+
+    return () => {
+      cancelled = true;
+      if (activePollOrderRef.current === targetOrderId) {
+        activePollOrderRef.current = null;
+      }
+    };
+  }, [orderQueryParam, refreshSubscription, loadRecentOrders, router]);
 
   const handleActivateTrial = async () => {
     setIsActivatingTrial(true);
@@ -243,16 +480,124 @@ export default function BillingPage() {
     const orderId = checkoutOrder?.order?.orderId || checkoutOrder?.orderId;
     if (orderId) {
       try {
-        await fetch("/api/subscription/checkout", {
+        const res = await fetch("/api/subscription/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "cancel_order", orderId }),
         });
+        const data = await res.json().catch(() => ({}));
+        if (data?.inFlight === true) {
+          toast.info(b.returnPolling.inFlightWarn);
+          return;
+        }
+        clearLastCheckoutOrder(orderId);
       } catch (err) {
         console.warn("Could not cancel pending order:", err);
       }
     }
     setCheckoutOrder(null);
+    void loadRecentOrders();
+  };
+
+  const handleReopenPendingOrder = (order: BillingOrderSummary) => {
+    const planSpec = getLocalizedPlanSpec(normalizePlanId(order.planId), locale);
+    setSelectedPlanForInfo(planSpec);
+    setBillingCycle(order.billingCycle);
+    setPaymentMethod(order.paymentMethod);
+    if (order.b2bMetadata?.tinStir) {
+      setB2bTinStir(order.b2bMetadata.tinStir);
+    }
+    if (order.b2bMetadata?.companyName) {
+      setB2bCompanyName(order.b2bMetadata.companyName);
+    }
+    setCheckoutOrder({
+      order: {
+        orderId: order.orderId,
+        planId: order.planId,
+        billingCycle: order.billingCycle,
+        paymentMethod: order.paymentMethod,
+        finalAmountUzs: order.finalAmountUzs,
+        status: order.status,
+      },
+      orderId: order.orderId,
+      amountUzs: order.finalAmountUzs,
+      b2bMetadata: order.b2bMetadata ?? undefined,
+      invoiceDetails: order.invoiceDetails ?? undefined,
+      fallbackInvoiceNumber:
+        order.invoiceDetails?.invoiceNumber || `INV-${order.orderId}`,
+    });
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleCheckPendingOrder = async (order: BillingOrderSummary) => {
+    if (isCheckingPendingOrder || isCancellingPendingOrder) return;
+    setIsCheckingPendingOrder(true);
+    try {
+      const res = await fetch(
+        `/api/subscription/checkout?orderId=${encodeURIComponent(order.orderId)}`,
+        { cache: "no-store" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || b.toast.checkoutError);
+      }
+      const latest = extractSingleOrderFromResponse(data, order.orderId);
+      const status =
+        latest?.status ?? (typeof data?.status === "string" ? data.status : order.status);
+
+      if (status === "paid") {
+        clearLastCheckoutOrder(order.orderId);
+        await refreshSubscription();
+        await loadRecentOrders();
+        toast.success(b.returnPolling.paidSuccessMsg);
+      } else if (status === "cancelled") {
+        clearLastCheckoutOrder(order.orderId);
+        await loadRecentOrders();
+        toast.info(b.returnPolling.cancelledMsg);
+      } else if (status === "failed") {
+        clearLastCheckoutOrder(order.orderId);
+        await loadRecentOrders();
+        toast.error(b.returnPolling.failedMsg);
+      } else {
+        await loadRecentOrders();
+        toast.info(b.returnPolling.pendingStillMsg);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || b.toast.checkoutError);
+    } finally {
+      setIsCheckingPendingOrder(false);
+    }
+  };
+
+  const handleCancelPendingOrder = async (order: BillingOrderSummary) => {
+    if (isCancellingPendingOrder || isCheckingPendingOrder) return;
+    setIsCancellingPendingOrder(true);
+    try {
+      const res = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel_order", orderId: order.orderId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.inFlight === true) {
+        toast.info(b.returnPolling.inFlightWarn);
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data?.error || b.toast.checkoutError);
+      }
+      clearLastCheckoutOrder(order.orderId);
+      if ((checkoutOrder?.order?.orderId || checkoutOrder?.orderId) === order.orderId) {
+        setCheckoutOrder(null);
+        setIsPaymentModalOpen(false);
+      }
+      await loadRecentOrders();
+      toast.info(b.returnPolling.cancelledMsg);
+    } catch (err: any) {
+      toast.error(err?.message || b.toast.checkoutError);
+    } finally {
+      setIsCancellingPendingOrder(false);
+    }
   };
 
   const handleInitiateCheckout = async () => {
@@ -288,21 +633,29 @@ export default function BillingPage() {
         throw new Error(data?.error || b.toast.createOrderFailed);
       }
 
+      const createdOrderId = data?.order?.orderId || data?.orderId;
+
       if (paymentMethod === "payme" && data?.paymeCheckoutUrl) {
+        if (createdOrderId) {
+          saveLastCheckoutOrder(String(createdOrderId));
+        }
         window.location.assign(data.paymeCheckoutUrl);
         return;
       }
       if (paymentMethod === "click" && data?.clickCheckoutUrl) {
+        if (createdOrderId) {
+          saveLastCheckoutOrder(String(createdOrderId));
+        }
         window.location.assign(data.clickCheckoutUrl);
         return;
       }
 
-      const createdOrderId = data?.order?.orderId || data?.orderId;
       const fallbackInvoiceNumber =
         data?.invoiceDetails?.invoiceNumber ||
         data?.invoiceNumber ||
         (createdOrderId ? `INV-${createdOrderId}` : `INV-${Date.now().toString().slice(-6)}`);
       setCheckoutOrder({ ...data, fallbackInvoiceNumber });
+      void loadRecentOrders();
       toast.success(
         paymentMethod === "bank_transfer_didox"
           ? b.toast.invoiceGenerated
@@ -331,7 +684,9 @@ export default function BillingPage() {
       if (!res.ok) {
         if (data?.alreadyPaid) {
           toast.info(data?.message || b.toast.orderAlreadyPaid);
+          clearLastCheckoutOrder(orderId);
           await refreshSubscription();
+          void loadRecentOrders();
           setIsPaymentModalOpen(false);
           setCheckoutOrder(null);
           return;
@@ -343,7 +698,9 @@ export default function BillingPage() {
       } else {
         toast.success(data?.message || b.toast.paymentConfirmed);
       }
+      clearLastCheckoutOrder(orderId);
       await refreshSubscription();
+      void loadRecentOrders();
       setIsPaymentModalOpen(false);
       setCheckoutOrder(null);
     } catch (err: any) {
@@ -353,7 +710,9 @@ export default function BillingPage() {
         err?.message?.includes("already paid") ||
         err?.message?.includes("уже оплачен")
       ) {
+        clearLastCheckoutOrder(orderId);
         await refreshSubscription();
+        void loadRecentOrders();
         setIsPaymentModalOpen(false);
         setCheckoutOrder(null);
       }
@@ -458,6 +817,20 @@ export default function BillingPage() {
     locale
   ).name;
   const activeAiModelMeta = getLocalizedAiModel(subscription.preferredModel, locale);
+
+  const pendingOrder =
+    recentOrders.find(
+      (o) => o.status === "waiting_transfer" || o.status === "pending"
+    ) ?? null;
+
+  const showUpgradeValueNote = Boolean(
+    activePlanSpec &&
+      activePlanSpec.monthlyPriceUzs > 0 &&
+      (subscription.isTrialActive ||
+        (!subscription.isTrialActive &&
+          subscription.planId === "professional" &&
+          activePlanSpec.id === "pro_plus"))
+  );
 
   return (
     <div
@@ -618,6 +991,99 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
+      {/* Return Polling / Pending Order Banner */}
+      {isPollingReturn ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 px-4 py-3 flex items-center gap-2.5 text-xs text-indigo-950 dark:text-indigo-100"
+        >
+          <Loader2 className="h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span className="font-medium">{b.returnPolling.checkingMsg}</span>
+        </div>
+      ) : pendingOrder ? (
+        <div className="rounded-xl border border-amber-200/90 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+            {pendingOrder.paymentMethod === "bank_transfer_didox" ? (
+              <Receipt className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+            ) : (
+              <Clock className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+            )}
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-amber-950 dark:text-amber-100">
+                {b.pendingBanner.title}
+              </div>
+              <p className="text-[11px] text-amber-900/90 dark:text-amber-200/90 truncate">
+                {pendingOrder.paymentMethod === "bank_transfer_didox"
+                  ? b.pendingBanner.bankSubtitle
+                      .replace(
+                        "{plan}",
+                        getLocalizedPlanSpec(normalizePlanId(pendingOrder.planId), locale).name
+                      )
+                      .replace("{amount}", formatUzs(pendingOrder.finalAmountUzs))
+                      .replace("{orderId}", pendingOrder.orderId)
+                  : b.pendingBanner.gatewaySubtitle
+                      .replace(
+                        "{plan}",
+                        getLocalizedPlanSpec(normalizePlanId(pendingOrder.planId), locale).name
+                      )
+                      .replace("{amount}", formatUzs(pendingOrder.finalAmountUzs))
+                      .replace(
+                        "{method}",
+                        pendingOrder.paymentMethod === "payme"
+                          ? b.dialogs.checkout.paymeTitle
+                          : b.dialogs.checkout.clickTitle
+                      )
+                      .replace("{orderId}", pendingOrder.orderId)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2.5 text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+              disabled={isCheckingPendingOrder || isCancellingPendingOrder}
+              onClick={() => handleReopenPendingOrder(pendingOrder)}
+            >
+              <Receipt className="h-3 w-3" />
+              {b.pendingBanner.viewBtn}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5 text-[11px] gap-1"
+              disabled={isCheckingPendingOrder || isCancellingPendingOrder}
+              onClick={() => handleCheckPendingOrder(pendingOrder)}
+            >
+              {isCheckingPendingOrder ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+              {b.pendingBanner.refreshBtn}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive gap-1"
+              disabled={isCheckingPendingOrder || isCancellingPendingOrder}
+              onClick={() => handleCancelPendingOrder(pendingOrder)}
+            >
+              {isCancellingPendingOrder ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <X className="h-3 w-3" />
+              )}
+              {b.pendingBanner.cancelBtn}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {/* 3 Plan Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {localizedPlans.map((plan) => {
@@ -747,22 +1213,10 @@ export default function BillingPage() {
       {/* Interactive Low-Commission Payment Checkout Dialog */}
       <Dialog
         open={isPaymentModalOpen}
-        onOpenChange={async (open) => {
+        onOpenChange={(open) => {
           if (!open && (isConfirmingOrder || isCheckingOut)) return;
           setIsPaymentModalOpen(open);
           if (!open) {
-            const orderId = checkoutOrder?.order?.orderId || checkoutOrder?.orderId;
-            if (orderId) {
-              try {
-                await fetch("/api/subscription/checkout", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ action: "cancel_order", orderId }),
-                });
-              } catch (err) {
-                console.warn("Could not cancel pending order on modal close:", err);
-              }
-            }
             setCheckoutOrder(null);
           }
         }}
@@ -782,93 +1236,6 @@ export default function BillingPage() {
               <Button type="button" size="sm" onClick={() => setIsPaymentModalOpen(false)}>
                 {b.dialogs.starter.closeBtn}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        ) : isAlreadyActivePaid && !canRenewSoon ? (
-          <DialogContent className="sm:max-w-md text-xs">
-            <DialogHeader>
-              <div className="flex items-center justify-between">
-                <DialogTitle className="text-base font-bold flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  {activePlanSpec.name}
-                </DialogTitle>
-                <Badge variant="success" className="text-[10px]">
-                  {b.dialogs.activePaid.activePaidBadge}
-                </Badge>
-              </div>
-              <DialogDescription className="text-xs">
-                {b.dialogs.activePaid.description}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3 py-2">
-              <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">{b.dialogs.activePaid.statusLabel}</span>
-                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    {b.dialogs.activePaid.statusValue}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">{b.dialogs.activePaid.expiresLabel}</span>
-                  <span className="font-medium text-foreground">
-                    {subscription.expiresAt
-                      ? `${new Date(subscription.expiresAt).toLocaleDateString(intlLocale)}${
-                          daysLeft !== null
-                            ? ` ${b.dialogs.activePaid.daysLeftSuffix.replace("{days}", String(daysLeft))}`
-                            : ""
-                        }`
-                      : b.dialogs.activePaid.unlimitedDuration}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between border-t border-border pt-2">
-                  <span className="text-muted-foreground">{b.dialogs.activePaid.monthlyLimitLabel}</span>
-                  <span className="font-mono font-bold text-foreground">
-                    {activePlanSpec.limits.monthlyCredits > 0
-                      ? b.dialogs.activePaid.creditsUnit.replace(
-                          "{credits}",
-                          String(activePlanSpec.limits.monthlyCredits)
-                        )
-                      : b.dialogs.activePaid.unlimitedCredits}
-                  </span>
-                </div>
-              </div>
-
-              {subscription.planId === "pro_plus" && activePlanSpec.id === "professional" && (
-                <div className="rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
-                  <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
-                  <span>
-                    {b.dialogs.activePaid.proPlusIncludedNotePrefix}
-                    <strong>{getLocalizedPlanSpec("pro_plus", locale).name}</strong>
-                    {b.dialogs.activePaid.proPlusIncludedNoteSuffix}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter className="flex flex-col sm:flex-row gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsPaymentModalOpen(false)}
-              >
-                {b.dialogs.activePaid.closeBtn}
-              </Button>
-              {subscription.planId === "professional" && activePlanSpec.id === "professional" && (
-                <Button
-                  type="button"
-                  size="sm"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
-                  onClick={() => {
-                    setSelectedPlanForInfo(getLocalizedPlanSpec("pro_plus", locale));
-                    setCheckoutOrder(null);
-                  }}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {b.dialogs.activePaid.upgradeToProPlusBtn}
-                </Button>
-              )}
             </DialogFooter>
           </DialogContent>
         ) : checkoutOrder ? (
@@ -1060,6 +1427,93 @@ export default function BillingPage() {
               </DialogFooter>
             </DialogContent>
           )
+        ) : isAlreadyActivePaid && !canRenewSoon ? (
+          <DialogContent className="sm:max-w-md text-xs">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  {activePlanSpec.name}
+                </DialogTitle>
+                <Badge variant="success" className="text-[10px]">
+                  {b.dialogs.activePaid.activePaidBadge}
+                </Badge>
+              </div>
+              <DialogDescription className="text-xs">
+                {b.dialogs.activePaid.description}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">{b.dialogs.activePaid.statusLabel}</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {b.dialogs.activePaid.statusValue}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">{b.dialogs.activePaid.expiresLabel}</span>
+                  <span className="font-medium text-foreground">
+                    {subscription.expiresAt
+                      ? `${new Date(subscription.expiresAt).toLocaleDateString(intlLocale)}${
+                          daysLeft !== null
+                            ? ` ${b.dialogs.activePaid.daysLeftSuffix.replace("{days}", String(daysLeft))}`
+                            : ""
+                        }`
+                      : b.dialogs.activePaid.unlimitedDuration}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-border pt-2">
+                  <span className="text-muted-foreground">{b.dialogs.activePaid.monthlyLimitLabel}</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {activePlanSpec.limits.monthlyCredits > 0
+                      ? b.dialogs.activePaid.creditsUnit.replace(
+                          "{credits}",
+                          String(activePlanSpec.limits.monthlyCredits)
+                        )
+                      : b.dialogs.activePaid.unlimitedCredits}
+                  </span>
+                </div>
+              </div>
+
+              {subscription.planId === "pro_plus" && activePlanSpec.id === "professional" && (
+                <div className="rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <span>
+                    {b.dialogs.activePaid.proPlusIncludedNotePrefix}
+                    <strong>{getLocalizedPlanSpec("pro_plus", locale).name}</strong>
+                    {b.dialogs.activePaid.proPlusIncludedNoteSuffix}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPaymentModalOpen(false)}
+              >
+                {b.dialogs.activePaid.closeBtn}
+              </Button>
+              {subscription.planId === "professional" && activePlanSpec.id === "professional" && (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  onClick={() => {
+                    setSelectedPlanForInfo(getLocalizedPlanSpec("pro_plus", locale));
+                    setCheckoutOrder(null);
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {b.dialogs.activePaid.upgradeToProPlusBtn}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
         ) : (
           /* Payment Method Selection */
           <DialogContent className="sm:max-w-md text-xs">
@@ -1076,6 +1530,13 @@ export default function BillingPage() {
                 {formatUzs(finalPriceUzs)}
               </div>
             </DialogHeader>
+
+            {showUpgradeValueNote && (
+              <div className="rounded-lg border border-indigo-200/80 dark:border-indigo-900/60 bg-indigo-50/60 dark:bg-indigo-950/25 px-3 py-2 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                <span>{b.upgradeValueNote}</span>
+              </div>
+            )}
 
             <div className="space-y-2 py-1">
               {/* 1. Payme */}
@@ -1208,5 +1669,21 @@ export default function BillingPage() {
         )}
       </Dialog>
     </div>
+  );
+}
+
+function BillingLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center p-12 text-muted-foreground">
+      <Loader2 className="h-5 w-5 animate-spin" />
+    </div>
+  );
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense fallback={<BillingLoadingFallback />}>
+      <BillingContent />
+    </Suspense>
   );
 }

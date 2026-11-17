@@ -157,6 +157,23 @@ export interface BillingHomeDict {
       invoiceCopied: string;
       copyFailed: string;
     };
+    pendingBanner: {
+      title: string;
+      bankSubtitle: string;
+      gatewaySubtitle: string;
+      viewBtn: string;
+      refreshBtn: string;
+      cancelBtn: string;
+    };
+    returnPolling: {
+      checkingMsg: string;
+      paidSuccessMsg: string;
+      pendingStillMsg: string;
+      cancelledMsg: string;
+      failedMsg: string;
+      inFlightWarn: string;
+    };
+    upgradeValueNote: string;
   };
   home: {
     solo: {
@@ -462,6 +479,24 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
         invoiceCopied: "Invoys rekvizitlari nusxalandi",
         copyFailed: "Nusxalab boʻlmadi",
       },
+      pendingBanner: {
+        title: "Toʻlanmagan buyurtma",
+        bankSubtitle: "{plan} ({amount}) • Bank oʻtkazmasi (Invoys #{orderId}) toʻlovi kutilmoqda",
+        gatewaySubtitle: "{plan} ({amount}) • {method} orqali toʻlov tasdiqlanishi kutilmoqda (#{orderId})",
+        viewBtn: "Ochish / Toʻlash",
+        refreshBtn: "Tekshirish",
+        cancelBtn: "Bekor qilish",
+      },
+      returnPolling: {
+        checkingMsg: "Toʻlov holati tekshirilmoqda...",
+        paidSuccessMsg: "Toʻlov tasdiqlandi! Obunangiz faollashtirildi.",
+        pendingStillMsg: "Toʻlov hali tasdiqlanmadi. Birozdan soʻng qayta tekshiring.",
+        cancelledMsg: "Buyurtma bekor qilingan.",
+        failedMsg: "Toʻlov amalga oshmadi.",
+        inFlightWarn: "Payme/Click toʻlovi hozir jarayonda, bir necha soniya kuting.",
+      },
+      upgradeValueNote:
+        "Joriy faol tarifingizning qolgan kunlari va qiymati yangi tarifga avtomatik oʻtkaziladi.",
     },
     home: {
       solo: {
@@ -766,6 +801,24 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
         invoiceCopied: "Реквизиты инвойса скопированы",
         copyFailed: "Не удалось скопировать",
       },
+      pendingBanner: {
+        title: "Неоплаченный заказ",
+        bankSubtitle: "{plan} ({amount}) • Ожидается оплата по банковскому счёту (Инвойс #{orderId})",
+        gatewaySubtitle: "{plan} ({amount}) • Ожидается подтверждение оплаты через {method} (#{orderId})",
+        viewBtn: "Открыть / Оплатить",
+        refreshBtn: "Проверить",
+        cancelBtn: "Отменить",
+      },
+      returnPolling: {
+        checkingMsg: "Проверка статуса оплаты...",
+        paidSuccessMsg: "Оплата подтверждена! Ваша подписка активирована.",
+        pendingStillMsg: "Оплата ещё не подтверждена. Проверьте статус чуть позже.",
+        cancelledMsg: "Заказ отменён.",
+        failedMsg: "Оплата не прошла.",
+        inFlightWarn: "Оплата через Payme/Click сейчас обрабатывается, подождите несколько секунд.",
+      },
+      upgradeValueNote:
+        "Оставшиеся дни и стоимость вашего текущего активного тарифа автоматически переносятся на новый план.",
     },
     home: {
       solo: {
@@ -1070,6 +1123,24 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
         invoiceCopied: "Invoice details copied",
         copyFailed: "Could not copy",
       },
+      pendingBanner: {
+        title: "Pending order",
+        bankSubtitle: "{plan} ({amount}) • Awaiting bank transfer payment (Invoice #{orderId})",
+        gatewaySubtitle: "{plan} ({amount}) • Awaiting payment confirmation via {method} (#{orderId})",
+        viewBtn: "Open / Pay",
+        refreshBtn: "Check",
+        cancelBtn: "Cancel",
+      },
+      returnPolling: {
+        checkingMsg: "Checking payment status...",
+        paidSuccessMsg: "Payment confirmed! Your subscription is now active.",
+        pendingStillMsg: "Payment is not confirmed yet. Please check again shortly.",
+        cancelledMsg: "Order has been cancelled.",
+        failedMsg: "Payment failed.",
+        inFlightWarn: "Payme/Click payment is currently in progress, please wait a few seconds.",
+      },
+      upgradeValueNote:
+        "Remaining days and value from your current active plan automatically transfer to your new plan.",
     },
     home: {
       solo: {
