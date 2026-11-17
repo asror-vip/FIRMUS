@@ -24,7 +24,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: msg.invalidRequest }, { status: 400 });
+    }
     const parsed = copilotRequestSchema.safeParse(body);
     if (!parsed.success) {
       const issueMsg = parsed.error.issues[0]?.message;
@@ -88,6 +93,7 @@ export async function POST(req: NextRequest) {
           supabase,
           userId: user.id,
           userEmail: user.email,
+          emailConfirmed: Boolean(user.email_confirmed_at),
           entity: targetEntity,
           message: aiMessage,
           history,
@@ -99,6 +105,8 @@ export async function POST(req: NextRequest) {
       await refundConsumedAiCredits({
         userId: user.id,
         creditCost: authz.creditCost,
+        periodMonth: authz.periodMonth,
+        periodDay: authz.periodDay,
         isScan: false,
       });
       throw execErr;
@@ -110,6 +118,8 @@ export async function POST(req: NextRequest) {
       await refundConsumedAiCredits({
         userId: user.id,
         creditCost: authz.creditCost,
+        periodMonth: authz.periodMonth,
+        periodDay: authz.periodDay,
         isScan: false,
       });
       finalUsage = {
@@ -128,11 +138,8 @@ export async function POST(req: NextRequest) {
       creditCost: result.mode === "deterministic_guard" ? 0 : authz.creditCost,
       usage: finalUsage,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("AI Copilot API error:", err);
-    return NextResponse.json(
-      { error: err?.message ? localizeServerError(err.message, locale) : msg.copilotError },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: msg.copilotError }, { status: 500 });
   }
 }

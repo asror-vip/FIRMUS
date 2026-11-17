@@ -72,9 +72,31 @@ function AiAuditorContent() {
   const [isMutating, setIsMutating] = useState(false);
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const PAGE_SIZE = 10;
 
-  const loadExceptions = useCallback(async (entityId: string) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const loadSummaryCounts = useCallback(async (entityId: string) => {
+    try {
+      const summaryCounts = await fetchExceptionSummaryCounts(entityId);
+      setExcCounts(summaryCounts);
+      return summaryCounts;
+    } catch (err) {
+      console.error("Error loading exception summary counts:", err);
+      return null;
+    }
+  }, []);
+
+  const loadExceptions = useCallback(async (
+    entityId: string,
+    includeSummary = false
+  ): Promise<{ open: number; total: number } | null> => {
     setIsLoading(true);
     try {
       const [{ data, count }, summaryCounts] = await Promise.all([
@@ -82,25 +104,29 @@ function AiAuditorContent() {
           page: excPage,
           pageSize: PAGE_SIZE,
           severity: filterSeverity,
-          search,
+          search: debouncedSearch,
         }),
-        fetchExceptionSummaryCounts(entityId),
+        includeSummary ? fetchExceptionSummaryCounts(entityId) : Promise.resolve(null),
       ]);
       setExceptions(data);
       setTotalExceptionsCount(count);
-      setExcCounts(summaryCounts);
+      if (summaryCounts) {
+        setExcCounts(summaryCounts);
+      }
       if (targetExcId) {
         const match = data.find((e) => e.id === targetExcId);
         setSelectedExc(match || data[0] || null);
       } else {
         setSelectedExc((prev) => (prev ? (data.find((e) => e.id === prev.id) || data[0] || null) : (data[0] || null)));
       }
+      return summaryCounts ? { open: summaryCounts.open, total: summaryCounts.total } : null;
     } catch (err) {
       console.error("Error loading exceptions:", err);
+      return null;
     } finally {
       setIsLoading(false);
     }
-  }, [targetExcId, excPage, filterSeverity, search]);
+  }, [targetExcId, excPage, filterSeverity, debouncedSearch]);
 
   const loadActionLogs = useCallback(async (entityId: string) => {
     if (!isValidUuid(entityId)) return;
@@ -126,16 +152,28 @@ function AiAuditorContent() {
 
   useEffect(() => {
     setExcPage(1);
-  }, [filterSeverity, search]);
+  }, [filterSeverity, debouncedSearch]);
+
+  useEffect(() => {
+    if (!currentEntity?.id) return;
+    loadSummaryCounts(currentEntity.id);
+  }, [currentEntity?.id, loadSummaryCounts]);
 
   useEffect(() => {
     if (!currentEntity?.id) return;
     loadExceptions(currentEntity.id);
-    loadActionLogs(currentEntity.id);
+  }, [currentEntity?.id, loadExceptions]);
 
+  useEffect(() => {
+    if (!currentEntity?.id) return;
+    loadActionLogs(currentEntity.id);
+  }, [currentEntity?.id, loadActionLogs]);
+
+  useEffect(() => {
     const handleRefresh = () => {
       if (currentEntity?.id) {
         loadExceptions(currentEntity.id);
+        loadSummaryCounts(currentEntity.id);
         loadActionLogs(currentEntity.id);
       }
     };
@@ -144,17 +182,19 @@ function AiAuditorContent() {
     return () => {
       window.removeEventListener("firmus:refresh-data", handleRefresh);
     };
-  }, [currentEntity?.id, loadExceptions, loadActionLogs]);
+  }, [currentEntity?.id, loadExceptions, loadSummaryCounts, loadActionLogs]);
 
   const handleRecheck = async () => {
     if (!currentEntity?.id) return;
     loadActionLogs(currentEntity.id);
-    await loadExceptions(currentEntity.id);
-    toast.success(
-      d.toasts.recheckDone
-        .replace("{open}", String(excCounts.open))
-        .replace("{total}", String(excCounts.total))
-    );
+    const counts = await loadExceptions(currentEntity.id, true);
+    if (counts) {
+      toast.success(
+        d.toasts.recheckDone
+          .replace("{open}", String(counts.open))
+          .replace("{total}", String(counts.total))
+      );
+    }
   };
 
   const filtered = exceptions;

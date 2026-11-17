@@ -1,11 +1,19 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { BusinessEntity, UserRole, Workspace } from "@/lib/types/accounting";
 import { supabase } from "@/lib/supabase/client";
 import { FEATURES } from "@/lib/config/features";
-import { getLocaleFromBrowserCookie } from "@/lib/i18n/server-locale";
+import { getLocaleFromBrowserCookie, type Locale } from "@/lib/i18n/server-locale";
 import {
   DEFAULT_STARTER_SNAPSHOT,
   type AiModelId,
@@ -16,7 +24,7 @@ import {
   createWorkspaceRecord,
   fetchBusinessEntities,
   fetchWorkspaces,
-} from "@/lib/services/supabase-service";
+} from "@/lib/services/workspace-context-service";
 
 const provisionLocks = new Map<string, Promise<void>>();
 
@@ -29,6 +37,18 @@ const EMPTY_WORKSPACE: Workspace = {
   entitiesCount: 0,
   membersCount: 1,
 };
+
+function isAuthOrPublicPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password") ||
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms")
+  );
+}
 
 interface AppStateContextType {
   user: any | null;
@@ -43,8 +63,8 @@ interface AppStateContextType {
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
 
-  language: "uz" | "ru" | "en";
-  setLanguage: (lang: "uz" | "ru" | "en") => void;
+  language: Locale;
+  setLanguage: (lang: Locale) => void;
 
   isAiDrawerOpen: boolean;
   setIsAiDrawerOpen: (open: boolean) => void;
@@ -66,8 +86,17 @@ interface AppStateContextType {
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
 
-export function AppStateProvider({ children }: { children: React.ReactNode }) {
+export function AppStateProvider({
+  children,
+  initialLocale = "uz",
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
+  const loadedUserIdRef = useRef<string | null>(null);
+
   const [user, setUser] = useState<any | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string>("");
@@ -76,7 +105,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [currentEntityId, setCurrentEntityId] = useState<string>("");
 
   const [currentRole, setCurrentRole] = useState<UserRole>("accountant");
-  const [language, setLanguageState] = useState<"uz" | "ru" | "en">("uz");
+  const [language, setLanguageState] = useState<Locale>(initialLocale);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isContextReady, setIsContextReady] = useState<boolean>(false);
@@ -96,27 +125,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const setPreferredAiModel = useCallback(async (modelId: AiModelId) => {
-    const res = await fetch("/api/subscription", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preferredModel: modelId }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const fallbackError =
-        language === "ru"
-          ? "Не удалось переключить модель"
-          : language === "en"
-          ? "Failed to switch AI model"
-          : "Modelni almashtirib boʻlmadi";
-      throw new Error(data?.error || fallbackError);
-    }
-    setSubscription(data as SubscriptionSnapshot);
-  }, [language]);
+  const setPreferredAiModel = useCallback(
+    async (modelId: AiModelId) => {
+      const res = await fetch("/api/subscription", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredModel: modelId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const fallbackError =
+          language === "ru"
+            ? "Не удалось переключить модель"
+            : language === "en"
+            ? "Failed to switch AI model"
+            : "Modelni almashtirib boʻlmadi";
+        throw new Error(data?.error || fallbackError);
+      }
+      setSubscription(data as SubscriptionSnapshot);
+    },
+    [language]
+  );
 
   const syncRoleForWorkspace = useCallback(async (authUser: any, wsId: string) => {
-    if (!authUser || !wsId) return;
+    if (!FEATURES.teamMode || !authUser || !wsId) return;
     const { data: member } = await supabase
       .from("team_members")
       .select("role")
@@ -149,7 +181,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           } catch {}
         }
 
-        const savedWs = typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
+        const savedWs =
+          typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
         const activeWs = wsList.find((w: any) => w.id === savedWs) || wsList[0];
 
         if (activeWs?.id) {
@@ -186,6 +219,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const loadWorkspaceAndEntities = useCallback(
     async (authUser: any) => {
+      // Run subscription fetch in parallel without blocking initial context readiness
+      void refreshSubscription();
+
       try {
         let [realWorkspaces, realEntities] = await Promise.all([
           fetchWorkspaces(),
@@ -193,10 +229,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ]);
 
         if (!FEATURES.multiCompanyMode) {
-          const savedWsId = typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
-          const candidateWs = (realWorkspaces || []).find((w: any) => w.id === savedWsId) || realWorkspaces?.[0];
+          const savedWsId =
+            typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
+          const candidateWs =
+            (realWorkspaces || []).find((w: any) => w.id === savedWsId) || realWorkspaces?.[0];
           const hasScopedEntity = candidateWs
-            ? (realEntities || []).some((e: any) => !e.workspaceId || e.workspaceId === candidateWs.id)
+            ? (realEntities || []).some(
+                (e: any) => !e.workspaceId || e.workspaceId === candidateWs.id
+              )
             : false;
 
           if (!candidateWs || !hasScopedEntity) {
@@ -213,11 +253,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         let matchedWsId = "";
         if (safeWorkspaces.length > 0) {
-          const savedWs = typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
+          const savedWs =
+            typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
           const matchedWs = safeWorkspaces.find((w) => w.id === savedWs) || safeWorkspaces[0];
           matchedWsId = matchedWs.id;
           setCurrentWorkspaceId(matchedWsId);
-          await syncRoleForWorkspace(authUser, matchedWsId);
+          if (FEATURES.teamMode) {
+            await syncRoleForWorkspace(authUser, matchedWsId);
+          }
         } else {
           setCurrentWorkspaceId("");
         }
@@ -230,8 +273,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           : safeEntities;
 
         if (scopedEntities.length > 0) {
-          const savedEntity = typeof window !== "undefined" ? localStorage.getItem("firmus_entity") : null;
-          const matchedEntity = scopedEntities.find((e) => e.id === savedEntity) || scopedEntities[0];
+          const savedEntity =
+            typeof window !== "undefined" ? localStorage.getItem("firmus_entity") : null;
+          const matchedEntity =
+            scopedEntities.find((e) => e.id === savedEntity) || scopedEntities[0];
           setCurrentEntityId(matchedEntity.id);
           try {
             localStorage.setItem("firmus_entity", matchedEntity.id);
@@ -242,7 +287,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error("Error loading workspace/entities in AppStateProvider:", err);
       } finally {
-        await refreshSubscription();
         setIsContextReady(true);
       }
     },
@@ -255,24 +299,42 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     } = await supabase.auth.getUser();
     if (authUser) {
       setUser(authUser);
+      loadedUserIdRef.current = authUser.id;
       await loadWorkspaceAndEntities(authUser);
     }
   }, [loadWorkspaceAndEntities]);
 
-  // 1. Fetch real Supabase Auth session, workspaces & business entities
+  // 1. Fetch Supabase Auth session, workspaces & business entities (short-circuit on auth/public pages)
   useEffect(() => {
     let isMounted = true;
 
     async function initSession() {
       try {
+        if (isAuthOrPublicPath(pathname)) {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (isMounted) {
+            setUser(session?.user ?? null);
+            setIsContextReady(true);
+          }
+          return;
+        }
+
         const {
           data: { user: authUser },
         } = await supabase.auth.getUser();
 
         if (isMounted && authUser) {
           setUser(authUser);
-          await loadWorkspaceAndEntities(authUser);
+          if (loadedUserIdRef.current !== authUser.id) {
+            loadedUserIdRef.current = authUser.id;
+            await loadWorkspaceAndEntities(authUser);
+          } else {
+            setIsContextReady(true);
+          }
         } else if (isMounted) {
+          loadedUserIdRef.current = null;
           setIsContextReady(true);
         }
       } catch (err) {
@@ -284,27 +346,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     initSession();
 
     const {
-      data: { subscription },
+      data: { subscription: authSub },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
       } else {
+        loadedUserIdRef.current = null;
         setUser(null);
       }
     });
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      authSub.unsubscribe();
     };
-  }, [loadWorkspaceAndEntities]);
+  }, [loadWorkspaceAndEntities, pathname]);
 
-  // 2. Load persisted language from localStorage or browser cookie safely
+  // 2. Sync persisted language from localStorage or browser cookie safely
   useEffect(() => {
     try {
       const savedLang = localStorage.getItem("firmus_lang") || localStorage.getItem("auvrio_lang");
       const cookieLang = getLocaleFromBrowserCookie();
-      const resolvedLang: "uz" | "ru" | "en" =
+      const resolvedLang: Locale =
         savedLang === "uz" || savedLang === "ru" || savedLang === "en"
           ? savedLang
           : cookieLang;
@@ -316,46 +379,54 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
-  const setLanguage = (lang: "uz" | "ru" | "en") => {
+  const setLanguage = useCallback((lang: Locale) => {
     setLanguageState(lang);
     try {
       localStorage.setItem("firmus_lang", lang);
       document.cookie = `firmus_lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
       document.documentElement.lang = lang;
     } catch {}
-  };
+  }, []);
 
-  const setWorkspaceWithPersistence = (id: string) => {
-    setCurrentWorkspaceId(id);
-    try {
-      localStorage.setItem("firmus_workspace", id);
-    } catch {}
-    if (user) {
-      syncRoleForWorkspace(user, id);
-    }
-    // Switch active entity strictly to one belonging to this workspace
-    const wsEntities = entities.filter((e) => !e.workspaceId || e.workspaceId === id);
-    if (wsEntities.length > 0) {
-      if (!wsEntities.some((e) => e.id === currentEntityId)) {
-        setEntityWithPersistence(wsEntities[0].id);
-      }
-    } else {
-      setCurrentEntityId("");
-    }
-  };
-
-  const setEntityWithPersistence = (id: string) => {
+  const setEntityWithPersistence = useCallback((id: string) => {
     setCurrentEntityId(id);
     try {
       localStorage.setItem("firmus_entity", id);
     } catch {}
-  };
+  }, []);
 
-  const handleSignOut = async () => {
+  const setWorkspaceWithPersistence = useCallback(
+    (id: string) => {
+      setCurrentWorkspaceId(id);
+      try {
+        localStorage.setItem("firmus_workspace", id);
+      } catch {}
+      if (user && FEATURES.teamMode) {
+        void syncRoleForWorkspace(user, id);
+      }
+      // Switch active entity strictly to one belonging to this workspace
+      const wsEntities = entities.filter((e) => !e.workspaceId || e.workspaceId === id);
+      if (wsEntities.length > 0) {
+        if (!wsEntities.some((e) => e.id === currentEntityId)) {
+          setEntityWithPersistence(wsEntities[0].id);
+        }
+      } else {
+        setCurrentEntityId("");
+      }
+    },
+    [user, entities, currentEntityId, syncRoleForWorkspace, setEntityWithPersistence]
+  );
+
+  const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut();
+    loadedUserIdRef.current = null;
     setUser(null);
     router.push("/login");
-  };
+  }, [router]);
+
+  const toggleAiDrawer = useCallback(() => {
+    setIsAiDrawerOpen((prev) => !prev);
+  }, []);
 
   // Keyboard shortcut listener for ⌘K and AI drawer
   useEffect(() => {
@@ -373,55 +444,87 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const currentWorkspace =
-    workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0] || EMPTY_WORKSPACE;
+  const currentWorkspace = useMemo(
+    () =>
+      workspaces.find((w) => w.id === currentWorkspaceId) ||
+      workspaces[0] ||
+      EMPTY_WORKSPACE,
+    [workspaces, currentWorkspaceId]
+  );
 
-  const workspaceEntities = currentWorkspace.id
-    ? entities.filter((e) => !e.workspaceId || e.workspaceId === currentWorkspace.id)
-    : entities;
-  const visibleEntities = workspaceEntities;
+  const visibleEntities = useMemo(
+    () =>
+      currentWorkspace.id
+        ? entities.filter((e) => !e.workspaceId || e.workspaceId === currentWorkspace.id)
+        : entities,
+    [entities, currentWorkspace.id]
+  );
 
-  const currentEntity =
-    visibleEntities.find((e) => e.id === currentEntityId) || visibleEntities[0];
+  const currentEntity = useMemo(
+    () =>
+      visibleEntities.find((e) => e.id === currentEntityId) || visibleEntities[0],
+    [visibleEntities, currentEntityId]
+  );
 
-  const toggleAiDrawer = () => setIsAiDrawerOpen((prev) => !prev);
+  const contextValue = useMemo<AppStateContextType>(
+    () => ({
+      user,
+      workspaces,
+      currentWorkspace,
+      setCurrentWorkspaceId: setWorkspaceWithPersistence,
+
+      entities: visibleEntities,
+      currentEntity,
+      setCurrentEntityId: setEntityWithPersistence,
+
+      currentRole,
+      setCurrentRole,
+
+      language,
+      setLanguage,
+
+      isAiDrawerOpen,
+      setIsAiDrawerOpen,
+      toggleAiDrawer,
+
+      isSearchOpen,
+      setIsSearchOpen,
+
+      isContextReady,
+
+      subscription,
+      setSubscriptionSnapshot: setSubscription,
+      refreshSubscription,
+      setPreferredAiModel,
+
+      refreshContext,
+      handleSignOut,
+    }),
+    [
+      user,
+      workspaces,
+      currentWorkspace,
+      setWorkspaceWithPersistence,
+      visibleEntities,
+      currentEntity,
+      setEntityWithPersistence,
+      currentRole,
+      language,
+      setLanguage,
+      isAiDrawerOpen,
+      toggleAiDrawer,
+      isSearchOpen,
+      isContextReady,
+      subscription,
+      refreshSubscription,
+      setPreferredAiModel,
+      refreshContext,
+      handleSignOut,
+    ]
+  );
 
   return (
-    <AppStateContext.Provider
-      value={{
-        user,
-        workspaces,
-        currentWorkspace,
-        setCurrentWorkspaceId: setWorkspaceWithPersistence,
-
-        entities: visibleEntities,
-        currentEntity,
-        setCurrentEntityId: setEntityWithPersistence,
-
-        currentRole,
-        setCurrentRole,
-
-        language,
-        setLanguage,
-
-        isAiDrawerOpen,
-        setIsAiDrawerOpen,
-        toggleAiDrawer,
-
-        isSearchOpen,
-        setIsSearchOpen,
-
-        isContextReady,
-
-        subscription,
-        setSubscriptionSnapshot: setSubscription,
-        refreshSubscription,
-        setPreferredAiModel,
-
-        refreshContext,
-        handleSignOut,
-      }}
-    >
+    <AppStateContext.Provider value={contextValue}>
       {children}
     </AppStateContext.Provider>
   );

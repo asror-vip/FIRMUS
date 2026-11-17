@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { fetchTrialBalance, fetchRecentTransactions } from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,16 +13,12 @@ import { Download, TrendingUp, DollarSign, PieChart } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+import { sanitizeCsvField, downloadCsvBlob } from "@/lib/utils/csv";
+
+const CashflowChart = dynamic(
+  () => import("@/components/finance/cashflow-chart"),
+  { ssr: false }
+);
 
 export default function FinancePage() {
   const { currentEntity } = useAppState();
@@ -56,88 +53,97 @@ export default function FinancePage() {
   }, [currentEntity?.id]);
 
   // Helper to get closing or turnover by account prefix
-  const sumAccountNet = (codes: string[], side: "debit" | "credit" | "net_debit" | "net_credit") => {
-    return trialBalance
-      .filter((r) => codes.some((c) => r.account_code?.startsWith(c)))
-      .reduce((sum, r) => {
-        if (side === "debit") return sum + Number(r.period_debit || 0);
-        if (side === "credit") return sum + Number(r.period_credit || 0);
-        if (side === "net_debit") return sum + Number(r.closing_debit || 0);
-        return sum + Number(r.closing_credit || 0);
-      }, 0);
-  };
+  const sumAccountNet = useMemo(
+    () => (codes: string[], side: "debit" | "credit" | "net_debit" | "net_credit") => {
+      return trialBalance
+        .filter((r) => codes.some((c) => r.account_code?.startsWith(c)))
+        .reduce((sum, r) => {
+          if (side === "debit") return sum + Number(r.period_debit || 0);
+          if (side === "credit") return sum + Number(r.period_credit || 0);
+          if (side === "net_debit") return sum + Number(r.closing_debit || 0);
+          return sum + Number(r.closing_credit || 0);
+        }, 0);
+    },
+    [trialBalance]
+  );
 
   // Real P&L computed from Trial Balance + Transactions fallback if no 9010 entries posted yet
-  const ledgerRevenue = sumAccountNet(["90"], "credit");
-  const txIncome = transactions.filter((x) => x.type === "income").reduce((a, b) => a + b.amount, 0);
-  const netRevenue = ledgerRevenue > 0 ? ledgerRevenue : txIncome;
+  const pnlStatement = useMemo(() => {
+    const ledgerRevenue = sumAccountNet(["90"], "credit");
+    const txIncome = transactions.filter((x) => x.type === "income").reduce((a, b) => a + b.amount, 0);
+    const netRevenue = ledgerRevenue > 0 ? ledgerRevenue : txIncome;
 
-  const costOfSales = sumAccountNet(["91"], "debit");
-  const grossProfit = netRevenue - costOfSales;
-  const adminExpenses = sumAccountNet(["9420"], "debit");
-  const otherOpExpenses = sumAccountNet(["9430"], "debit");
-  const totalOpExpenses = adminExpenses + otherOpExpenses;
-  const operatingProfit = grossProfit - totalOpExpenses;
-  const profitTax15 = operatingProfit > 0 ? Math.round(operatingProfit * 0.15) : 0;
-  const netProfit = operatingProfit - profitTax15;
+    const costOfSales = sumAccountNet(["91"], "debit");
+    const grossProfit = netRevenue - costOfSales;
+    const adminExpenses = sumAccountNet(["9420"], "debit");
+    const otherOpExpenses = sumAccountNet(["9430"], "debit");
+    const totalOpExpenses = adminExpenses + otherOpExpenses;
+    const operatingProfit = grossProfit - totalOpExpenses;
+    const profitTax15 = operatingProfit > 0 ? Math.round(operatingProfit * 0.15) : 0;
+    const netProfit = operatingProfit - profitTax15;
 
-  const pnlStatement = [
-    { code: "010", category: d.pnlRows.r010, currentPeriod: netRevenue, prevPeriod: 0, isHeader: false },
-    { code: "020", category: d.pnlRows.r020, currentPeriod: costOfSales, prevPeriod: 0, isHeader: false },
-    { code: "030", category: d.pnlRows.r030, currentPeriod: grossProfit, prevPeriod: 0, isHeader: true },
-    { code: "050", category: d.pnlRows.r050, currentPeriod: adminExpenses, prevPeriod: 0, isHeader: false },
-    { code: "060", category: d.pnlRows.r060, currentPeriod: otherOpExpenses, prevPeriod: 0, isHeader: false },
-    { code: "100", category: d.pnlRows.r100, currentPeriod: operatingProfit, prevPeriod: 0, isHeader: true },
-    { code: "250", category: d.pnlRows.r250, currentPeriod: profitTax15, prevPeriod: 0, isHeader: false },
-    { code: "270", category: d.pnlRows.r270, currentPeriod: netProfit, prevPeriod: 0, isHeader: true },
-  ];
+    return [
+      { code: "010", category: d.pnlRows.r010, currentPeriod: netRevenue, prevPeriod: 0, isHeader: false },
+      { code: "020", category: d.pnlRows.r020, currentPeriod: costOfSales, prevPeriod: 0, isHeader: false },
+      { code: "030", category: d.pnlRows.r030, currentPeriod: grossProfit, prevPeriod: 0, isHeader: true },
+      { code: "050", category: d.pnlRows.r050, currentPeriod: adminExpenses, prevPeriod: 0, isHeader: false },
+      { code: "060", category: d.pnlRows.r060, currentPeriod: otherOpExpenses, prevPeriod: 0, isHeader: false },
+      { code: "100", category: d.pnlRows.r100, currentPeriod: operatingProfit, prevPeriod: 0, isHeader: true },
+      { code: "250", category: d.pnlRows.r250, currentPeriod: profitTax15, prevPeriod: 0, isHeader: false },
+      { code: "270", category: d.pnlRows.r270, currentPeriod: netProfit, prevPeriod: 0, isHeader: true },
+    ];
+  }, [sumAccountNet, transactions, d.pnlRows]);
 
   // Real Balance Sheet computed dynamically from Trial Balance
-  const fixedAssets = sumAccountNet(["01", "08"], "net_debit");
-  const inventoryVal = sumAccountNet(["10", "28", "29"], "net_debit");
-  const receivablesVal = sumAccountNet(["40", "43", "44"], "net_debit");
-  const cashVal = sumAccountNet(["50", "51", "52"], "net_debit");
-  const totalAssets = fixedAssets + inventoryVal + receivablesVal + cashVal;
+  const balanceSheet = useMemo(() => {
+    const fixedAssets = sumAccountNet(["01", "08"], "net_debit");
+    const inventoryVal = sumAccountNet(["10", "28", "29"], "net_debit");
+    const receivablesVal = sumAccountNet(["40", "43", "44"], "net_debit");
+    const cashVal = sumAccountNet(["50", "51", "52"], "net_debit");
+    const totalAssets = fixedAssets + inventoryVal + receivablesVal + cashVal;
 
-  const equityCapital = sumAccountNet(["83"], "net_credit");
-  // Unclosed profit = 90xx closing credit - 91xx/94xx closing debit; once period is closed it lives in 8710
-  const unclosedOperatingProfit = Math.max(
-    0,
-    sumAccountNet(["90"], "net_credit") - sumAccountNet(["91", "94"], "net_debit")
-  );
-  const retainedEarnings = sumAccountNet(["87"], "net_credit") + unclosedOperatingProfit;
-  const totalEquity = equityCapital + retainedEarnings;
+    const equityCapital = sumAccountNet(["83"], "net_credit");
+    // Unclosed profit = 90xx closing credit - 91xx/94xx closing debit; once period is closed it lives in 8710
+    const unclosedOperatingProfit = Math.max(
+      0,
+      sumAccountNet(["90"], "net_credit") - sumAccountNet(["91", "94"], "net_debit")
+    );
+    const retainedEarnings = sumAccountNet(["87"], "net_credit") + unclosedOperatingProfit;
+    const totalEquity = equityCapital + retainedEarnings;
 
-  const payablesSuppliers = sumAccountNet(["60", "63"], "net_credit");
-  const taxPayables = sumAccountNet(["64"], "net_credit");
-  const payrollPayables = sumAccountNet(["67"], "net_credit");
-  const totalLiabilities = payablesSuppliers + taxPayables + payrollPayables;
+    const payablesSuppliers = sumAccountNet(["60", "63"], "net_credit");
+    const taxPayables = sumAccountNet(["64"], "net_credit");
+    const payrollPayables = sumAccountNet(["67"], "net_credit");
+    const totalLiabilities = payablesSuppliers + taxPayables + payrollPayables;
 
-  const balanceSheet = [
-    { section: d.balanceRows.assetsHeader, code: "", amount: totalAssets, isSectionHeader: true, isHeader: false },
-    { section: d.balanceRows.fixedAssets, code: "010", amount: fixedAssets, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.inventory, code: "140", amount: inventoryVal, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.receivables, code: "210", amount: receivablesVal, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.cash, code: "320", amount: cashVal, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.assetsTotal, code: "400", amount: totalAssets, isSectionHeader: false, isHeader: true },
-    { section: d.balanceRows.liabilitiesHeader, code: "", amount: totalEquity + totalLiabilities, isSectionHeader: true, isHeader: false },
-    { section: d.balanceRows.equityCapital, code: "410", amount: equityCapital, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.retainedEarnings, code: "450", amount: retainedEarnings, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.payablesSuppliers, code: "610", amount: payablesSuppliers, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.taxPayables, code: "640", amount: taxPayables, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.payrollPayables, code: "670", amount: payrollPayables, isSectionHeader: false, isHeader: false },
-    { section: d.balanceRows.liabilitiesTotal, code: "780", amount: totalEquity + totalLiabilities, isSectionHeader: false, isHeader: true },
-  ];
+    return [
+      { section: d.balanceRows.assetsHeader, code: "", amount: totalAssets, isSectionHeader: true, isHeader: false },
+      { section: d.balanceRows.fixedAssets, code: "010", amount: fixedAssets, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.inventory, code: "140", amount: inventoryVal, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.receivables, code: "210", amount: receivablesVal, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.cash, code: "320", amount: cashVal, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.assetsTotal, code: "400", amount: totalAssets, isSectionHeader: false, isHeader: true },
+      { section: d.balanceRows.liabilitiesHeader, code: "", amount: totalEquity + totalLiabilities, isSectionHeader: true, isHeader: false },
+      { section: d.balanceRows.equityCapital, code: "410", amount: equityCapital, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.retainedEarnings, code: "450", amount: retainedEarnings, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.payablesSuppliers, code: "610", amount: payablesSuppliers, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.taxPayables, code: "640", amount: taxPayables, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.payrollPayables, code: "670", amount: payrollPayables, isSectionHeader: false, isHeader: false },
+      { section: d.balanceRows.liabilitiesTotal, code: "780", amount: totalEquity + totalLiabilities, isSectionHeader: false, isHeader: true },
+    ];
+  }, [sumAccountNet, d.balanceRows]);
 
   // Real Cash Flow chart data from transactions
-  const cashFlowMap = new Map<string, { date: string; income: number; expense: number }>();
-  for (const tx of [...transactions].sort((a, b) => a.date.localeCompare(b.date))) {
-    const existing = cashFlowMap.get(tx.date) || { date: tx.date, income: 0, expense: 0 };
-    if (tx.type === "income") existing.income += tx.amount;
-    else existing.expense += tx.amount;
-    cashFlowMap.set(tx.date, existing);
-  }
-  const cashFlowData = Array.from(cashFlowMap.values());
+  const cashFlowData = useMemo(() => {
+    const cashFlowMap = new Map<string, { date: string; income: number; expense: number }>();
+    for (const tx of [...transactions].sort((a, b) => a.date.localeCompare(b.date))) {
+      const existing = cashFlowMap.get(tx.date) || { date: tx.date, income: 0, expense: 0 };
+      if (tx.type === "income") existing.income += tx.amount;
+      else existing.expense += tx.amount;
+      cashFlowMap.set(tx.date, existing);
+    }
+    return Array.from(cashFlowMap.values());
+  }, [transactions]);
 
   const handleExportExcel = () => {
     let filename = "";
@@ -146,30 +152,24 @@ export default function FinancePage() {
       filename = `shakl_2_moliyaviy_natijalar_${new Date().getFullYear()}.csv`;
       const headers = d.pnlCsvHeaders;
       const rows = pnlStatement.map((item) => [
-        item.code,
-        `"${item.category.replace(/"/g, '""')}"`,
-        item.prevPeriod,
-        item.currentPeriod,
+        sanitizeCsvField(item.code),
+        sanitizeCsvField(item.category),
+        sanitizeCsvField(item.prevPeriod),
+        sanitizeCsvField(item.currentPeriod),
       ]);
-      csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      csvContent = [headers.map(sanitizeCsvField).join(","), ...rows.map((e) => e.join(","))].join("\n");
     } else {
       filename = `shakl_1_buxgalteriya_balansi_${new Date().getFullYear()}.csv`;
       const headers = d.balanceCsvHeaders;
       const rows = balanceSheet.map((item) => [
-        item.code || "-",
-        `"${item.section.replace(/"/g, '""')}"`,
-        item.amount,
+        sanitizeCsvField(item.code || "-"),
+        sanitizeCsvField(item.section),
+        sanitizeCsvField(item.amount),
       ]);
-      csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      csvContent = [headers.map(sanitizeCsvField).join(","), ...rows.map((e) => e.join(","))].join("\n");
     }
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.href = encodedUri;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsvBlob(filename, csvContent);
     toast.success(d.toasts.excelExported.replace("{filename}", filename));
   };
 
@@ -314,38 +314,18 @@ export default function FinancePage() {
         </TabsContent>
 
         <TabsContent value="cashflow" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">{t.pages.finance.cashflowTitle}</CardTitle>
-              <CardDescription>{t.pages.finance.cashflowSubtitle}</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <div className="h-[280px] w-full">
-                {cashFlowData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={cashFlowData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                      <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 10 }}
-                        tickFormatter={(val) => `${(val / 1000000).toFixed(0)}m`}
-                      />
-                      <Tooltip formatter={(val: any) => [`${Number(val).toLocaleString(intlLocale)} ${t.common.currency}`]} />
-                      <Legend wrapperStyle={{ fontSize: "11px" }} />
-                      <Bar dataKey="income" name={t.common.income} fill="#10B981" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="expense" name={t.common.expense} fill="#4F46E5" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                    {d.emptyCashflow}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {activeTab === "cashflow" && (
+            <CashflowChart
+              cashFlowData={cashFlowData}
+              title={t.pages.finance.cashflowTitle}
+              subtitle={t.pages.finance.cashflowSubtitle}
+              emptyLabel={d.emptyCashflow}
+              incomeLabel={t.common.income}
+              expenseLabel={t.common.expense}
+              currencyLabel={t.common.currency}
+              intlLocale={intlLocale}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>

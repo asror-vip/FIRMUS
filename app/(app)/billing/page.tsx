@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import {
@@ -134,30 +134,29 @@ export default function BillingPage() {
   const [isConfirmingOrder, setIsConfirmingOrder] = useState(false);
   const [copiedInvoice, setCopiedInvoice] = useState(false);
 
+  const initializedEntityRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (currentEntity?.tinStir && !b2bTinStir) {
-      setB2bTinStir(currentEntity.tinStir);
+    const entityId = currentEntity?.id ?? null;
+    if (entityId && initializedEntityRef.current !== entityId) {
+      initializedEntityRef.current = entityId;
+      setB2bTinStir(currentEntity?.tinStir || "");
+      setB2bCompanyName(currentEntity?.name || "");
     }
-    if (currentEntity?.name && !b2bCompanyName) {
-      setB2bCompanyName(currentEntity.name);
-    }
-  }, [currentEntity, b2bTinStir, b2bCompanyName]);
+  }, [currentEntity]);
 
   const loadStats = useCallback(async () => {
     setIsLoadingUsage(true);
     try {
-      const [res] = await Promise.all([
-        fetchWorkspaceUsageSummary({
-          workspaceId: currentWorkspace?.id,
-          entityId: currentEntity?.id,
-        }),
-        refreshSubscription(),
-      ]);
+      const res = await fetchWorkspaceUsageSummary({
+        workspaceId: currentWorkspace?.id,
+        entityId: currentEntity?.id,
+      });
       setUsage(res);
     } finally {
       setIsLoadingUsage(false);
     }
-  }, [currentWorkspace?.id, currentEntity?.id, refreshSubscription]);
+  }, [currentWorkspace?.id, currentEntity?.id]);
 
   useEffect(() => {
     loadStats();
@@ -284,7 +283,12 @@ export default function BillingPage() {
         return;
       }
 
-      setCheckoutOrder(data);
+      const createdOrderId = data?.order?.orderId || data?.orderId;
+      const fallbackInvoiceNumber =
+        data?.invoiceDetails?.invoiceNumber ||
+        data?.invoiceNumber ||
+        (createdOrderId ? `INV-${createdOrderId}` : `INV-${Date.now().toString().slice(-6)}`);
+      setCheckoutOrder({ ...data, fallbackInvoiceNumber });
       toast.success(
         paymentMethod === "bank_transfer_didox"
           ? b.toast.invoiceGenerated
@@ -352,7 +356,7 @@ export default function BillingPage() {
     const invNum =
       inv?.invoiceNumber ||
       checkoutOrder?.invoiceNumber ||
-      (orderId !== "—" ? `INV-${orderId}` : `INV-${Date.now().toString().slice(-6)}`);
+      (orderId !== "—" ? `INV-${orderId}` : checkoutOrder?.fallbackInvoiceNumber || "INV-000000");
     const seller = inv?.sellerName || "«FIRMUS TECH» MChJ";
     const sTin = inv?.sellerTin || "309888777";
     const sAccount = inv?.sellerAccount || "2020 8000 9005 1234 5001";
@@ -442,7 +446,12 @@ export default function BillingPage() {
   const activeAiModelMeta = getLocalizedAiModel(subscription.preferredModel, locale);
 
   return (
-    <div className="space-y-6">
+    <div
+      className={cn(
+        "space-y-6",
+        isPaymentModalOpen && checkoutOrder && paymentMethod === "bank_transfer_didox" && "print:hidden"
+      )}
+    >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -725,6 +734,7 @@ export default function BillingPage() {
       <Dialog
         open={isPaymentModalOpen}
         onOpenChange={async (open) => {
+          if (!open && (isConfirmingOrder || isCheckingOut)) return;
           setIsPaymentModalOpen(open);
           if (!open) {
             const orderId = checkoutOrder?.order?.orderId || checkoutOrder?.orderId;
@@ -862,7 +872,7 @@ export default function BillingPage() {
                       checkoutOrder.invoiceNumber ||
                       (checkoutOrder.order?.orderId
                         ? `INV-${checkoutOrder.order.orderId}`
-                        : `INV-${Date.now().toString().slice(-6)}`)}
+                        : checkoutOrder.fallbackInvoiceNumber)}
                   </span>
                 </div>
               </DialogHeader>
@@ -913,7 +923,7 @@ export default function BillingPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 print:hidden">
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
@@ -948,7 +958,7 @@ export default function BillingPage() {
                 </div>
               </div>
 
-              <DialogFooter className="pt-2 border-t border-border">
+              <DialogFooter className="pt-2 border-t border-border print:hidden">
                 <Button
                   type="button"
                   variant="success"

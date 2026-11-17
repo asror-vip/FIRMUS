@@ -89,16 +89,24 @@ export async function POST(req: NextRequest) {
       subscription: snapshot,
     });
   } catch (err: any) {
-    const rawMessage = err?.message || "";
-    const status =
+    console.error("Trial activation error:", err);
+    const rawMessage = typeof err?.message === "string" ? err.message : "";
+    const isConflict =
       rawMessage.includes("avval") ||
       rawMessage.includes("allaqachon") ||
-      rawMessage.includes("limiti tugagan")
-        ? 409
-        : 400;
+      rawMessage.includes("limiti tugagan");
+    const isDomainError = isConflict || rawMessage.includes("Sinov muddatini");
+
+    if (isDomainError) {
+      return NextResponse.json(
+        { error: localizeServerError(rawMessage, locale) },
+        { status: isConflict ? 409 : 400 }
+      );
+    }
+
     return NextResponse.json(
-      { error: rawMessage ? localizeServerError(rawMessage, locale) : msg.trialActivateFailed },
-      { status }
+      { error: msg.trialActivateFailed },
+      { status: 500 }
     );
   }
 }

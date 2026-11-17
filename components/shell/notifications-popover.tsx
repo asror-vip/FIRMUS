@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchExceptions, fetchTaxDeadlines } from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/context/app-state";
+import { FEATURES } from "@/lib/config/features";
 
 export interface NotificationItem {
   id: string;
@@ -46,7 +47,7 @@ export function NotificationsPopover() {
   const [unreadOnly] = useState(false);
 
   const loadNotifications = useCallback(async () => {
-    if (!currentEntity?.id) {
+    if (!FEATURES.fullAccountingErp || !currentEntity?.id) {
       setNotifications([]);
       return;
     }
@@ -106,8 +107,8 @@ export function NotificationsPopover() {
   }, [currentEntity?.id, d.notifications.duePrefix, d.notifications.goToTax, d.notifications.today, d.notifications.viewInAuditor]);
 
   useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+    setNotifications([]);
+  }, [currentEntity?.id]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -159,7 +160,13 @@ export function NotificationsPopover() {
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (open && FEATURES.fullAccountingErp) {
+          loadNotifications();
+        }
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

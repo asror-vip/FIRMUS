@@ -3,6 +3,7 @@ import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { Footer } from "@/components/shell/footer";
 import { FirstLoginNotice } from "@/components/shared/first-login-notice";
+import { AppOverlays } from "@/components/shell/app-overlays";
 
 export default function AppLayout({
   children,
@@ -22,6 +23,7 @@ export default function AppLayout({
         </main>
       </div>
       <FirstLoginNotice />
+      <AppOverlays />
     </div>
   );
 }

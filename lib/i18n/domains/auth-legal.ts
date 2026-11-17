@@ -74,6 +74,26 @@ export interface AuthLegalDict {
     sentToast: string;
     resetErrorToast: string;
   };
+  resetPassword: {
+    title: string;
+    subtitle: string;
+    newPasswordLabel: string;
+    newPasswordPlaceholder: string;
+    confirmPasswordLabel: string;
+    confirmPasswordPlaceholder: string;
+    passwordHint: string;
+    submitBtn: string;
+    savingBtn: string;
+    successTitle: string;
+    successDesc: string;
+    goToAppBtn: string;
+    backToLogin: string;
+    missingFieldsToast: string;
+    passwordMinToast: string;
+    passwordMismatchToast: string;
+    successToast: string;
+    errorToast: string;
+  };
   onboarding: {
     loadingRedirect: string;
     badge: string;
@@ -211,6 +231,26 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
       missingEmailToast: "Iltimos, elektron pochtangizni kiriting",
       sentToast: "Parolni tiklash havolasi emailingizga yuborildi!",
       resetErrorToast: "Parolni tiklash soʻrovida xatolik yuz berdi",
+    },
+    resetPassword: {
+      title: "Yangi Parol Oʻrnatish",
+      subtitle: "Hisobingiz uchun yangi va xavfsiz parol kiriting",
+      newPasswordLabel: "Yangi parol:",
+      newPasswordPlaceholder: "Kamida 8 ta belgi",
+      confirmPasswordLabel: "Yangi parolni tasdiqlang:",
+      confirmPasswordPlaceholder: "Parolni qayta kiriting",
+      passwordHint: "Kamida 8 ta belgi",
+      submitBtn: "Parolni yangilash",
+      savingBtn: "Saqlanmoqda...",
+      successTitle: "Parol yangilandi!",
+      successDesc: "Yangi parolingiz muvaffaqiyatli saqlandi. Endi tizimdan foydalanishingiz mumkin.",
+      goToAppBtn: "Ilovaga oʻtish",
+      backToLogin: "Kirish sahifasiga qaytish",
+      missingFieldsToast: "Iltimos, ikkala parol maydonini ham toʻldiring",
+      passwordMinToast: "Parol kamida 8 ta belgidan iborat boʻlishi kerak",
+      passwordMismatchToast: "Parollar bir-biriga mos kelmadi",
+      successToast: "Parol muvaffaqiyatli yangilandi!",
+      errorToast: "Parolni yangilashda xatolik yuz berdi",
     },
     onboarding: {
       loadingRedirect: "Asboblar paneliga yoʻnaltirilmoqda...",
@@ -398,6 +438,26 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
       sentToast: "Ссылка для сброса пароля отправлена на вашу почту!",
       resetErrorToast: "Ошибка при запросе сброса пароля",
     },
+    resetPassword: {
+      title: "Установка нового пароля",
+      subtitle: "Введите новый надежный пароль для вашего аккаунта",
+      newPasswordLabel: "Новый пароль:",
+      newPasswordPlaceholder: "Минимум 8 символов",
+      confirmPasswordLabel: "Подтвердите новый пароль:",
+      confirmPasswordPlaceholder: "Повторите пароль",
+      passwordHint: "Минимум 8 символов",
+      submitBtn: "Обновить пароль",
+      savingBtn: "Сохранение...",
+      successTitle: "Пароль обновлен!",
+      successDesc: "Ваш новый пароль успешно сохранен. Теперь вы можете продолжить работу в системе.",
+      goToAppBtn: "Перейти в приложение",
+      backToLogin: "Вернуться ко входу",
+      missingFieldsToast: "Пожалуйста, заполните оба поля пароля",
+      passwordMinToast: "Пароль должен содержать не менее 8 символов",
+      passwordMismatchToast: "Пароли не совпадают",
+      successToast: "Пароль успешно обновлен!",
+      errorToast: "Не удалось обновить пароль",
+    },
     onboarding: {
       loadingRedirect: "Перенаправление в панель управления...",
       badge: "Быстрая настройка",
@@ -583,6 +643,26 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
       missingEmailToast: "Please enter your email address",
       sentToast: "Password reset link has been sent to your email!",
       resetErrorToast: "Failed to send password reset request",
+    },
+    resetPassword: {
+      title: "Set New Password",
+      subtitle: "Enter a new secure password for your account",
+      newPasswordLabel: "New password:",
+      newPasswordPlaceholder: "At least 8 characters",
+      confirmPasswordLabel: "Confirm new password:",
+      confirmPasswordPlaceholder: "Re-enter password",
+      passwordHint: "At least 8 characters",
+      submitBtn: "Update password",
+      savingBtn: "Saving...",
+      successTitle: "Password updated!",
+      successDesc: "Your new password has been saved. You can now continue to the app.",
+      goToAppBtn: "Continue to app",
+      backToLogin: "Back to sign in",
+      missingFieldsToast: "Please fill in both password fields",
+      passwordMinToast: "Password must be at least 8 characters long",
+      passwordMismatchToast: "Passwords do not match",
+      successToast: "Password updated successfully!",
+      errorToast: "Failed to update password",
     },
     onboarding: {
       loadingRedirect: "Redirecting to dashboard...",

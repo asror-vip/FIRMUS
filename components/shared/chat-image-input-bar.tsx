@@ -95,17 +95,17 @@ export function ChatImageInputBar({
     }
   };
 
+  const isBusy = isSending || isStreaming;
+  const canSend = !isBusy && Boolean(value.trim() || attachedImage);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!isSending && (value.trim() || attachedImage)) {
+      if (!isBusy && (value.trim() || attachedImage)) {
         onSubmit();
       }
     }
   };
-
-  const isBusy = isSending || isStreaming;
-  const canSend = !isBusy && Boolean(value.trim() || attachedImage);
 
   return (
     <form

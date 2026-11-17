@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Transaction } from "@/lib/types/accounting";
 import { fetchTransactionsPaginated, createTransaction, updateTransactionStatus } from "@/lib/services/supabase-service";
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { importBatchTransactions, ParsedBankTransaction } from "@/lib/services/bank-import";
 import { parseStatementFileBuffer } from "@/lib/services/reconcile-engine";
 import { generate1CClientBankText } from "@/lib/services/one-c-export";
+import { sanitizeCsvField, downloadCsvBlob } from "@/lib/utils/csv";
 import {
   Search,
   Filter,
@@ -45,18 +46,32 @@ function TransactionsContent() {
   const d = dict.erpExtra.transactions;
   const intlLocale = getIntlLocale(locale);
 
-  const initialTab = searchParams.get("tab") || "all";
+  const tabParam = searchParams.get("tab");
+  const initialTab = tabParam || "all";
   const initialTxId = searchParams.get("id");
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMutating, setIsMutating] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  useEffect(() => {
+    setActiveTab(tabParam || "all");
+  }, [tabParam]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Extended Filter Bar state
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -99,6 +114,7 @@ function TransactionsContent() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
 
     setImportFileName(file.name);
@@ -130,7 +146,7 @@ function TransactionsContent() {
         page: currentPage,
         pageSize,
         tab: activeTab,
-        search,
+        search: debouncedSearch,
       });
       setTransactions((data || []) as Transaction[]);
       setTotalCount(count);
@@ -144,7 +160,7 @@ function TransactionsContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentEntity?.id, currentPage, pageSize, activeTab, search, initialTxId, d.toasts.loadTxError]);
+  }, [currentEntity?.id, currentPage, pageSize, activeTab, debouncedSearch, initialTxId, d.toasts.loadTxError]);
 
   useEffect(() => {
     loadTransactions();
@@ -152,8 +168,11 @@ function TransactionsContent() {
 
   useEffect(() => {
     setCurrentPage(1);
+  }, [currentEntity?.id, activeTab, debouncedSearch]);
+
+  useEffect(() => {
     setSelectedIds([]);
-  }, [currentEntity?.id, activeTab, search]);
+  }, [currentEntity?.id, activeTab, search, currentPage]);
 
   const handleConfirmImport = async () => {
     if (importedList.length === 0) return;
@@ -173,25 +192,19 @@ function TransactionsContent() {
   };
 
   const handleExport = () => {
-    const headers = d.csvHeaders;
+    const headers = d.csvHeaders.map((h) => sanitizeCsvField(h));
     const rows = transactions.map((tx) => [
-      tx.id,
-      tx.date,
-      `"${(tx.counterparty || "").replace(/"/g, '""')}"`,
-      tx.counterpartyStir || "",
-      tx.type,
-      tx.amount,
-      `"${(tx.description || "").replace(/"/g, '""')}"`,
-      tx.status,
+      sanitizeCsvField(tx.id),
+      sanitizeCsvField(tx.date),
+      sanitizeCsvField(tx.counterparty || ""),
+      sanitizeCsvField(tx.counterpartyStir || ""),
+      sanitizeCsvField(tx.type),
+      sanitizeCsvField(tx.amount),
+      sanitizeCsvField(tx.description || ""),
+      sanitizeCsvField(tx.status),
     ]);
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `firmus_transactions_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    downloadCsvBlob(`firmus_transactions_${new Date().toISOString().split("T")[0]}.csv`, csvContent);
     toast.success(d.toasts.csvExported);
   };
 
@@ -245,12 +258,14 @@ function TransactionsContent() {
   };
 
   // Client-side secondary filter (date range / min amount) on top of server-side paginated results
-  const filtered = transactions.filter((tx) => {
-    if (dateFrom && tx.date < dateFrom) return false;
-    if (dateTo && tx.date > dateTo) return false;
-    if (minAmount && Number(tx.amount) < Number(minAmount)) return false;
-    return true;
-  });
+  const filtered = useMemo(() => {
+    return transactions.filter((tx) => {
+      if (dateFrom && tx.date < dateFrom) return false;
+      if (dateTo && tx.date > dateTo) return false;
+      if (minAmount && Number(tx.amount) < Number(minAmount)) return false;
+      return true;
+    });
+  }, [transactions, dateFrom, dateTo, minAmount]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -273,6 +288,8 @@ function TransactionsContent() {
   const paginatedTx = filtered;
 
   const handleApproveTx = async (tx: Transaction) => {
+    if (isMutating) return;
+    setIsMutating(true);
     try {
       await updateTransactionStatus(tx.id, "posted", {
         entityId: currentEntity?.id,
@@ -288,10 +305,14 @@ function TransactionsContent() {
       setSelectedTx(null);
     } catch (err: any) {
       toast.error(d.toasts.txApproveError.replace("{error}", err.message));
+    } finally {
+      setIsMutating(false);
     }
   };
 
   const handleRejectTx = async (tx: Transaction) => {
+    if (isMutating) return;
+    setIsMutating(true);
     try {
       await updateTransactionStatus(tx.id, "rejected");
       await loadTransactions();
@@ -299,28 +320,55 @@ function TransactionsContent() {
       setSelectedTx(null);
     } catch (err: any) {
       toast.error(d.toasts.txRejectError.replace("{error}", err.message));
+    } finally {
+      setIsMutating(false);
     }
   };
 
   const handleBatchApprove = async () => {
+    if (isMutating) return;
+    const selectedObjects = transactions.filter((t) => selectedIds.includes(t.id));
+    if (selectedObjects.length === 0) return;
+
+    setIsMutating(true);
+    let approvedCount = 0;
+    let firstError: any = null;
     try {
-      const selectedObjects = transactions.filter((t) => selectedIds.includes(t.id));
-      for (const tx of selectedObjects) {
-        await updateTransactionStatus(tx.id, "posted", {
-          entityId: currentEntity?.id,
-          date: tx.date,
-          amount: tx.amount,
-          type: tx.type,
-          counterparty: tx.counterparty,
-          description: tx.description,
-          accountCode: tx.accountCode,
-        });
+      const CHUNK_SIZE = 5;
+      for (let i = 0; i < selectedObjects.length; i += CHUNK_SIZE) {
+        const chunk = selectedObjects.slice(i, i + CHUNK_SIZE);
+        const results = await Promise.allSettled(
+          chunk.map((tx) =>
+            updateTransactionStatus(tx.id, "posted", {
+              entityId: currentEntity?.id,
+              date: tx.date,
+              amount: tx.amount,
+              type: tx.type,
+              counterparty: tx.counterparty,
+              description: tx.description,
+              accountCode: tx.accountCode,
+            })
+          )
+        );
+        for (const res of results) {
+          if (res.status === "fulfilled") {
+            approvedCount++;
+          } else if (!firstError) {
+            firstError = res.reason;
+          }
+        }
       }
       await loadTransactions();
-      toast.success(d.toasts.batchApproved.replace("{count}", String(selectedIds.length)));
+      if (firstError) {
+        toast.error(d.toasts.batchApproveError.replace("{error}", firstError?.message || d.unknownError));
+      } else {
+        toast.success(d.toasts.batchApproved.replace("{count}", String(approvedCount)));
+      }
       setSelectedIds([]);
     } catch (err: any) {
       toast.error(d.toasts.batchApproveError.replace("{error}", err.message));
+    } finally {
+      setIsMutating(false);
     }
   };
 
@@ -475,6 +523,7 @@ function TransactionsContent() {
               size="sm"
               variant="success"
               className="h-7 px-3 text-xs"
+              disabled={isMutating}
               onClick={handleBatchApprove}
             >
               <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
@@ -700,7 +749,7 @@ function TransactionsContent() {
               <div className="pt-4 flex items-center gap-2">
                 <Button
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-9"
-                  disabled={selectedTx.status === "posted"}
+                  disabled={isMutating || selectedTx.status === "posted"}
                   onClick={() => handleApproveTx(selectedTx)}
                 >
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
@@ -709,7 +758,7 @@ function TransactionsContent() {
                 <Button
                   variant="outline"
                   className="h-9"
-                  disabled={selectedTx.status === "rejected"}
+                  disabled={isMutating || selectedTx.status === "rejected"}
                   onClick={() => handleRejectTx(selectedTx)}
                 >
                   {t.common.reject}
@@ -854,7 +903,16 @@ function TransactionsContent() {
       </Dialog>
 
       {/* Bank Vypiska Import Modal Dialog */}
-      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+      <Dialog
+        open={isImportOpen}
+        onOpenChange={(open) => {
+          setIsImportOpen(open);
+          if (!open) {
+            setImportedList([]);
+            setImportFileName("");
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">

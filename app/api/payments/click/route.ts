@@ -26,31 +26,75 @@ export async function POST(req: NextRequest) {
     const serviceId = payload.service_id;
     const clickPaydocId = payload.click_paydoc_id;
     const merchantTransId = String(payload.merchant_trans_id || "").trim(); // our order_id
-    const amount = Number(payload.amount);
-    const action = Number(payload.action);
-    const error = Number(payload.error || 0);
+    const rawAmount = payload.amount;
+    const amount =
+      typeof rawAmount === "number" ||
+      (typeof rawAmount === "string" && rawAmount.trim() !== "")
+        ? Number(rawAmount)
+        : NaN;
+    const rawAction = payload.action;
+    const action =
+      typeof rawAction === "number" ||
+      (typeof rawAction === "string" && rawAction.trim() !== "")
+        ? Number(rawAction)
+        : NaN;
+    const error = Number(payload.error ?? 0);
     const signTime = payload.sign_time;
     const signString = payload.sign_string;
-    const merchantPrepareId = payload.merchant_prepare_id || "";
+    const merchantPrepareId = payload.merchant_prepare_id ?? "";
 
     const secretKey = process.env.CLICK_SECRET_KEY?.trim();
+    const expectedServiceId = process.env.CLICK_SERVICE_ID?.trim();
+    const allowInsecureBypass =
+      process.env.NODE_ENV === "development" &&
+      process.env.ALLOW_INSECURE_PAYMENT_WEBHOOKS === "true";
 
-    // Verify MD5 signature if CLICK_SECRET_KEY is configured
-    if (secretKey) {
-      let rawSign = "";
-      if (action === 0) {
-        rawSign = `${clickTransId}${serviceId}${secretKey}${merchantTransId}${amount}${action}${signTime}`;
-      } else if (action === 1) {
-        rawSign = `${clickTransId}${serviceId}${secretKey}${merchantTransId}${merchantPrepareId}${amount}${action}${signTime}`;
-      }
-
-      const calculatedSign = md5(rawSign);
-      if (calculatedSign.toLowerCase() !== String(signString || "").toLowerCase()) {
+    if (!secretKey) {
+      if (!allowInsecureBypass) {
         return NextResponse.json({
           error: -1,
           error_note: "SIGN CHECK FAILED",
         });
       }
+    } else {
+      if (expectedServiceId && String(serviceId ?? "") !== expectedServiceId) {
+        return NextResponse.json({
+          error: -1,
+          error_note: "SIGN CHECK FAILED",
+        });
+      }
+
+      if (action !== 0 && action !== 1) {
+        return NextResponse.json({
+          error: -3,
+          error_note: "Nomaʻlum action",
+        });
+      }
+
+      const signAmount = rawAmount ?? "";
+      const rawSign =
+        action === 0
+          ? `${clickTransId}${serviceId}${secretKey}${merchantTransId}${signAmount}${action}${signTime}`
+          : `${clickTransId}${serviceId}${secretKey}${merchantTransId}${merchantPrepareId}${signAmount}${action}${signTime}`;
+
+      const calculatedBuf = Buffer.from(md5(rawSign).toLowerCase(), "utf8");
+      const providedBuf = Buffer.from(String(signString || "").trim().toLowerCase(), "utf8");
+      if (
+        calculatedBuf.length !== providedBuf.length ||
+        !crypto.timingSafeEqual(calculatedBuf, providedBuf)
+      ) {
+        return NextResponse.json({
+          error: -1,
+          error_note: "SIGN CHECK FAILED",
+        });
+      }
+    }
+
+    if (action !== 0 && action !== 1) {
+      return NextResponse.json({
+        error: -3,
+        error_note: "Nomaʻlum action",
+      });
     }
 
     if (!merchantTransId) {
@@ -76,16 +120,28 @@ export async function POST(req: NextRequest) {
 
     // Action 0: Prepare
     if (action === 0) {
-      if (order.status === "paid") {
+      if (order.payment_method !== "click") {
         return NextResponse.json({
           click_trans_id: clickTransId,
           merchant_trans_id: merchantTransId,
-          error: -4,
-          error_note: "Buyurtma allaqachon toʻlangan",
+          error: -9,
+          error_note: "Notoʻgʻri toʻlov usuli",
         });
       }
 
-      if (Math.abs(Number(order.final_amount_uzs) - amount) > 0.01) {
+      if (order.status !== "pending") {
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          error: order.status === "paid" ? -4 : -9,
+          error_note:
+            order.status === "paid"
+              ? "Buyurtma allaqachon toʻlangan"
+              : "Buyurtma holati toʻlovga mos emas",
+        });
+      }
+
+      if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Number(order.final_amount_uzs) - amount) > 0.01) {
         return NextResponse.json({
           click_trans_id: clickTransId,
           merchant_trans_id: merchantTransId,
@@ -116,6 +172,52 @@ export async function POST(req: NextRequest) {
 
     // Action 1: Complete
     if (action === 1) {
+      if (order.payment_method !== "click") {
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          error: -9,
+          error_note: "Notoʻgʻri toʻlov usuli",
+        });
+      }
+
+      if (order.status === "paid") {
+        if (error < 0) {
+          return NextResponse.json({
+            click_trans_id: clickTransId,
+            merchant_trans_id: merchantTransId,
+            merchant_confirm_id: order.id,
+            error: -4,
+            error_note: "Buyurtma allaqachon toʻlangan",
+          });
+        }
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          merchant_confirm_id: order.id,
+          error: 0,
+          error_note: "Success (Already paid)",
+        });
+      }
+
+      if (order.status !== "pending") {
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          error: -9,
+          error_note: "Buyurtma holati toʻlovga mos emas",
+        });
+      }
+
+      if (String(merchantPrepareId) !== String(order.id)) {
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          error: -6,
+          error_note: "Tranzaksiya topilmadi",
+        });
+      }
+
       if (error < 0) {
         // User cancelled or transaction failed in Click
         await svc
@@ -123,7 +225,7 @@ export async function POST(req: NextRequest) {
           .update({
             status: "cancelled",
             provider_state: -1,
-            provider_cancel_reason: error,
+            provider_cancel_reason: Number.isFinite(error) ? error : -1,
             provider_cancel_time: Date.now(),
             updated_at: new Date().toISOString(),
           })
@@ -138,17 +240,7 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      if (order.status === "paid") {
-        return NextResponse.json({
-          click_trans_id: clickTransId,
-          merchant_trans_id: merchantTransId,
-          merchant_confirm_id: order.id,
-          error: 0,
-          error_note: "Success (Already paid)",
-        });
-      }
-
-      if (Math.abs(Number(order.final_amount_uzs) - amount) > 0.01) {
+      if (!Number.isFinite(amount) || amount <= 0 || Math.abs(Number(order.final_amount_uzs) - amount) > 0.01) {
         return NextResponse.json({
           click_trans_id: clickTransId,
           merchant_trans_id: merchantTransId,
@@ -170,11 +262,12 @@ export async function POST(req: NextRequest) {
       });
 
       if (completeErr) {
+        console.error("[CLICK] complete_billing_order_atomic error:", completeErr);
         return NextResponse.json({
           click_trans_id: clickTransId,
           merchant_trans_id: merchantTransId,
           error: -7,
-          error_note: completeErr.message || "Foydalanuvchi obunasini yangilab boʻlmadi",
+          error_note: "Foydalanuvchi obunasini yangilab boʻlmadi",
         });
       }
 
@@ -191,10 +284,11 @@ export async function POST(req: NextRequest) {
       error: -3,
       error_note: "Nomaʻlum action",
     });
-  } catch (err: any) {
+  } catch (err) {
+    console.error("[CLICK] Webhook error:", err);
     return NextResponse.json({
       error: -8,
-      error_note: err?.message || "Click soʻrovini qayta ishlashda xatolik",
+      error_note: "Click soʻrovini qayta ishlashda xatolik",
     });
   }
 }

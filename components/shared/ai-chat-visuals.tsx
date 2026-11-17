@@ -119,7 +119,7 @@ function renderInlineFormatting(line: string): React.ReactNode[] {
   return parts;
 }
 
-function FormattedAiText({ text }: { text: string }) {
+const FormattedAiText = React.memo(function FormattedAiText({ text }: { text: string }) {
   const lines = useMemo(() => text.split("\n"), [text]);
 
   return (
@@ -157,7 +157,7 @@ function FormattedAiText({ text }: { text: string }) {
       })}
     </div>
   );
-}
+});
 
 export function AiStreamingMessage({
   text,
@@ -213,22 +213,33 @@ export function AiStreamingMessage({
     }
 
     // Finish smoothly in ~0.8s–1.8s regardless of length
-    const targetTicks = Math.min(85, Math.max(20, Math.ceil(total / 8)));
-    const step = Math.max(2, Math.ceil(total / targetTicks));
+    const targetTicks = Math.min(45, Math.max(12, Math.ceil(total / 16)));
+    const step = Math.max(4, Math.ceil(total / targetTicks));
     let current = 0;
+    let rafId = 0;
 
     const timer = window.setInterval(() => {
       current = Math.min(total, current + step);
       setVisibleLen(current);
-      tickScrollRef.current?.();
+      if (tickScrollRef.current && !rafId) {
+        rafId = window.requestAnimationFrame(() => {
+          rafId = 0;
+          tickScrollRef.current?.();
+        });
+      }
       if (current >= total) {
         window.clearInterval(timer);
         setIsDone(true);
         streamDoneRef.current?.();
       }
-    }, 18);
+    }, 40);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
   }, [text, animate]);
 
   const shownText = isDone ? text.slice(0, visibleLen || text.length) : text.slice(0, visibleLen);

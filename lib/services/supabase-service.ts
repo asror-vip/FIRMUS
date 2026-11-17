@@ -239,7 +239,8 @@ export async function fetchTransactions(entityId?: string) {
       .from("transactions")
       .select("*")
       .order("date", { ascending: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -574,7 +575,8 @@ export async function fetchDocuments(entityId?: string) {
     let query = supabase
       .from("documents")
       .select("*")
-      .order("date", { ascending: false });
+      .order("date", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -771,7 +773,8 @@ export async function fetchBankAccounts(entityId?: string) {
     let query = supabase
       .from("bank_accounts")
       .select("*")
-      .order("is_primary", { ascending: false });
+      .order("is_primary", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -846,7 +849,8 @@ export async function fetchContracts(entityId?: string) {
     let query = supabase
       .from("contracts")
       .select("*")
-      .order("start_date", { ascending: false });
+      .order("start_date", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -934,7 +938,8 @@ export async function fetchInventoryItems(entityId?: string) {
     let query = supabase
       .from("inventory_items")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -1013,7 +1018,8 @@ export async function fetchEmployees(entityId?: string) {
     let query = supabase
       .from("employees")
       .select("*")
-      .order("hire_date", { ascending: false });
+      .order("hire_date", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -1112,7 +1118,8 @@ export async function fetchExceptions(entityId?: string) {
     let query = supabase
       .from("exceptions")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -1235,7 +1242,8 @@ export async function fetchTeamMembers(workspaceId?: string) {
     let query = supabase
       .from("team_members")
       .select("*")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(500);
 
     if (isValidUuid(workspaceId)) {
       query = query.eq("workspace_id", workspaceId);
@@ -1382,7 +1390,8 @@ export async function fetchChartOfAccounts(entityId?: string) {
       .from("chart_of_accounts")
       .select("*")
       .eq("is_active", true)
-      .order("code", { ascending: true });
+      .order("code", { ascending: true })
+      .limit(500);
 
     if (entityId) {
       query = query.or(`business_entity_id.eq.${entityId},business_entity_id.is.null`);
@@ -1490,7 +1499,8 @@ export async function fetchJournalEntries(entityId?: string) {
       .from("journal_entries")
       .select("*, journal_lines(*)")
       .order("entry_date", { ascending: false })
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -1664,7 +1674,8 @@ export async function fetchTaxRecords(entityId?: string) {
     let query = supabase
       .from("tax_records")
       .select("*")
-      .order("deadline", { ascending: false });
+      .order("deadline", { ascending: false })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -1714,7 +1725,8 @@ export async function fetchTaxDeadlines(entityId?: string) {
     let query = supabase
       .from("tax_deadlines")
       .select("*")
-      .order("date", { ascending: true });
+      .order("date", { ascending: true })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);
@@ -1777,7 +1789,8 @@ export async function fetchIntegrations(entityId?: string) {
     let query = supabase
       .from("integrations")
       .select("*")
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(500);
 
     if (entityId) {
       query = query.eq("business_entity_id", entityId);

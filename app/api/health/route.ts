@@ -7,12 +7,13 @@ export async function GET() {
     const { error } = await supabase.from("workspaces").select("id").limit(1);
 
     if (error) {
+      console.error("[HEALTH] Database check error:", error);
       return NextResponse.json(
         {
           status: "error",
           service: "firmus",
           database: "disconnected",
-          error: error.message,
+          error: "Database unavailable",
           timestamp: new Date().toISOString(),
         },
         { status: 503 }
@@ -28,13 +29,14 @@ export async function GET() {
       },
       { status: 200 }
     );
-  } catch (err: any) {
+  } catch (err) {
+    console.error("[HEALTH] Exception:", err);
     return NextResponse.json(
       {
         status: "error",
         service: "firmus",
         database: "disconnected",
-        error: err?.message || "Internal server error",
+        error: "Database unavailable",
         timestamp: new Date().toISOString(),
       },
       { status: 503 }

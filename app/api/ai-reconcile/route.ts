@@ -82,7 +82,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: msg.invalidReconcileRequest }, { status: 400 });
+    }
     const parsed = requestSchema.safeParse(body);
     if (!parsed.success) {
       const issueMsg = parsed.error.issues[0]?.message;
@@ -185,6 +190,8 @@ export async function POST(req: NextRequest) {
       await refundConsumedAiCredits({
         userId: user.id,
         creditCost: authz.creditCost,
+        periodMonth: authz.periodMonth,
+        periodDay: authz.periodDay,
         isScan: false,
       });
     }
@@ -216,11 +223,8 @@ export async function POST(req: NextRequest) {
         };
       }),
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("AI Reconcile API error:", err);
-    return NextResponse.json(
-      { error: err?.message ? localizeServerError(err.message, locale) : msg.reconcileError },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: msg.reconcileError }, { status: 500 });
   }
 }

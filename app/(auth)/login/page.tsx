@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { sanitizeInternalRedirect } from "@/lib/utils/redirect";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
 import { LanguageToggle } from "@/components/shared/language-toggle";
@@ -16,7 +17,7 @@ import { Lock, Mail, ArrowRight, Loader2 } from "lucide-react";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectedFrom = searchParams.get("redirectedFrom") || "/";
+  const redirectedFrom = sanitizeInternalRedirect(searchParams.get("redirectedFrom"));
   const authError = searchParams.get("error");
   const { locale } = useTranslation();
   const d = getAuthLegalDict(locale).login;

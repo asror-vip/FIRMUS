@@ -204,6 +204,7 @@ function AssistantContent() {
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [openingBatchId, setOpeningBatchId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadSavedScans = useCallback(async () => {
     if (!currentEntity?.id) {
@@ -263,12 +264,14 @@ function AssistantContent() {
   }, [currentEntity?.id]);
 
   useEffect(() => {
+    if (activeTab !== "scan") return;
     loadSavedScans();
-  }, [loadSavedScans]);
+  }, [activeTab, loadSavedScans]);
 
   useEffect(() => {
+    if (activeTab !== "history") return;
     loadUnifiedHistory();
-  }, [loadUnifiedHistory]);
+  }, [activeTab, loadUnifiedHistory]);
 
   // 3. Calculator state
   const [calcSalaryAmount, setCalcSalaryAmount] = useState("5000000");
@@ -320,14 +323,14 @@ function AssistantContent() {
     [calcTurnoverRev]
   );
 
-  const vacationCalc = useMemo(
-    () =>
-      calculateVacationPayUz({
-        monthlySalary: parseFloat(calcSalaryAmount) || 0,
-        days: parseInt(calcVacationDays, 10) || 21,
-      }),
-    [calcSalaryAmount, calcVacationDays]
-  );
+  const vacationCalc = useMemo(() => {
+    const parsed = parseInt(calcVacationDays, 10);
+    const safeDays = Number.isNaN(parsed) ? 21 : Math.max(1, Math.min(60, parsed));
+    return calculateVacationPayUz({
+      monthlySalary: parseFloat(calcSalaryAmount) || 0,
+      days: safeDays,
+    });
+  }, [calcSalaryAmount, calcVacationDays]);
 
   const handleDropImageToChat = async (file?: File | null) => {
     setIsDraggingOverChat(false);
@@ -844,6 +847,27 @@ function AssistantContent() {
     }
   };
 
+  const handleDeleteWorkBatch = async (id: string) => {
+    if (deletingId) return;
+    setDeletingId(id);
+    try {
+      await deleteWorkBatch(id);
+      if (activeScanBatchId === id) setActiveScanBatchId(null);
+      if (activeTab === "scan") {
+        await loadSavedScans();
+      } else if (activeTab === "history") {
+        await loadUnifiedHistory();
+      } else {
+        await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
+      }
+      toast.success(d.toasts.deletedFromHistory);
+    } catch (err: any) {
+      toast.error(err?.message || d.toasts.actionExecuteFailed);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -1077,11 +1101,11 @@ function AssistantContent() {
                                           {d.chat.reject}
                                         </Button>
                                       </div>
-                                    ) : (
+                                    ) : m.actionStatus && m.actionStatus !== "pending" ? (
                                       <Badge variant={m.actionStatus === "approved" ? "success" : "outline"} className="text-[10px]">
                                         {m.actionStatus === "approved" ? d.chat.postedToLedger : d.chat.rejected}
                                       </Badge>
-                                    )}
+                                    ) : null}
                                   </div>
                                 )}
                               </div>
@@ -1136,7 +1160,11 @@ function AssistantContent() {
                       : "image/jpeg,image/png,image/webp"
                   }
                   className="hidden"
-                  onChange={(e) => handleSelectScanFile(e.target.files?.[0])}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    handleSelectScanFile(file);
+                  }}
                 />
                 <Button
                   type="button"
@@ -1217,7 +1245,7 @@ function AssistantContent() {
                       <p className="text-[11px] text-muted-foreground">{scanResult.provodkaExplanation}</p>
                     </div>
 
-                    {scanResult.items.length > 0 && (
+                    {Array.isArray(scanResult.items) && scanResult.items.length > 0 && (
                       <div className="max-h-40 overflow-y-auto border rounded-md">
                         <Table>
                           <TableHeader>
@@ -1347,14 +1375,14 @@ function AssistantContent() {
                                 variant="ghost"
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                                 aria-label={d.actions.delete}
-                                onClick={async () => {
-                                  await deleteWorkBatch(s.id);
-                                  if (activeScanBatchId === s.id) setActiveScanBatchId(null);
-                                  await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
-                                  toast.success(d.toasts.deletedFromHistory);
-                                }}
+                                disabled={deletingId === s.id}
+                                onClick={() => handleDeleteWorkBatch(s.id)}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                {deletingId === s.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
                               </Button>
                             </div>
                           </TableCell>
@@ -1567,7 +1595,11 @@ function AssistantContent() {
                       : "image/jpeg,image/png,image/webp"
                   }
                   className="hidden"
-                  onChange={(e) => handleSelectContractFile(e.target.files?.[0])}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    handleSelectContractFile(file);
+                  }}
                 />
                 <Button
                   type="button"
@@ -1614,7 +1646,7 @@ function AssistantContent() {
                 ) : (
                   <>
                     <div className="font-medium text-foreground">{contractResult.provodkaExplanation}</div>
-                    {contractResult.risks.length === 0 ? (
+                    {!Array.isArray(contractResult.risks) || contractResult.risks.length === 0 ? (
                       <div className="flex items-center gap-2 text-emerald-600 rounded-lg bg-emerald-500/10 p-3">
                         <CheckCircle2 className="h-4 w-4 shrink-0" />
                         <span>{d.contract.noRisksFound}</span>
@@ -1794,14 +1826,14 @@ function AssistantContent() {
                                 variant="ghost"
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                                 aria-label={d.actions.delete}
-                                onClick={async () => {
-                                  await deleteWorkBatch(item.id);
-                                  if (activeScanBatchId === item.id) setActiveScanBatchId(null);
-                                  await Promise.all([loadUnifiedHistory(), loadSavedScans()]);
-                                  toast.success(d.toasts.deletedFromHistory);
-                                }}
+                                disabled={deletingId === item.id}
+                                onClick={() => handleDeleteWorkBatch(item.id)}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                {deletingId === item.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
                               </Button>
                             </div>
                           </TableCell>

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { EntitySwitcher } from "./entity-switcher";
@@ -57,6 +57,11 @@ export function Topbar() {
   const { t, locale } = useTranslation();
   const d = getShellSharedDict(locale);
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const displayName =
     user?.user_metadata?.full_name ||
@@ -129,7 +134,7 @@ export function Topbar() {
           title={d.topbar.toggleThemeLabel}
           aria-label={d.topbar.toggleThemeLabel}
         >
-          {theme === "dark" ? (
+          {mounted && theme === "dark" ? (
             <Sun className="h-4 w-4 text-amber-400" />
           ) : (
             <Moon className="h-4 w-4" />

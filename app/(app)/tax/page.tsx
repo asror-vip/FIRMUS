@@ -12,6 +12,7 @@ import {
 } from "@/lib/services/supabase-service";
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { useAppState } from "@/lib/context/app-state";
+import { sanitizeCsvField, downloadCsvBlob } from "@/lib/utils/csv";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -133,25 +134,17 @@ export default function TaxPage() {
   const netVatPayable = Math.max(0, vatOutput6410 - vatInput4410);
 
   const handleExportTaxCsv = () => {
-    const headers = d.csvHeaders;
+    const headers = d.csvHeaders.map((h) => sanitizeCsvField(h));
     const rows = taxRecords.map((rec) => [
-      `"${rec.type}"`,
-      `"${rec.period}"`,
-      rec.calculatedAmount,
-      rec.paidAmount,
-      rec.deadline,
-      rec.status,
+      sanitizeCsvField(rec.type),
+      sanitizeCsvField(rec.period),
+      sanitizeCsvField(rec.calculatedAmount),
+      sanitizeCsvField(rec.paidAmount),
+      sanitizeCsvField(rec.deadline),
+      sanitizeCsvField(rec.status),
     ]);
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `firmus_soliq_hisoboti_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    downloadCsvBlob(`firmus_soliq_hisoboti_${new Date().toISOString().split("T")[0]}.csv`, csvContent);
     toast.success(d.toasts.csvExported);
   };
 

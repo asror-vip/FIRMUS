@@ -1,38 +1,26 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { ThemeProvider } from "next-themes";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppStateProvider } from "@/lib/context/app-state";
 import { Toaster } from "sonner";
-import { CommandPalette } from "@/components/shell/command-palette";
-import { AiDrawer } from "@/components/shell/ai-drawer";
 import { CookieConsent } from "@/components/shared/cookie-consent";
+import type { Locale } from "@/lib/i18n/server-locale";
 
-export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 60 * 1000,
-            refetchOnWindowFocus: false,
-          },
-        },
-      })
-  );
-
+export function Providers({
+  children,
+  initialLocale = "uz",
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+}) {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <QueryClientProvider client={queryClient}>
-        <AppStateProvider>
-          {children}
-          <CommandPalette />
-          <AiDrawer />
-          <CookieConsent />
-          <Toaster position="top-right" richColors closeButton />
-        </AppStateProvider>
-      </QueryClientProvider>
+      <AppStateProvider initialLocale={initialLocale}>
+        {children}
+        <CookieConsent />
+        <Toaster position="top-right" richColors closeButton />
+      </AppStateProvider>
     </ThemeProvider>
   );
 }

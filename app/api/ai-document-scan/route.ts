@@ -53,6 +53,62 @@ function estimateDecodedBytes(dataUrlOrBase64: string): number {
   return Math.floor((b64.length * 3) / 4);
 }
 
+function verifyBinaryMagicBytes(
+  mimeType: "image/jpeg" | "image/png" | "image/webp" | "application/pdf",
+  dataUrlOrBase64: string
+): boolean {
+  const rawB64 = dataUrlOrBase64.includes(",")
+    ? dataUrlOrBase64.split(",")[1] || ""
+    : dataUrlOrBase64;
+  const clean = rawB64.replace(/\s+/g, "");
+  if (!clean || clean.length < 16) return false;
+
+  const prefixLen = Math.min(clean.length, 24);
+  const alignedLen = prefixLen - (prefixLen % 4);
+  if (alignedLen < 16) return false;
+
+  const header = Buffer.from(clean.slice(0, alignedLen), "base64");
+  if (header.length < 4) return false;
+
+  switch (mimeType) {
+    case "application/pdf":
+      return (
+        header[0] === 0x25 &&
+        header[1] === 0x50 &&
+        header[2] === 0x44 &&
+        header[3] === 0x46
+      );
+    case "image/jpeg":
+      return header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+    case "image/png":
+      return (
+        header.length >= 8 &&
+        header[0] === 0x89 &&
+        header[1] === 0x50 &&
+        header[2] === 0x4e &&
+        header[3] === 0x47 &&
+        header[4] === 0x0d &&
+        header[5] === 0x0a &&
+        header[6] === 0x1a &&
+        header[7] === 0x0a
+      );
+    case "image/webp":
+      return (
+        header.length >= 12 &&
+        header[0] === 0x52 &&
+        header[1] === 0x49 &&
+        header[2] === 0x46 &&
+        header[3] === 0x46 &&
+        header[8] === 0x57 &&
+        header[9] === 0x45 &&
+        header[10] === 0x42 &&
+        header[11] === 0x50
+      );
+    default:
+      return false;
+  }
+}
+
 function buildContractHeuristicFallback(rawText: string, msg: ApiMessages) {
   const safeText = depersonalizeForAi(rawText);
   const lower = safeText.toLowerCase();
@@ -113,7 +169,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
-    const body = await req.json();
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: msg.invalidDocumentRequest }, { status: 400 });
+    }
     const parsed = scanRequestSchema.safeParse(body);
     if (!parsed.success) {
       const issueMsg = parsed.error.issues[0]?.message;
@@ -141,6 +202,15 @@ export async function POST(req: NextRequest) {
         { error: msg.invalidImageFormat },
         { status: 400 }
       );
+    }
+
+    if (base64Data && base64Data.trim().length > 0) {
+      if (!mimeType || !verifyBinaryMagicBytes(mimeType, base64Data)) {
+        return NextResponse.json(
+          { error: msg.invalidImageFormat },
+          { status: 400 }
+        );
+      }
     }
 
     const hasBinary = Boolean(mimeType && base64Data && base64Data.length > 20);
@@ -373,6 +443,8 @@ export async function POST(req: NextRequest) {
       await refundConsumedAiCredits({
         userId: user.id,
         creditCost: authz.creditCost,
+        periodMonth: authz.periodMonth,
+        periodDay: authz.periodDay,
         isScan: true,
       });
     }
@@ -391,10 +463,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 503 }
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("AI Document Scan error:", err);
     return NextResponse.json(
-      { error: err?.message ? localizeServerError(err.message, locale) : msg.documentScanError },
+      { error: msg.documentScanError },
       { status: 500 }
     );
   }

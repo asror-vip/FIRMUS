@@ -1,5 +1,8 @@
+import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase/service";
+
+const PAYME_TIMEOUT_MS = 43_200_000;
 
 const PAYME_ERRORS = {
   AUTH_ERROR: {
@@ -16,6 +19,14 @@ const PAYME_ERRORS = {
       uz: "Metod topilmadi",
       ru: "Метод не найден",
       en: "Method not found",
+    },
+  },
+  INVALID_PARAMS: {
+    code: -32602,
+    message: {
+      uz: "Notoʻgʻri parametrlar",
+      ru: "Неверные параметры",
+      en: "Invalid params",
     },
   },
   INVALID_AMOUNT: {
@@ -60,11 +71,17 @@ const PAYME_ERRORS = {
   },
 };
 
+function sha256Buf(value: string): Buffer {
+  return crypto.createHash("sha256").update(value, "utf8").digest();
+}
+
 function verifyPaymeAuth(req: NextRequest): boolean {
   const secretKey = process.env.PAYME_SECRET_KEY?.trim();
   if (!secretKey) {
-    // If no secret key is set, allow in development/sandbox
-    return true;
+    return (
+      process.env.NODE_ENV === "development" &&
+      process.env.ALLOW_INSECURE_PAYMENT_WEBHOOKS === "true"
+    );
   }
 
   const authHeader = req.headers.get("authorization") || "";
@@ -75,8 +92,16 @@ function verifyPaymeAuth(req: NextRequest): boolean {
   try {
     const base64 = authHeader.slice(6).trim();
     const decoded = Buffer.from(base64, "base64").toString("utf-8");
-    const [login, key] = decoded.split(":");
-    return login?.toLowerCase() === "paycom" && key === secretKey;
+    const colonIdx = decoded.indexOf(":");
+    if (colonIdx <= 0) {
+      return false;
+    }
+    const login = decoded.slice(0, colonIdx);
+    const key = decoded.slice(colonIdx + 1);
+    if (login.toLowerCase() !== "paycom") {
+      return false;
+    }
+    return crypto.timingSafeEqual(sha256Buf(key), sha256Buf(secretKey));
   } catch {
     return false;
   }
@@ -102,7 +127,12 @@ export async function POST(req: NextRequest) {
     switch (method) {
       case "CheckPerformTransaction": {
         const orderId = params?.account?.order_id;
-        const amount = Number(params?.amount);
+        const rawAmount = params?.amount;
+        const amount =
+          typeof rawAmount === "number" ||
+          (typeof rawAmount === "string" && rawAmount.trim() !== "")
+            ? Number(rawAmount)
+            : NaN;
 
         if (!orderId) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_NOT_FOUND });
@@ -118,15 +148,19 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_NOT_FOUND });
         }
 
+        if (order.payment_method !== "payme") {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
+        }
+
         if (order.status === "paid") {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_ALREADY_PAID });
         }
 
-        if (order.status !== "pending" && order.status !== "waiting_transfer") {
+        if (order.status !== "pending") {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
         }
 
-        if (Number(order.final_amount_tiyin) !== amount) {
+        if (!Number.isFinite(amount) || amount <= 0 || Number(order.final_amount_tiyin) !== amount) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.INVALID_AMOUNT });
         }
 
@@ -138,12 +172,23 @@ export async function POST(req: NextRequest) {
 
       case "CreateTransaction": {
         const orderId = params?.account?.order_id;
-        const amount = Number(params?.amount);
-        const transId = String(params?.id || "");
-        const transTime = Number(params?.time || Date.now());
+        const rawAmount = params?.amount;
+        const amount =
+          typeof rawAmount === "number" ||
+          (typeof rawAmount === "string" && rawAmount.trim() !== "")
+            ? Number(rawAmount)
+            : NaN;
+        const transId = String(params?.id || "").trim();
+        const rawTime = params?.time;
+        const transTime =
+          rawTime !== undefined && rawTime !== null ? Number(rawTime) : Date.now();
 
         if (!orderId || !transId) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_NOT_FOUND });
+        }
+
+        if (!Number.isFinite(transTime) || transTime <= 0) {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.INVALID_PARAMS });
         }
 
         const { data: order } = await svc
@@ -156,31 +201,62 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_NOT_FOUND });
         }
 
-        if (Number(order.final_amount_tiyin) !== amount) {
+        if (!Number.isFinite(amount) || amount <= 0 || Number(order.final_amount_tiyin) !== amount) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.INVALID_AMOUNT });
+        }
+
+        if (order.payment_method !== "payme") {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
+        }
+
+        if (order.status === "paid") {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_ALREADY_PAID });
+        }
+
+        if (
+          order.status === "cancelled" ||
+          order.status === "failed" ||
+          order.status === "refunded" ||
+          order.status === "waiting_transfer" ||
+          order.status !== "pending"
+        ) {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
         }
 
         // Check existing transaction
         if (order.provider_trans_id) {
           if (order.provider_trans_id === transId) {
-            if (order.provider_state === -1) {
-              return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
+            if (order.provider_state === 1) {
+              const nowMs = Date.now();
+              if (nowMs - Number(order.provider_create_time || 0) > PAYME_TIMEOUT_MS) {
+                await svc
+                  .from("billing_orders")
+                  .update({
+                    provider_state: -1,
+                    provider_cancel_reason: 4,
+                    provider_cancel_time: nowMs,
+                    status: "cancelled",
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", order.id);
+
+                return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
+              }
+
+              return NextResponse.json({
+                id: reqId,
+                result: {
+                  create_time: Number(order.provider_create_time || transTime),
+                  transaction: order.provider_trans_id,
+                  state: 1,
+                },
+              });
             }
-            return NextResponse.json({
-              id: reqId,
-              result: {
-                create_time: Number(order.provider_create_time || transTime),
-                transaction: order.provider_trans_id,
-                state: order.provider_state || 1,
-              },
-            });
-          } else {
-            // Another transaction in progress
+
             return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
           }
-        }
 
-        if (order.status === "paid" || order.status === "cancelled") {
+          // Another transaction in progress
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
         }
 
@@ -206,7 +282,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "PerformTransaction": {
-        const transId = String(params?.id || "");
+        const transId = String(params?.id || "").trim();
         if (!transId) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.TRANSACTION_NOT_FOUND });
         }
@@ -221,17 +297,36 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.TRANSACTION_NOT_FOUND });
         }
 
+        if (order.payment_method !== "payme") {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
+        }
+
+        if (order.status === "cancelled") {
+          if (order.provider_state !== -1 || order.provider_cancel_reason == null) {
+            await svc
+              .from("billing_orders")
+              .update({
+                provider_state: -1,
+                provider_cancel_reason: order.provider_cancel_reason ?? 5,
+                provider_cancel_time: order.provider_cancel_time ?? Date.now(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", order.id);
+          }
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
+        }
+
         if (order.provider_state === 1) {
           // Check timeout (12 hours)
           const nowMs = Date.now();
-          if (nowMs - Number(order.provider_create_time || 0) > 43_200_000) {
+          if (nowMs - Number(order.provider_create_time || 0) > PAYME_TIMEOUT_MS) {
             await svc
               .from("billing_orders")
               .update({
                 provider_state: -1,
                 provider_cancel_reason: 4,
                 provider_cancel_time: nowMs,
-                status: "failed",
+                status: "cancelled",
                 updated_at: new Date().toISOString(),
               })
               .eq("id", order.id);
@@ -247,6 +342,7 @@ export async function POST(req: NextRequest) {
           });
 
           if (completeErr) {
+            console.error("[PAYME] complete_billing_order_atomic error:", completeErr);
             return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
           }
 
@@ -281,8 +377,8 @@ export async function POST(req: NextRequest) {
       }
 
       case "CancelTransaction": {
-        const transId = String(params?.id || "");
-        const reason = Number(params?.reason || 0);
+        const transId = String(params?.id || "").trim();
+        const reason = Number(params?.reason || 5);
 
         if (!transId) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.TRANSACTION_NOT_FOUND });
@@ -296,6 +392,10 @@ export async function POST(req: NextRequest) {
 
         if (!order) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.TRANSACTION_NOT_FOUND });
+        }
+
+        if (order.payment_method !== "payme") {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
         }
 
         const nowMs = Date.now();
@@ -323,16 +423,16 @@ export async function POST(req: NextRequest) {
         }
 
         if (order.provider_state === 2) {
-          await svc
-            .from("billing_orders")
-            .update({
-              provider_state: -2,
-              provider_cancel_reason: reason,
-              provider_cancel_time: nowMs,
-              status: "refunded",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", order.id);
+          const { error: refundErr } = await svc.rpc("refund_billing_order_atomic", {
+            p_order_id: order.order_id,
+            p_cancel_reason: reason,
+            p_cancel_time: nowMs,
+          });
+
+          if (refundErr) {
+            console.error("[PAYME] refund_billing_order_atomic error:", refundErr);
+            return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
+          }
 
           return NextResponse.json({
             id: reqId,
@@ -355,7 +455,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "CheckTransaction": {
-        const transId = String(params?.id || "");
+        const transId = String(params?.id || "").trim();
         if (!transId) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.TRANSACTION_NOT_FOUND });
         }
@@ -384,15 +484,31 @@ export async function POST(req: NextRequest) {
       }
 
       case "GetStatement": {
-        const from = Number(params?.from || 0);
-        const to = Number(params?.to || Date.now());
+        const rawFrom = params?.from;
+        const rawTo = params?.to;
+        const from =
+          typeof rawFrom === "number" ||
+          (typeof rawFrom === "string" && rawFrom.trim() !== "")
+            ? Number(rawFrom)
+            : NaN;
+        const to =
+          typeof rawTo === "number" ||
+          (typeof rawTo === "string" && rawTo.trim() !== "")
+            ? Number(rawTo)
+            : NaN;
+
+        if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || from > to) {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.INVALID_PARAMS });
+        }
 
         const { data: orders } = await svc
           .from("billing_orders")
           .select("*")
-          .gte("provider_perform_time", from)
-          .lte("provider_perform_time", to)
-          .eq("provider_state", 2);
+          .eq("payment_method", "payme")
+          .gte("provider_create_time", from)
+          .lte("provider_create_time", to)
+          .in("provider_state", [1, 2, -1, -2])
+          .order("provider_create_time", { ascending: true });
 
         const transactions = (orders || []).map((o) => ({
           id: o.provider_trans_id,
@@ -419,15 +535,16 @@ export async function POST(req: NextRequest) {
           error: PAYME_ERRORS.METHOD_NOT_FOUND,
         });
     }
-  } catch (err: any) {
+  } catch (err) {
+    console.error("[PAYME] Webhook error:", err);
     return NextResponse.json({
       id: reqId,
       error: {
         code: -32400,
         message: {
-          uz: "Tizim xatoligi: " + (err?.message || "Nomaʻlum xato"),
-          ru: "Системная ошибка: " + (err?.message || "Неизвестная ошибка"),
-          en: "System error: " + (err?.message || "Unknown error"),
+          uz: "Tizim xatoligi",
+          ru: "Системная ошибка",
+          en: "System error",
         },
       },
     });

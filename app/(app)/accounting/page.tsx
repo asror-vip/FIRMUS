@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   createJournalEntryRecord,
   fetchJournalEntriesPaginated,
@@ -14,6 +14,7 @@ import {
 import { journalEntrySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { useAppState } from "@/lib/context/app-state";
 import { generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
+import { sanitizeCsvField, downloadCsvBlob } from "@/lib/utils/csv";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ export default function AccountingPage() {
   const [coaPage, setCoaPage] = useState(1);
   const [glPage, setGlPage] = useState(1);
   const pageSize = 10;
-  const [isLoadingEntries, setIsLoadingEntries] = useState(true);
+  const [isLoadingEntries, setIsLoadingEntries] = useState(false);
   const [ledgerVersion, setLedgerVersion] = useState(0);
 
   const [trialBalanceData, setTrialBalanceData] = useState<any[]>([]);
@@ -121,6 +122,10 @@ export default function AccountingPage() {
     setCurrentPage(1);
     setCoaPage(1);
     setGlPage(1);
+    setJournalEntries([]);
+    setTotalJournalCount(0);
+    setTrialBalanceData([]);
+    setGeneralLedgerData([]);
     loadAccounts();
   }, [currentEntity?.id, loadAccounts]);
 
@@ -133,12 +138,16 @@ export default function AccountingPage() {
   }, [selectedLedgerAccount]);
 
   useEffect(() => {
-    loadJournalEntries();
-  }, [loadJournalEntries]);
+    if (subTab === "journal") {
+      loadJournalEntries();
+    }
+  }, [subTab, loadJournalEntries]);
 
   useEffect(() => {
     const handleRefresh = () => {
-      loadJournalEntries();
+      if (subTab === "journal") {
+        loadJournalEntries();
+      }
       setLedgerVersion((v) => v + 1);
     };
 
@@ -146,15 +155,16 @@ export default function AccountingPage() {
     return () => {
       window.removeEventListener("firmus:refresh-data", handleRefresh);
     };
-  }, [loadJournalEntries]);
+  }, [subTab, loadJournalEntries]);
 
-  // Load real Trial Balance
+  // Load real Trial Balance only when Trial Balance tab is active
   useEffect(() => {
     let isMounted = true;
     if (!currentEntity?.id) {
       setTrialBalanceData([]);
       return;
     }
+    if (subTab !== "trial") return;
 
     fetchTrialBalance(currentEntity.id).then((tb) => {
       if (isMounted) {
@@ -165,15 +175,16 @@ export default function AccountingPage() {
     return () => {
       isMounted = false;
     };
-  }, [currentEntity?.id, ledgerVersion]);
+  }, [currentEntity?.id, ledgerVersion, subTab]);
 
-  // Load real General Ledger for selected account
+  // Load real General Ledger for selected account only when Ledger tab is active
   useEffect(() => {
     let isMounted = true;
     if (!currentEntity?.id || !selectedLedgerAccount) {
       setGeneralLedgerData([]);
       return;
     }
+    if (subTab !== "ledger") return;
 
     fetchGeneralLedger(currentEntity.id, selectedLedgerAccount).then((gl) => {
       if (isMounted) {
@@ -184,10 +195,10 @@ export default function AccountingPage() {
     return () => {
       isMounted = false;
     };
-  }, [currentEntity?.id, selectedLedgerAccount, ledgerVersion]);
+  }, [currentEntity?.id, selectedLedgerAccount, ledgerVersion, subTab]);
 
   const [newEntry, setNewEntry] = useState({
-    entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+    entryNumber: "",
     date: new Date().toISOString().split("T")[0],
     description: "",
     debitAccountCode: "5110",
@@ -195,37 +206,41 @@ export default function AccountingPage() {
     amount: "",
   });
 
-  const filteredCoa = chartOfAccounts.filter(
-    (acc) =>
-      acc.code.includes(coaSearch) ||
-      acc.name.toLowerCase().includes(coaSearch.toLowerCase())
+  const filteredCoa = useMemo(
+    () =>
+      chartOfAccounts.filter(
+        (acc) =>
+          acc.code.includes(coaSearch) ||
+          acc.name.toLowerCase().includes(coaSearch.toLowerCase())
+      ),
+    [chartOfAccounts, coaSearch]
   );
 
   // Trial balance totals from real database
-  const tbTotalDebit = trialBalanceData.reduce((acc, row) => acc + Number(row.period_debit || 0), 0);
-  const tbTotalCredit = trialBalanceData.reduce((acc, row) => acc + Number(row.period_credit || 0), 0);
+  const tbTotalDebit = useMemo(
+    () => trialBalanceData.reduce((acc, row) => acc + Number(row.period_debit || 0), 0),
+    [trialBalanceData]
+  );
+  const tbTotalCredit = useMemo(
+    () => trialBalanceData.reduce((acc, row) => acc + Number(row.period_credit || 0), 0),
+    [trialBalanceData]
+  );
   const isTbBalanced = Math.abs(tbTotalDebit - tbTotalCredit) < 0.01;
 
   const handleExport = () => {
-    const headers = d.csvHeaders;
+    const headers = d.csvHeaders.map((h) => sanitizeCsvField(h));
     const rows = journalEntries.map((je) => [
-      je.entryNumber,
-      je.date,
-      `"${(je.description || "").replace(/"/g, '""')}"`,
-      je.sourceType,
-      je.totalDebit,
-      je.totalCredit,
-      je.status,
-      `"${je.createdBy || ""}"`,
+      sanitizeCsvField(je.entryNumber),
+      sanitizeCsvField(je.date),
+      sanitizeCsvField(je.description || ""),
+      sanitizeCsvField(je.sourceType),
+      sanitizeCsvField(je.totalDebit),
+      sanitizeCsvField(je.totalCredit),
+      sanitizeCsvField(je.status),
+      sanitizeCsvField(je.createdBy || ""),
     ]);
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `firmus_journal_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    downloadCsvBlob(`firmus_journal_${new Date().toISOString().split("T")[0]}.csv`, csvContent);
     toast.success(d.toasts.csvExported);
   };
 
@@ -286,7 +301,7 @@ export default function AccountingPage() {
       toast.success(d.toasts.entrySaved);
       setIsAddOpen(false);
       setNewEntry({
-        entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+        entryNumber: "",
         date: new Date().toISOString().split("T")[0],
         description: "",
         debitAccountCode: "5110",
@@ -450,7 +465,14 @@ export default function AccountingPage() {
               <Button
                 size="sm"
                 className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-                onClick={() => setIsAddOpen(true)}
+                onClick={() => {
+                  setNewEntry((prev) => ({
+                    ...prev,
+                    entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+                    date: new Date().toISOString().split("T")[0],
+                  }));
+                  setIsAddOpen(true);
+                }}
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t.common.addNew}

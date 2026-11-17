@@ -67,20 +67,34 @@ export async function resolveUserEntityRole(
     return "workspace_owner";
   }
 
-  const allowEmailFallback = Boolean(userEmail && emailConfirmed);
-  const { data: member } = await supabase
+  const { data: memberById } = await supabase
     .from("team_members")
     .select("role, status")
     .eq("workspace_id", entity.workspace_id)
-    .or(
-      allowEmailFallback
-        ? `user_id.eq.${userId},email.ilike.${userEmail}`
-        : `user_id.eq.${userId}`
-    )
+    .eq("user_id", userId)
     .eq("status", "active")
     .maybeSingle();
 
-  return member?.role || "viewer";
+  if (memberById?.role) {
+    return memberById.role;
+  }
+
+  if (userEmail && emailConfirmed) {
+    const escapedEmail = userEmail.trim().replace(/[\\%_]/g, "\\$&");
+    const { data: memberByEmail } = await supabase
+      .from("team_members")
+      .select("role, status")
+      .eq("workspace_id", entity.workspace_id)
+      .ilike("email", escapedEmail)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (memberByEmail?.role) {
+      return memberByEmail.role;
+    }
+  }
+
+  return "viewer";
 }
 
 function buildFirmusSystemInstruction(params: {
@@ -465,7 +479,7 @@ async function runToolCall(
       p_to_date: toDate,
     });
     if (error) return { result: { ok: false, error: error.message } };
-    return { result: { ok: true, from_date: fromDate, to_date: toDate, rows: data || [] } };
+    return { result: { ok: true, from_date: fromDate, to_date: toDate, rows: depersonalizeForAi(data || []) } };
   }
 
   if (name === "get_general_ledger") {
@@ -480,7 +494,7 @@ async function runToolCall(
       p_to_date: toDate,
     });
     if (error) return { result: { ok: false, error: error.message } };
-    return { result: { ok: true, account_code: code, movements: data || [] } };
+    return { result: { ok: true, account_code: code, movements: depersonalizeForAi(data || []) } };
   }
 
   if (name === "list_recent_journal_entries") {
@@ -493,7 +507,7 @@ async function runToolCall(
       .order("created_at", { ascending: false })
       .limit(limit);
     if (error) return { result: { ok: false, error: error.message } };
-    return { result: { ok: true, entries: data || [] } };
+    return { result: { ok: true, entries: depersonalizeForAi(data || []) } };
   }
 
   if (name === "list_work_batches") {
@@ -1002,11 +1016,12 @@ export async function runFirmusAgent(params: {
     soloToolsMode,
   });
 
+  const safeMessage = depersonalizeForAi(message);
   const baseContents: any[] = history.slice(-6).map((h) => ({
     role: h.sender === "user" ? "user" : "model",
-    parts: [{ text: h.text }],
+    parts: [{ text: depersonalizeForAi(h.text) }],
   }));
-  baseContents.push({ role: "user", parts: [{ text: message }] });
+  baseContents.push({ role: "user", parts: [{ text: safeMessage }] });
 
   let lastErrorNote = "";
 

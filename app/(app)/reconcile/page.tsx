@@ -193,10 +193,17 @@ function ReconcileContent() {
     }
   }, [d.toasts]);
 
+  const loadedBatchKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (batchIdParam && currentEntity?.id) {
-      handleOpenBatch(batchIdParam);
+    if (!batchIdParam || !currentEntity?.id) {
+      loadedBatchKeyRef.current = null;
+      return;
     }
+    const key = `${currentEntity.id}:${batchIdParam}`;
+    if (loadedBatchKeyRef.current === key) return;
+    loadedBatchKeyRef.current = key;
+    handleOpenBatch(batchIdParam);
   }, [batchIdParam, currentEntity?.id, handleOpenBatch]);
 
   const runComparison = (nextBank: ParsedBankTransaction[], nextOneC: ParsedBankTransaction[]) => {
@@ -388,12 +395,14 @@ function ReconcileContent() {
           : r
       )
     );
+    setActiveBatchId(null);
   };
 
   const handleToggleRowVat = (rowId: string) => {
     setRows((prev) =>
       prev.map((r) => (r.id === rowId ? { ...r, vatIncluded: !r.vatIncluded } : r))
     );
+    setActiveBatchId(null);
   };
 
   const handleAiVerify = async () => {
@@ -435,6 +444,7 @@ function ReconcileContent() {
           ? d.aiVerifiedNote
           : d.rulesVerifiedNote
       );
+      setActiveBatchId(null);
       toast.success(d.toasts.aiVerifiedSuccess);
     } catch (err: any) {
       toast.error(d.toasts.aiAnalyzeError.replace("{error}", err.message));
@@ -550,41 +560,67 @@ function ReconcileContent() {
 
     setIsPostingLedger(true);
     let successCount = 0;
+    let firstError: any = null;
+    const batchTs = Date.now().toString().slice(-5);
     try {
-      for (const item of chosen) {
-        const lines = buildReconcileJournalLines(item);
-        const safeDesc = sanitizeStringForAi(
-          `${item.counterparty}: ${item.bankItem?.description || item.explanation}`
-        ).slice(0, 240);
+      const CHUNK_SIZE = 5;
+      for (let i = 0; i < chosen.length; i += CHUNK_SIZE) {
+        const chunk = chosen.slice(i, i + CHUNK_SIZE);
+        const results = await Promise.allSettled(
+          chunk.map(async (item, idx) => {
+            const itemIndex = i + idx;
+            const lines = buildReconcileJournalLines(item);
+            const safeDesc = sanitizeStringForAi(
+              `${item.counterparty}: ${item.bankItem?.description || item.explanation}`
+            ).slice(0, 240);
 
-        const { error } = await supabase.rpc("create_journal_entry_atomic", {
-          p_business_entity_id: currentEntity.id,
-          p_entry_number: `JE-REC-${Date.now().toString().slice(-5)}-${successCount + 1}`,
-          p_entry_date: item.date,
-          p_description: safeDesc,
-          p_source_type: "bank_statement",
-          p_idempotency_key: `idem-rec-${currentEntity.id}-${item.date}-${item.bankAmount}-${item.suggestedAccountCode}-${item.vatIncluded ? "vat" : "novat"}-${successCount}`,
-          p_lines: lines.map((l) => ({
-            account_code: l.accountCode,
-            account_name: l.accountName,
-            debit_amount: l.debit,
-            credit_amount: l.credit,
-            memo: l.memo,
-          })),
-        });
-        if (error) throw error;
-        successCount++;
+            const { error } = await supabase.rpc("create_journal_entry_atomic", {
+              p_business_entity_id: currentEntity.id,
+              p_entry_number: `JE-REC-${batchTs}-${itemIndex + 1}`,
+              p_entry_date: item.date,
+              p_description: safeDesc,
+              p_source_type: "bank_statement",
+              p_idempotency_key: `idem-rec-${currentEntity.id}-${item.date}-${item.bankAmount}-${item.suggestedAccountCode}-${item.vatIncluded ? "vat" : "novat"}-${itemIndex}`,
+              p_lines: lines.map((l) => ({
+                account_code: l.accountCode,
+                account_name: l.accountName,
+                debit_amount: l.debit,
+                credit_amount: l.credit,
+                memo: l.memo,
+              })),
+            });
+            if (error) throw error;
+          })
+        );
+
+        for (const res of results) {
+          if (res.status === "fulfilled") {
+            successCount++;
+          } else if (!firstError) {
+            firstError = res.reason;
+          }
+        }
       }
 
-      if (activeBatchId) {
-        await markWorkBatchPosted(activeBatchId);
-        await loadHistory();
-      } else {
-        await handleSaveBatchToHistory(true);
+      if (firstError && successCount === 0) {
+        throw firstError;
+      }
+
+      if (!firstError) {
+        if (activeBatchId) {
+          await markWorkBatchPosted(activeBatchId);
+          await loadHistory();
+        } else {
+          await handleSaveBatchToHistory(true);
+        }
       }
 
       window.dispatchEvent(new CustomEvent("firmus:refresh-data", { detail: { entityId: currentEntity.id } }));
-      toast.success(d.toasts.postedToLedger.replace("{count}", String(successCount)));
+      if (firstError) {
+        toast.error(d.toasts.postLedgerError.replace("{error}", firstError?.message || d.unknownError));
+      } else {
+        toast.success(d.toasts.postedToLedger.replace("{count}", String(successCount)));
+      }
     } catch (err: any) {
       toast.error(d.toasts.postLedgerError.replace("{error}", err.message));
     } finally {
@@ -676,7 +712,10 @@ function ReconcileContent() {
               type="file"
               accept=".xlsx,.xls,.txt,.csv,.tsv"
               className="hidden"
-              onChange={(e) => handleUploadFile("bank", e.target.files?.[0])}
+              onChange={(e) => {
+                handleUploadFile("bank", e.target.files?.[0]);
+                e.target.value = "";
+              }}
             />
             <Button
               type="button"
@@ -723,7 +762,10 @@ function ReconcileContent() {
               type="file"
               accept=".xlsx,.xls,.xml,.txt,.csv,.tsv"
               className="hidden"
-              onChange={(e) => handleUploadFile("onec", e.target.files?.[0])}
+              onChange={(e) => {
+                handleUploadFile("onec", e.target.files?.[0]);
+                e.target.value = "";
+              }}
             />
             <Button
               type="button"

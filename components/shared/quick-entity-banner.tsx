@@ -5,8 +5,7 @@ import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
-import { createBusinessEntity, createWorkspaceRecord } from "@/lib/services/supabase-service";
-import { businessEntitySchema } from "@/lib/validations/accounting";
+import { createBusinessEntity, createWorkspaceRecord } from "@/lib/services/workspace-context-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +37,7 @@ export function QuickEntityBanner() {
 
   const handleQuickCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { businessEntitySchema } = await import("@/lib/validations/accounting");
     const parsed = businessEntitySchema.safeParse({
       legalName,
       tinStir,

@@ -137,3 +137,18 @@
 .ai-orb-float {
   animation: firmus-float 3.6s ease-in-out infinite;
 }
+
+@media print {
+  html,
+  body,
+  main {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  aside,
+  header,
+  footer {
+    display: none !important;
+  }
+}

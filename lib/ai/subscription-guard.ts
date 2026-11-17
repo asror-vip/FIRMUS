@@ -128,6 +128,13 @@ export async function resolveEffectiveSubscription(userId: string): Promise<Subs
         .update({ plan_id: "starter", updated_at: now.toISOString() })
         .eq("id", sub.workspace_id);
     }
+
+    if (isExpiredPaid) {
+      await svc
+        .from("workspaces")
+        .update({ plan_id: "starter", updated_at: now.toISOString() })
+        .eq("owner_user_id", userId);
+    }
   }
 
   const spec = PLANS_CONFIG[planId];

@@ -15,6 +15,8 @@ import {
   teamInviteSchema,
 } from "@/lib/validations/accounting";
 import { getClientDeviceHash } from "@/lib/utils/device-fingerprint";
+import { sanitizeInternalRedirect } from "@/lib/utils/redirect";
+import { sanitizeCsvField } from "@/lib/utils/csv";
 
 describe("Privacy, Eskiz Phone Normalization & Depersonalization", () => {
   it("normalizes 9-digit and +998 Uzbekistan numbers for Eskiz API", () => {
@@ -189,5 +191,33 @@ describe("Zod Financial Form Schemas", () => {
         });
       }
     }
+  });
+});
+
+describe("Security Helpers: Internal Redirect & CSV Sanitization", () => {
+  it("allows safe internal paths and blocks open-redirect payloads in sanitizeInternalRedirect", () => {
+    expect(sanitizeInternalRedirect("/billing")).toBe("/billing");
+    expect(sanitizeInternalRedirect("/reconcile?batchId=123#top")).toBe(
+      "/reconcile?batchId=123#top"
+    );
+
+    expect(sanitizeInternalRedirect("//evil.com")).toBe("/");
+    expect(sanitizeInternalRedirect("/\\evil.com")).toBe("/");
+    expect(sanitizeInternalRedirect("https://evil.com")).toBe("/");
+    expect(sanitizeInternalRedirect("javascript:alert(1)")).toBe("/");
+    expect(sanitizeInternalRedirect("/ok\r\nLocation: evil")).toBe("/");
+    expect(sanitizeInternalRedirect(null)).toBe("/");
+    expect(sanitizeInternalRedirect(undefined)).toBe("/");
+    expect(sanitizeInternalRedirect("")).toBe("/");
+  });
+
+  it("neutralizes CSV formula prefixes and escapes embedded quotes in sanitizeCsvField", () => {
+    expect(sanitizeCsvField("=1+1")).toBe(`"'=1+1"`);
+    expect(sanitizeCsvField("+cmd")).toBe(`"'+cmd"`);
+    expect(sanitizeCsvField("-2+3")).toBe(`"'-2+3"`);
+    expect(sanitizeCsvField("@SUM")).toBe(`"'@SUM"`);
+    expect(sanitizeCsvField("\tfoo")).toBe(`"'\tfoo"`);
+    expect(sanitizeCsvField("\rbar")).toBe(`"'\rbar"`);
+    expect(sanitizeCsvField('a"b')).toBe('"a""b"');
   });
 });

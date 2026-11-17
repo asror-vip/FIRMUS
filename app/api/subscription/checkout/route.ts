@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceClient } from "@/lib/supabase/service";
 import { resolveEffectiveSubscription } from "@/lib/ai/subscription-guard";
+import { UUID_REGEX } from "@/lib/ai/agent-types";
 import { getRequestLocale } from "@/lib/i18n/server-locale";
 import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
+
+const b2bMetadataSchema = z.object({
+  tinStir: z.string().trim().regex(/^\d{9}$/),
+  companyName: z.string().trim().min(1).max(200),
+});
+
+function isSandboxConfirmEnabled(): boolean {
+  return (
+    process.env.ALLOW_SANDBOX_CONFIRM === "true" &&
+    process.env.PAYMENT_LIVE_STRICT !== "true"
+  );
+}
 
 export async function GET(req: NextRequest) {
   const locale = getRequestLocale(req);
@@ -21,21 +35,22 @@ export async function GET(req: NextRequest) {
 
     const { data: orders, error } = await supabase
       .from("billing_orders")
-      .select("*")
+      .select(
+        "order_id, plan_id, billing_cycle, regular_amount_uzs, discount_amount_uzs, final_amount_uzs, payment_method, status, paid_at, created_at"
+      )
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10);
 
     if (error) {
-      return NextResponse.json({ error: localizeServerError(error.message, locale) }, { status: 500 });
+      console.error("Checkout GET error:", error);
+      return NextResponse.json({ error: msg.systemError }, { status: 500 });
     }
 
     return NextResponse.json({ orders: orders || [] });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message ? localizeServerError(err.message, locale) : msg.systemError },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("Checkout GET exception:", err);
+    return NextResponse.json({ error: msg.systemError }, { status: 500 });
   }
 }
 
@@ -53,16 +68,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
-    const body = await req.json().catch(() => ({}));
+    let body: Record<string, any>;
+    try {
+      const parsedBody = await req.json();
+      if (!parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
+        return NextResponse.json({ error: msg.invalidRequest }, { status: 400 });
+      }
+      body = parsedBody;
+    } catch {
+      return NextResponse.json({ error: msg.invalidRequest }, { status: 400 });
+    }
 
-    // Sandbox manual confirmation (disabled when PAYMENT_LIVE_STRICT is true)
+    // Sandbox manual confirmation (fail-closed unless explicitly enabled and PAYMENT_LIVE_STRICT !== "true")
     if (body.action === "confirm_order") {
       const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
       if (!orderId) {
         return NextResponse.json({ error: msg.orderIdRequired }, { status: 400 });
       }
 
-      if (process.env.PAYMENT_LIVE_STRICT === "true") {
+      if (!isSandboxConfirmEnabled()) {
         return NextResponse.json(
           { error: msg.manualConfirmForbidden },
           { status: 403 }
@@ -98,12 +122,9 @@ export async function POST(req: NextRequest) {
       });
 
       if (completeErr) {
+        console.error("complete_billing_order_atomic error:", completeErr);
         return NextResponse.json(
-          {
-            error: completeErr.message
-              ? localizeServerError(completeErr.message, locale)
-              : msg.orderConfirmFailed,
-          },
+          { error: msg.orderConfirmFailed },
           { status: 500 }
         );
       }
@@ -131,12 +152,9 @@ export async function POST(req: NextRequest) {
       });
 
       if (cancelErr) {
+        console.error("cancel_checkout_order error:", cancelErr);
         return NextResponse.json(
-          {
-            error: cancelErr.message
-              ? localizeServerError(cancelErr.message, locale)
-              : msg.orderCancelFailed,
-          },
+          { error: msg.orderCancelFailed },
           { status: 500 }
         );
       }
@@ -178,13 +196,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let validatedWorkspaceId: string | null = null;
+    if (workspaceId !== undefined && workspaceId !== null && workspaceId !== "") {
+      if (typeof workspaceId !== "string" || !UUID_REGEX.test(workspaceId.trim())) {
+        return NextResponse.json({ error: msg.invalidRequest }, { status: 400 });
+      }
+      validatedWorkspaceId = workspaceId.trim();
+    }
+
+    let validatedB2bMetadata: { tinStir: string; companyName: string } | null = null;
     if (paymentMethod === "bank_transfer_didox") {
-      if (!b2bMetadata?.tinStir || !b2bMetadata?.companyName) {
+      const parsedB2b = b2bMetadataSchema.safeParse(b2bMetadata);
+      if (!parsedB2b.success) {
         return NextResponse.json(
           { error: msg.b2bTinNameRequired },
           { status: 400 }
         );
       }
+      validatedB2bMetadata = parsedB2b.data;
     }
 
     const svc = getServiceClient();
@@ -193,8 +222,8 @@ export async function POST(req: NextRequest) {
       p_plan_id: planId,
       p_billing_cycle: billingCycle,
       p_payment_method: paymentMethod,
-      p_workspace_id: workspaceId || null,
-      p_b2b_metadata: b2bMetadata || null,
+      p_workspace_id: validatedWorkspaceId,
+      p_b2b_metadata: validatedB2bMetadata,
     });
 
     if (rpcErr || !orderData) {
@@ -233,8 +262,8 @@ export async function POST(req: NextRequest) {
     const clickServiceId = process.env.CLICK_SERVICE_ID?.trim();
     let clickCheckoutUrl: string | null = null;
     if (clickMerchantId && clickServiceId) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.firmus.uz";
-      const returnUrl = encodeURIComponent(`${appUrl}/assistant?tab=subscription&order=${orderId}`);
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://app.firmus.uz").replace(/\/+$/, "");
+      const returnUrl = encodeURIComponent(`${appUrl}/billing?order=${encodeURIComponent(orderId)}`);
       clickCheckoutUrl = `https://my.click.uz/services/pay?service_id=${clickServiceId}&merchant_id=${clickMerchantId}&amount=${finalAmountUzs}&transaction_param=${orderId}&return_url=${returnUrl}`;
     }
 
@@ -248,8 +277,8 @@ export async function POST(req: NextRequest) {
             sellerBank: '"KAPITALBANK" ATB Toshkent shahar filiali',
             sellerMfo: "00974",
             invoiceNumber: `INV-${orderId}`,
-            buyerTin: b2bMetadata?.tinStir || "",
-            buyerName: b2bMetadata?.companyName || "",
+            buyerTin: validatedB2bMetadata?.tinStir || "",
+            buyerName: validatedB2bMetadata?.companyName || "",
             paymentPurpose: msg.b2bInvoicePurpose(orderId),
             amountUzs: finalAmountUzs,
             contractNotice: msg.b2bContractNotice,
@@ -259,6 +288,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       sandboxMode: !paymeMerchantId && !clickMerchantId,
+      sandboxConfirmEnabled: isSandboxConfirmEnabled(),
       order: {
         orderId,
         planId,
@@ -275,10 +305,8 @@ export async function POST(req: NextRequest) {
       clickCheckoutUrl,
       invoiceDetails,
     });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message ? localizeServerError(err.message, locale) : msg.systemError },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("Checkout POST error:", err);
+    return NextResponse.json({ error: msg.systemError }, { status: 500 });
   }
 }
