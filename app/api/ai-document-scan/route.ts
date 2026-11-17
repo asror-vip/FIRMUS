@@ -9,6 +9,8 @@ import {
   resolveEffectiveSubscription,
 } from "@/lib/ai/subscription-guard";
 import { UUID_REGEX } from "@/lib/ai/agent-types";
+import { getRequestLocale, type Locale } from "@/lib/i18n/server-locale";
+import { getApiMessages, localizeServerError, type ApiMessages } from "@/lib/i18n/domains/api-messages";
 
 const scanRequestSchema = z.object({
   mode: z.enum(["invoice_receipt", "contract_risk"]).default("invoice_receipt"),
@@ -51,7 +53,7 @@ function estimateDecodedBytes(dataUrlOrBase64: string): number {
   return Math.floor((b64.length * 3) / 4);
 }
 
-function buildContractHeuristicFallback(rawText: string) {
+function buildContractHeuristicFallback(rawText: string, msg: ApiMessages) {
   const safeText = depersonalizeForAi(rawText);
   const lower = safeText.toLowerCase();
   const risks: string[] = [];
@@ -60,28 +62,26 @@ function buildContractHeuristicFallback(rawText: string) {
   if (penyaMatch) {
     const rate = parseFloat(penyaMatch[1].replace(",", "."));
     if (rate > 0.5) {
-      risks.push(
-        `Yuqori penya/jarima (${rate}% kunlik) aniqlandi — OʻzR amaliyotida odatda 0.1%–0.4% (yillik 10–50% chegarasi) tavsiya etiladi.`
-      );
+      risks.push(msg.contractFallback.highPenalty(rate));
     }
   }
   if ((lower.includes("100%") || lower.includes("100 %")) && (lower.includes("avans") || lower.includes("предоплат") || lower.includes("oldindan"))) {
-    risks.push("100% oldindan toʻlov (avans) sharti — yetkazib berish muddati va mablagʻni qaytarish kafolatini tekshiring.");
+    risks.push(msg.contractFallback.fullPrepayment);
   }
   if (!/(qqs|ндс|qqssiz|без\s+ндс)/i.test(lower)) {
-    risks.push("Shartnomada QQS (12% yoki QQSsiz ekani) aniq koʻrsatilmagan — E-SF rasmiylashtirishda kelishmovchilik chiqishi mumkin.");
+    risks.push(msg.contractFallback.missingVat);
   }
   if (!/(stir|инн|mfo|мфо)/i.test(lower)) {
-    risks.push("Rekvizitlarda STIR (9 raqam) yoki bank MFO koʻrsatilganligini tekshiring.");
+    risks.push(msg.contractFallback.missingRequisites);
   }
 
   return {
     mode: "deterministic_scan",
     modelUsed: "deterministic-contract-guard",
-    documentType: "Shartnoma tahlili",
+    documentType: msg.contractFallback.documentType,
     documentNumber: "",
     date: new Date().toISOString().slice(0, 10),
-    counterparty: "Shartnoma tomoni",
+    counterparty: msg.contractFallback.counterparty,
     counterpartyStir: "",
     direction: "expense" as const,
     totalAmount: 0,
@@ -93,13 +93,16 @@ function buildContractHeuristicFallback(rawText: string) {
     vatAccountCode: "4410",
     provodkaExplanation:
       risks.length > 0
-        ? `Shartnomada ${risks.length} ta ehtimoliy moliyaviy/soliq xatari topildi.`
-        : "Matnda yaqqol yuqori penya yoki QQS boʻshligʻi topilmadi, baribir yakuniy imzodan oldin rekvizitlarni tekshiring.",
+        ? msg.contractFallback.explanationWithRisks(risks.length)
+        : msg.contractFallback.explanationClean,
     risks,
   };
 }
 
 export async function POST(req: NextRequest) {
+  const locale: Locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -107,14 +110,15 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const body = await req.json();
     const parsed = scanRequestSchema.safeParse(body);
     if (!parsed.success) {
+      const issueMsg = parsed.error.issues[0]?.message;
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Notoʻgʻri hujjat soʻrovi" },
+        { error: issueMsg ? localizeServerError(issueMsg, locale) : msg.invalidDocumentRequest },
         { status: 400 }
       );
     }
@@ -134,7 +138,7 @@ export async function POST(req: NextRequest) {
 
     if (chatImageOnly && (!mimeType || mimeType === "application/pdf" || !base64Data)) {
       return NextResponse.json(
-        { error: "Rasm formati toʻgʻri emas. Faqat PNG, JPG yoki WEBP rasm yuklang." },
+        { error: msg.invalidImageFormat },
         { status: 400 }
       );
     }
@@ -144,7 +148,7 @@ export async function POST(req: NextRequest) {
 
     if (!hasBinary && !hasText) {
       return NextResponse.json(
-        { error: "Tahlil qilish uchun rasm/PDF yuklang yoki shartnoma matnini kiriting" },
+        { error: msg.uploadOrEnterContract },
         { status: 400 }
       );
     }
@@ -157,8 +161,7 @@ export async function POST(req: NextRequest) {
         if (!preSnapshot.limits.pdfAllowed) {
           return NextResponse.json(
             {
-              error:
-                "PDF yuklash Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul Pro sinovini yoqing.",
+              error: msg.pdfProOnly,
               upgradeRequired: true,
               usage: preSnapshot,
             },
@@ -169,7 +172,7 @@ export async function POST(req: NextRequest) {
           const maxMb = Math.round(preSnapshot.limits.pdfMaxBytes / (1024 * 1024));
           return NextResponse.json(
             {
-              error: `PDF hajmi ${preSnapshot.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak.`,
+              error: msg.pdfExceedsLimit(preSnapshot.planName, maxMb),
               upgradeRequired: true,
               usage: preSnapshot,
             },
@@ -177,10 +180,10 @@ export async function POST(req: NextRequest) {
           );
         }
       } else if (byteSize > preSnapshot.limits.imageMaxBytes + 128 * 1024) {
-        const maxMb = (preSnapshot.limits.imageMaxBytes / (1024 * 1024)).toFixed(1);
+        const maxMb = Number((preSnapshot.limits.imageMaxBytes / (1024 * 1024)).toFixed(1));
         return NextResponse.json(
           {
-            error: `Rasm hajmi ${preSnapshot.planName} tarifi limiti (${maxMb} MB) dan katta.`,
+            error: msg.imageExceedsLimit(preSnapshot.planName, maxMb),
             upgradeRequired: true,
             usage: preSnapshot,
           },
@@ -229,7 +232,7 @@ export async function POST(req: NextRequest) {
       if (!authz.ok) {
         return NextResponse.json(
           {
-            error: authz.error,
+            error: localizeServerError(authz.error, locale),
             upgradeRequired: Boolean(authz.upgradeRequired),
             usage: authz.snapshot,
           },
@@ -244,6 +247,7 @@ export async function POST(req: NextRequest) {
         mode === "contract_risk"
           ? "Rejim: SHARTNOMA XAVF TAHLILI — yuqori penya/jarima, 100% avans xatari, QQS bandi va noaniq shartlarni `risks` massivida aniq yozing."
           : "Rejim: FAKTURA / TTN / CHEK OCR — tovar/xizmatlar, taxminiy MXIK (IKPU 17 xonali kodi yoki qisqa nomi), QQS 12% va 21-BHMS provodkasini aniqlang.",
+        `TIL QOIDASI: ${msg.aiLanguageInstruction(locale)}`,
         "Faqat quyidagi JSON obyektini qaytaring:",
         JSON.stringify({
           documentType: "E-SF / Faktura | TTN | Kassa/Terminal cheki | Shartnoma",
@@ -260,7 +264,7 @@ export async function POST(req: NextRequest) {
           suggestedDebitCode: "6010|2910|1010|9420|4010|5110",
           suggestedCreditCode: "5110|6010|9030|9020|9010",
           vatAccountCode: "4410|6410",
-          provodkaExplanation: "21-BHMS bo'yicha o'zbekcha izoh",
+          provodkaExplanation: `21-BHMS bo'yicha izoh (${locale})`,
           risks: ["Shartnoma yoki faktura bo'yicha aniqlangan xatarlar (yo'q bo'lsa bo'sh massiv)"],
         }),
         fileName ? `Fayl nomi: ${sanitizeStringForAi(fileName)}` : "",
@@ -328,12 +332,12 @@ export async function POST(req: NextRequest) {
             modelUsed: modelName,
             creditCost: authz.creditCost,
             usage: authz.snapshot,
-            documentType: sanitizeStringForAi(String(data.documentType || "Hujjat")).slice(0, 60),
+            documentType: sanitizeStringForAi(String(data.documentType || msg.defaultDocumentType)).slice(0, 60),
             documentNumber: sanitizeStringForAi(String(data.documentNumber || "")).slice(0, 40),
             date: /^\d{4}-\d{2}-\d{2}$/.test(String(data.date || ""))
               ? String(data.date)
               : new Date().toISOString().slice(0, 10),
-            counterparty: sanitizeStringForAi(String(data.counterparty || "Kontragent")).slice(0, 120),
+            counterparty: sanitizeStringForAi(String(data.counterparty || msg.defaultCounterparty)).slice(0, 120),
             counterpartyStir: String(data.counterpartyStir || "").replace(/\D/g, "").slice(0, 9),
             direction: data.direction === "income" ? "income" : "expense",
             totalAmount,
@@ -341,10 +345,10 @@ export async function POST(req: NextRequest) {
             netAmount,
             items: Array.isArray(data.items)
               ? data.items.slice(0, 25).map((it: any) => ({
-                  name: sanitizeStringForAi(String(it?.name || "Tovar/xizmat")).slice(0, 120),
+                  name: sanitizeStringForAi(String(it?.name || msg.defaultItemName)).slice(0, 120),
                   mxikHint: sanitizeStringForAi(String(it?.mxikHint || "")).slice(0, 40),
                   qty: Number(it?.qty || 1),
-                  unit: sanitizeStringForAi(String(it?.unit || "dona")).slice(0, 20),
+                  unit: sanitizeStringForAi(String(it?.unit || msg.defaultUnit)).slice(0, 20),
                   price: roundMoney(Number(it?.price || 0)),
                   total: roundMoney(Number(it?.total || 0)),
                   vatRate: Number(it?.vatRate || 0),
@@ -354,7 +358,7 @@ export async function POST(req: NextRequest) {
             suggestedCreditCode: creditCode,
             vatAccountCode: vatCode,
             provodkaExplanation: sanitizeStringForAi(
-              String(data.provodkaExplanation || "21-BHMS boʻyicha provodka taklifi tayyorlandi.")
+              String(data.provodkaExplanation || msg.defaultProvodkaExplanation)
             ).slice(0, 260),
             risks: Array.isArray(data.risks)
               ? data.risks.slice(0, 10).map((r: any) => sanitizeStringForAi(String(r)).slice(0, 220))
@@ -375,7 +379,7 @@ export async function POST(req: NextRequest) {
 
     if (mode === "contract_risk" && safeDocText) {
       return NextResponse.json({
-        ...buildContractHeuristicFallback(safeDocText),
+        ...buildContractHeuristicFallback(safeDocText, msg),
         creditCost: 0,
         usage: preSnapshot,
       });
@@ -383,15 +387,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        error:
-          "AI hujjat skaneri vaqtincha band (Gemini API javob bermadi). Birozdan soʻng qayta urinib koʻring.",
+        error: msg.aiUnavailable,
       },
       { status: 503 }
     );
   } catch (err: any) {
     console.error("AI Document Scan error:", err);
     return NextResponse.json(
-      { error: err?.message || "Hujjat skanerida xatolik yuz berdi" },
+      { error: err?.message ? localizeServerError(err.message, locale) : msg.documentScanError },
       { status: 500 }
     );
   }

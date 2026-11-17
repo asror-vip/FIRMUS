@@ -4,11 +4,15 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import {
-  AI_MODELS,
-  PLANS_LIST,
-  PLANS_CONFIG,
+  formatUzsByLocale,
+  getLocalizedAiModel,
+  getLocalizedPlanSpec,
+  getLocalizedPlansList,
+  normalizePlanId,
   type PlanSpec,
 } from "@/lib/config/plans";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getBillingHomeDict, getIntlLocale } from "@/lib/i18n/domains/billing-home";
 import { fetchWorkspaceUsageSummary } from "@/lib/services/supabase-service";
 import { getClientDeviceHash } from "@/lib/utils/device-fingerprint";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,10 +73,6 @@ async function copyToClipboard(text: string): Promise<boolean> {
   return false;
 }
 
-function formatUzs(amount: number): string {
-  return `${new Intl.NumberFormat("uz-UZ").format(amount)} soʻm`;
-}
-
 function UsageProgressBar({ used, max }: { used: number; max: number | null }) {
   const pct = max && max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 8;
   const isNearLimit = Boolean(max && used >= max);
@@ -97,6 +97,13 @@ function daysRemaining(isoDate: string | null): number {
 }
 
 export default function BillingPage() {
+  const { locale } = useTranslation();
+  const dict = getBillingHomeDict(locale);
+  const b = dict.billing;
+  const intlLocale = getIntlLocale(locale);
+  const localizedPlans = getLocalizedPlansList(locale);
+  const formatUzs = (amount: number) => formatUzsByLocale(amount, locale);
+
   const {
     currentWorkspace,
     currentEntity,
@@ -113,6 +120,10 @@ export default function BillingPage() {
   const [selectedPlanForInfo, setSelectedPlanForInfo] = useState<PlanSpec | null>(null);
   const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
   const [isLoadingUsage, setIsLoadingUsage] = useState(true);
+
+  const activePlanSpec = selectedPlanForInfo
+    ? getLocalizedPlanSpec(selectedPlanForInfo.id, locale)
+    : null;
 
   // Checkout modal states
   const [paymentMethod, setPaymentMethod] = useState<"bank_transfer_didox" | "payme" | "click">("payme");
@@ -166,16 +177,16 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || "Sinovni yoqib boʻlmadi");
+        throw new Error(data?.error || b.toast.trialError);
       }
       if (data?.subscription) {
         setSubscriptionSnapshot(data.subscription);
       } else {
         await refreshSubscription();
       }
-      toast.success(data?.message || "7 kunlik bepul Pro sinov yoqildi!");
+      toast.success(data?.message || b.toast.trialSuccess);
     } catch (err: any) {
-      toast.error(err?.message || "Sinov muddatini yoqib boʻlmadi");
+      toast.error(err?.message || b.toast.trialActivateFailed);
     } finally {
       setIsActivatingTrial(false);
     }
@@ -188,7 +199,7 @@ export default function BillingPage() {
     note?: string;
   } => {
     if (plan.monthlyPriceUzs === 0) {
-      return { amount: "0 soʻm", unit: "" };
+      return { amount: b.pricing.freeAmount, unit: "" };
     }
     if (billingCycle === "annual") {
       const regularAnnual = plan.monthlyPriceUzs * 12;
@@ -197,19 +208,21 @@ export default function BillingPage() {
         return {
           amount: formatUzs(plan.annualTotalPriceUzs),
           originalAmount: formatUzs(regularAnnual),
-          unit: "/ yiliga",
-          note: `Oyiga ${formatUzs(plan.annualMonthlyPriceUzs)} • 1-yillik 20% chegirma (${formatUzs(savedPerYear)} tejaladi, faqat 1 marta amal qiladi)`,
+          unit: b.pricing.perYear,
+          note: b.pricing.annualDiscountNote
+            .replace("{monthly}", formatUzs(plan.annualMonthlyPriceUzs))
+            .replace("{saved}", formatUzs(savedPerYear)),
         };
       }
       return {
         amount: formatUzs(regularAnnual),
-        unit: "/ yiliga",
-        note: "Bir martalik 20% yillik chegirma avval foydalanilgan • Standart yillik tarif",
+        unit: b.pricing.perYear,
+        note: b.pricing.annualStandardNote,
       };
     }
     return {
       amount: formatUzs(plan.monthlyPriceUzs),
-      unit: "/ oyiga",
+      unit: b.pricing.perMonth,
     };
   };
 
@@ -230,24 +243,24 @@ export default function BillingPage() {
   };
 
   const handleInitiateCheckout = async () => {
-    if (!selectedPlanForInfo || selectedPlanForInfo.monthlyPriceUzs === 0 || isCheckingOut || isConfirmingOrder) return;
+    if (!activePlanSpec || activePlanSpec.monthlyPriceUzs === 0 || isCheckingOut || isConfirmingOrder) return;
     setIsCheckingOut(true);
     try {
       const payload: any = {
-        planId: selectedPlanForInfo.id,
+        planId: activePlanSpec.id,
         billingCycle,
         paymentMethod,
       };
 
       if (paymentMethod === "bank_transfer_didox") {
         if (!b2bTinStir.trim()) {
-          toast.error("Korxona yoki YaTT STIR (INN) raqamini kiriting");
+          toast.error(b.toast.enterTinError);
           setIsCheckingOut(false);
           return;
         }
         payload.b2bMetadata = {
           tinStir: b2bTinStir.trim(),
-          companyName: b2bCompanyName.trim() || currentEntity?.name || "Korxona",
+          companyName: b2bCompanyName.trim() || currentEntity?.name || b.dialogs.checkout.companyFallback,
         };
       }
 
@@ -259,26 +272,26 @@ export default function BillingPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || "Toʻlov buyurtmasini yaratib boʻlmadi");
+        throw new Error(data?.error || b.toast.createOrderFailed);
       }
 
       if (paymentMethod === "payme" && data?.paymeCheckoutUrl) {
-        window.location.href = data.paymeCheckoutUrl;
+        window.location.assign(data.paymeCheckoutUrl);
         return;
       }
       if (paymentMethod === "click" && data?.clickCheckoutUrl) {
-        window.location.href = data.clickCheckoutUrl;
+        window.location.assign(data.clickCheckoutUrl);
         return;
       }
 
       setCheckoutOrder(data);
       toast.success(
         paymentMethod === "bank_transfer_didox"
-          ? "Rasmiy hisob-faktura (invoys) shakllantirildi"
-          : "Toʻlov buyurtmasi yaratildi"
+          ? b.toast.invoiceGenerated
+          : b.toast.orderCreated
       );
     } catch (err: any) {
-      toast.error(err?.message || "Toʻlov jarayonida xatolik yuz berdi");
+      toast.error(err?.message || b.toast.checkoutError);
     } finally {
       setIsCheckingOut(false);
     }
@@ -299,25 +312,29 @@ export default function BillingPage() {
       const data = await res.json();
       if (!res.ok) {
         if (data?.alreadyPaid) {
-          toast.info(data?.message || "Buyurtma avval toʻlangan");
+          toast.info(data?.message || b.toast.orderAlreadyPaid);
           await refreshSubscription();
           setIsPaymentModalOpen(false);
           setCheckoutOrder(null);
           return;
         }
-        throw new Error(data?.error || "Buyurtmani tasdiqlab boʻlmadi");
+        throw new Error(data?.error || b.toast.confirmOrderFailed);
       }
       if (data?.alreadyPaid) {
-        toast.info(data?.message || "Buyurtma avval toʻlangan");
+        toast.info(data?.message || b.toast.orderAlreadyPaid);
       } else {
-        toast.success(data?.message || "Toʻlov muvaffaqiyatli tasdiqlandi! Obuna faollashdi.");
+        toast.success(data?.message || b.toast.paymentConfirmed);
       }
       await refreshSubscription();
       setIsPaymentModalOpen(false);
       setCheckoutOrder(null);
     } catch (err: any) {
-      toast.error(err?.message || "Tasdiqlashda xatolik yuz berdi");
-      if (err?.message?.includes("avval toʻlangan") || err?.message?.includes("already paid")) {
+      toast.error(err?.message || b.toast.confirmError);
+      if (
+        err?.message?.includes("avval toʻlangan") ||
+        err?.message?.includes("already paid") ||
+        err?.message?.includes("уже оплачен")
+      ) {
         await refreshSubscription();
         setIsPaymentModalOpen(false);
         setCheckoutOrder(null);
@@ -328,7 +345,7 @@ export default function BillingPage() {
   };
 
   const handleCopyInvoice = async () => {
-    if (!selectedPlanForInfo) return;
+    if (!activePlanSpec) return;
     const inv = checkoutOrder?.invoiceDetails;
     const ord = checkoutOrder?.order;
     const orderId = ord?.orderId || checkoutOrder?.orderId || "—";
@@ -346,7 +363,7 @@ export default function BillingPage() {
       checkoutOrder?.b2bMetadata?.companyName ||
       b2bCompanyName ||
       currentEntity?.name ||
-      "Mijoz";
+      b.dialogs.invoice.buyerFallback;
     const bTin =
       inv?.buyerTin ||
       checkoutOrder?.b2bMetadata?.tinStir ||
@@ -359,36 +376,37 @@ export default function BillingPage() {
       checkoutOrder?.amountUzs ||
       finalPriceUzs;
     const amountStr = formatUzs(amountVal);
+    const tpl = b.dialogs.invoice.copyTemplate;
     const purpose =
       inv?.paymentPurpose ||
       checkoutOrder?.paymentPurpose ||
-      `FIRMUS AI ${selectedPlanForInfo.name} tarifi uchun obuna toʻlovi. QQS siz`;
+      tpl.defaultPurpose.replace("{plan}", activePlanSpec.name);
 
     const text = [
-      `HISOB-FAKTURA (INVOYS) № ${invNum}`,
-      `Sana: ${new Date().toLocaleDateString("uz-UZ")}`,
+      tpl.header.replace("{invNum}", invNum),
+      tpl.date.replace("{date}", new Date().toLocaleDateString(intlLocale)),
       `------------------------------------`,
-      `Yetkazib beruvchi (Sotuvchi): ${seller}`,
-      `STIR: ${sTin}`,
-      `H/R: ${sAccount}`,
-      `Bank: ${sBank}, MFO: ${sMfo}`,
+      tpl.seller.replace("{seller}", seller),
+      tpl.tin.replace("{tin}", sTin),
+      tpl.account.replace("{account}", sAccount),
+      tpl.bank.replace("{bank}", sBank).replace("{mfo}", sMfo),
       `------------------------------------`,
-      `Buyurtmachi (Xaridor): ${bName}`,
-      `STIR: ${bTin}`,
+      tpl.buyer.replace("{buyer}", bName),
+      tpl.tin.replace("{tin}", bTin),
       `------------------------------------`,
-      `Toʻlov summasi: ${amountStr} (0% komissiya)`,
-      `Toʻlov maqsadi: ${purpose}`,
+      tpl.amount.replace("{amount}", amountStr),
+      tpl.purpose.replace("{purpose}", purpose),
       `------------------------------------`,
-      `Buyurtma ID: ${orderId}`,
+      tpl.orderId.replace("{orderId}", orderId),
     ].join("\n");
 
     const ok = await copyToClipboard(text);
     if (ok) {
       setCopiedInvoice(true);
-      toast.success("Invoys rekvizitlari nusxalandi");
+      toast.success(b.toast.invoiceCopied);
       setTimeout(() => setCopiedInvoice(false), 2000);
     } else {
-      toast.error("Nusxalab boʻlmadi");
+      toast.error(b.toast.copyFailed);
     }
   };
 
@@ -399,23 +417,29 @@ export default function BillingPage() {
       : 0;
 
   const isAnnual = billingCycle === "annual";
-  const regularAnnual = selectedPlanForInfo ? selectedPlanForInfo.monthlyPriceUzs * 12 : 0;
-  const finalPriceUzs = selectedPlanForInfo
+  const regularAnnual = activePlanSpec ? activePlanSpec.monthlyPriceUzs * 12 : 0;
+  const finalPriceUzs = activePlanSpec
     ? isAnnual
       ? !annualDiscountUsed
-        ? selectedPlanForInfo.annualTotalPriceUzs
+        ? activePlanSpec.annualTotalPriceUzs
         : regularAnnual
-      : selectedPlanForInfo.monthlyPriceUzs
+      : activePlanSpec.monthlyPriceUzs
     : 0;
 
   const daysLeft = subscription.expiresAt ? daysRemaining(subscription.expiresAt) : null;
   const canRenewSoon = daysLeft !== null && daysLeft <= 5;
   const isAlreadyActivePaid =
-    Boolean(selectedPlanForInfo) &&
+    Boolean(activePlanSpec) &&
     !subscription.isTrialActive &&
     subscription.planId !== "starter" &&
-    (selectedPlanForInfo?.id === subscription.planId ||
-      (subscription.planId === "pro_plus" && selectedPlanForInfo?.id === "professional"));
+    (activePlanSpec?.id === subscription.planId ||
+      (subscription.planId === "pro_plus" && activePlanSpec?.id === "professional"));
+
+  const currentLocalizedPlanName = getLocalizedPlanSpec(
+    normalizePlanId(subscription.planId),
+    locale
+  ).name;
+  const activeAiModelMeta = getLocalizedAiModel(subscription.preferredModel, locale);
 
   return (
     <div className="space-y-6">
@@ -423,10 +447,10 @@ export default function BillingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Obuna va Tariflar
+            {b.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Tarif holati, AI imkoniyatlari va yillik yoki oylik rejalarni boshqarish
+            {b.subtitle}
           </p>
         </div>
 
@@ -442,7 +466,7 @@ export default function BillingPage() {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            Oylik
+            {b.cycleMonthly}
           </button>
           <button
             type="button"
@@ -454,14 +478,14 @@ export default function BillingPage() {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <span>Yillik</span>
+            <span>{b.cycleAnnual}</span>
             {!annualDiscountUsed ? (
               <Badge variant="success" className="text-[9px] px-1.5 py-0 h-4">
-                -20% (1-marta)
+                {b.annualDiscountBadge}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
-                Standart
+                {b.annualStandardBadge}
               </Badge>
             )}
           </button>
@@ -474,24 +498,26 @@ export default function BillingPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-sm font-semibold">
-                {FEATURES.multiCompanyMode ? currentWorkspace?.name || "Ishchi maydon" : "Shaxsiy hisob"}
+                {FEATURES.multiCompanyMode
+                  ? currentWorkspace?.name || b.summary.workspaceFallback
+                  : b.summary.personalAccount}
               </CardTitle>
               <Badge variant="indigo" className="text-[10px]">
-                {subscription.planName}
+                {currentLocalizedPlanName}
               </Badge>
               {subscription.isTrialActive ? (
                 <Badge variant="warning" className="text-[10px] gap-1">
                   <Clock className="h-3 w-3" />
-                  Sinov: {trialDaysLeft} kun qoldi
+                  {b.summary.trialRemaining.replace("{days}", String(trialDaysLeft))}
                 </Badge>
               ) : (
                 <Badge variant="success" className="text-[10px]">
-                  Faol
+                  {b.summary.activeBadge}
                 </Badge>
               )}
             </div>
             <CardDescription className="text-xs">
-              AI modelini toʻgʻridan-toʻgʻri chat oynasidagi yozish qatori tepasidan almashtirishingiz mumkin
+              {b.summary.modelHintSubtitle}
             </CardDescription>
           </div>
 
@@ -508,7 +534,7 @@ export default function BillingPage() {
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              7 kun Pro sinov
+              {b.summary.trialBtn}
             </Button>
           )}
         </CardHeader>
@@ -517,16 +543,16 @@ export default function BillingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Oylik AI faolligi</span>
+                <span>{b.summary.monthlyAiActivity}</span>
                 <Activity className="h-3.5 w-3.5 text-indigo-500" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {aiUsagePercent}% foydalanildi
+                {b.summary.usedPercent.replace("{pct}", String(aiUsagePercent))}
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {subscription.remainingCredits > 0
-                  ? "Asboblar faol ishlamoqda"
-                  : "Oylik chegara toʻldi"}
+                  ? b.summary.toolsActive
+                  : b.summary.monthlyLimitReached}
               </p>
               <UsageProgressBar
                 used={subscription.monthlyUsed}
@@ -536,29 +562,33 @@ export default function BillingPage() {
 
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Faol AI modeli</span>
+                <span>{b.summary.activeAiModel}</span>
                 <Cpu className="h-3.5 w-3.5 text-emerald-500" />
               </div>
               <div className="mt-1.5 font-semibold text-sm text-foreground">
-                {AI_MODELS[subscription.preferredModel].label}
+                {activeAiModelMeta.label}
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {subscription.planId === "starter"
-                  ? "Pro tarifida Gemini 4 Hydrogen ochiladi"
-                  : "Chat oynasidan modellarni almashtirish mumkin"}
+                  ? b.summary.starterModelHint
+                  : b.summary.proModelHint}
               </p>
             </div>
 
             <div className="rounded-xl border border-border bg-muted/20 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
-                <span>Saqlangan ishlar</span>
+                <span>{b.summary.savedWorks}</span>
                 <FileStack className="h-3.5 w-3.5 text-sky-500" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
-                {isLoadingUsage ? "…" : `${usage.monthlyBatches} ta ish`}
+                {isLoadingUsage
+                  ? "…"
+                  : b.summary.worksCount.replace("{count}", String(usage.monthlyBatches))}
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isLoadingUsage ? "…" : `${usage.aiThreadsCount} ta saqlangan chat`}
+                {isLoadingUsage
+                  ? "…"
+                  : b.summary.savedChatsCount.replace("{count}", String(usage.aiThreadsCount))}
               </p>
             </div>
           </div>
@@ -567,7 +597,7 @@ export default function BillingPage() {
 
       {/* 3 Plan Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {PLANS_LIST.map((plan) => {
+        {localizedPlans.map((plan) => {
           const isCurrent = plan.id === subscription.planId;
           const featuresList = FEATURES.multiCompanyMode ? plan.b2bFeatures : plan.soloFeatures;
           const showTrialBtn = plan.id === "professional" && subscription.trialAvailable;
@@ -576,13 +606,13 @@ export default function BillingPage() {
           const isIncludedInHigherTier =
             subscription.planId === "pro_plus" && !subscription.isTrialActive && plan.id === "professional";
 
-          let buttonLabel = "Ulanish / Toʻlov";
+          let buttonLabel = b.cards.subscribeOrPay;
           if (isCurrent && isPaidActive) {
-            buttonLabel = "Faol tarif tafsilotlari";
+            buttonLabel = b.cards.activePlanDetails;
           } else if (isIncludedInHigherTier) {
-            buttonLabel = "Pro+ tarkibiga kiradi";
+            buttonLabel = b.cards.includedInProPlus;
           } else if (plan.monthlyPriceUzs === 0) {
-            buttonLabel = "Asosiy bepul tarif";
+            buttonLabel = b.cards.basicFreePlan;
           }
 
           return (
@@ -603,7 +633,7 @@ export default function BillingPage() {
                     </CardTitle>
                     {isCurrent ? (
                       <Badge variant="success" className="text-[10px]">
-                        {subscription.isTrialActive ? "Joriy (Sinov)" : "Joriy tarif"}
+                        {subscription.isTrialActive ? b.cards.currentTrial : b.cards.currentPlan}
                       </Badge>
                     ) : plan.badge ? (
                       <Badge variant="indigo" className="text-[10px] gap-1">
@@ -664,7 +694,7 @@ export default function BillingPage() {
                     ) : (
                       <Sparkles className="h-3.5 w-3.5" />
                     )}
-                    7 kun bepul sinab koʻrish
+                    {b.cards.tryFree7Days}
                   </Button>
                 )}
 
@@ -713,20 +743,20 @@ export default function BillingPage() {
           }
         }}
       >
-        {!selectedPlanForInfo ? null : selectedPlanForInfo.monthlyPriceUzs === 0 ? (
+        {!activePlanSpec ? null : activePlanSpec.monthlyPriceUzs === 0 ? (
           <DialogContent className="sm:max-w-md text-xs">
             <DialogHeader>
-              <DialogTitle className="text-base font-bold">Starter — Boshlangʻich tarif</DialogTitle>
+              <DialogTitle className="text-base font-bold">{b.dialogs.starter.title}</DialogTitle>
               <DialogDescription className="text-xs">
-                Ushbu tarif barcha foydalanuvchilar uchun 0 soʻm toʻlovsiz faol.
+                {b.dialogs.starter.description}
               </DialogDescription>
             </DialogHeader>
             <div className="py-2 text-muted-foreground leading-relaxed">
-              Qoʻshimcha AI kreditlari, Gemini 4 Hydrogen modeli, PDF tahlili va kengaytirilgan 1C solishtirish imkoniyatlaridan foydalanish uchun Pro yoki Pro+ tarifini tanlashingiz mumkin.
+              {b.dialogs.starter.body}
             </div>
             <DialogFooter>
               <Button type="button" size="sm" onClick={() => setIsPaymentModalOpen(false)}>
-                Tushunarli
+                {b.dialogs.starter.closeBtn}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -736,50 +766,57 @@ export default function BillingPage() {
               <div className="flex items-center justify-between">
                 <DialogTitle className="text-base font-bold flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                  {selectedPlanForInfo.name}
+                  {activePlanSpec.name}
                 </DialogTitle>
                 <Badge variant="success" className="text-[10px]">
-                  Faol (Toʻlangan)
+                  {b.dialogs.activePaid.activePaidBadge}
                 </Badge>
               </div>
               <DialogDescription className="text-xs">
-                Joriy faol obunangiz haqida maʼlumot.
+                {b.dialogs.activePaid.description}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3 py-2">
               <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Holat:</span>
+                  <span className="text-muted-foreground">{b.dialogs.activePaid.statusLabel}</span>
                   <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    Faol obuna
+                    {b.dialogs.activePaid.statusValue}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Amal qilish muddati:</span>
+                  <span className="text-muted-foreground">{b.dialogs.activePaid.expiresLabel}</span>
                   <span className="font-medium text-foreground">
                     {subscription.expiresAt
-                      ? `${new Date(subscription.expiresAt).toLocaleDateString("uz-UZ")}${
-                          daysLeft !== null ? ` (${daysLeft} kun qoldi)` : ""
+                      ? `${new Date(subscription.expiresAt).toLocaleDateString(intlLocale)}${
+                          daysLeft !== null
+                            ? ` ${b.dialogs.activePaid.daysLeftSuffix.replace("{days}", String(daysLeft))}`
+                            : ""
                         }`
-                      : "Muddatsiz (Faol)"}
+                      : b.dialogs.activePaid.unlimitedDuration}
                   </span>
                 </div>
                 <div className="flex items-center justify-between border-t border-border pt-2">
-                  <span className="text-muted-foreground">Oylik AI limiti:</span>
+                  <span className="text-muted-foreground">{b.dialogs.activePaid.monthlyLimitLabel}</span>
                   <span className="font-mono font-bold text-foreground">
-                    {selectedPlanForInfo.limits.monthlyCredits > 0
-                      ? `${selectedPlanForInfo.limits.monthlyCredits} ta kredit`
-                      : "Cheksiz"}
+                    {activePlanSpec.limits.monthlyCredits > 0
+                      ? b.dialogs.activePaid.creditsUnit.replace(
+                          "{credits}",
+                          String(activePlanSpec.limits.monthlyCredits)
+                        )
+                      : b.dialogs.activePaid.unlimitedCredits}
                   </span>
                 </div>
               </div>
 
-              {subscription.planId === "pro_plus" && selectedPlanForInfo.id === "professional" && (
+              {subscription.planId === "pro_plus" && activePlanSpec.id === "professional" && (
                 <div className="rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
                   <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
                   <span>
-                    Sizda hozir yanada yuqori <strong>Pro+</strong> tarifi faol. Professional tarifdagi barcha imkoniyatlar toʻliq sizning obunangizga kiritilgan.
+                    {b.dialogs.activePaid.proPlusIncludedNotePrefix}
+                    <strong>{getLocalizedPlanSpec("pro_plus", locale).name}</strong>
+                    {b.dialogs.activePaid.proPlusIncludedNoteSuffix}
                   </span>
                 </div>
               )}
@@ -792,20 +829,20 @@ export default function BillingPage() {
                 size="sm"
                 onClick={() => setIsPaymentModalOpen(false)}
               >
-                Yopish
+                {b.dialogs.activePaid.closeBtn}
               </Button>
-              {subscription.planId === "professional" && selectedPlanForInfo.id === "professional" && (
+              {subscription.planId === "professional" && activePlanSpec.id === "professional" && (
                 <Button
                   type="button"
                   size="sm"
                   className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
                   onClick={() => {
-                    setSelectedPlanForInfo(PLANS_CONFIG.pro_plus);
+                    setSelectedPlanForInfo(getLocalizedPlanSpec("pro_plus", locale));
                     setCheckoutOrder(null);
                   }}
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  Pro+ ga oʻtish
+                  {b.dialogs.activePaid.upgradeToProPlusBtn}
                 </Button>
               )}
             </DialogFooter>
@@ -818,7 +855,7 @@ export default function BillingPage() {
                 <div className="flex items-center justify-between">
                   <DialogTitle className="text-base font-bold flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-indigo-600" />
-                    Hisob-faktura (Invoys)
+                    {b.dialogs.invoice.title}
                   </DialogTitle>
                   <span className="font-mono text-[11px] font-semibold text-muted-foreground">
                     {checkoutOrder.invoiceDetails?.invoiceNumber ||
@@ -833,26 +870,28 @@ export default function BillingPage() {
               <div className="space-y-3 py-1">
                 <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2 text-[11px]">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Yetkazib beruvchi:</span>
+                    <span className="text-muted-foreground">{b.dialogs.invoice.sellerLabel}</span>
                     <span className="font-medium text-foreground">
-                      {checkoutOrder.invoiceDetails?.sellerName || "«FIRMUS TECH» MChJ"} (STIR: {checkoutOrder.invoiceDetails?.sellerTin || "309888777"})
+                      {checkoutOrder.invoiceDetails?.sellerName || "«FIRMUS TECH» MChJ"} ({b.dialogs.invoice.tinPrefix}:{" "}
+                      {checkoutOrder.invoiceDetails?.sellerTin || "309888777"})
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">H/R & Bank:</span>
+                    <span className="text-muted-foreground">{b.dialogs.invoice.accountBankLabel}</span>
                     <span className="font-medium font-mono text-[10px] text-foreground">
-                      {checkoutOrder.invoiceDetails?.sellerAccount || "2020 8000 9005 1234 5001"} ({checkoutOrder.invoiceDetails?.sellerBank || "SQB"})
+                      {checkoutOrder.invoiceDetails?.sellerAccount || "2020 8000 9005 1234 5001"} (
+                      {checkoutOrder.invoiceDetails?.sellerBank || "SQB"})
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Buyurtmachi:</span>
+                    <span className="text-muted-foreground">{b.dialogs.invoice.buyerLabel}</span>
                     <span className="font-medium text-foreground">
                       {checkoutOrder.invoiceDetails?.buyerName ||
                         checkoutOrder.b2bMetadata?.companyName ||
                         b2bCompanyName ||
                         currentEntity?.name ||
-                        "Mijoz"}{" "}
-                      (STIR:{" "}
+                        b.dialogs.invoice.buyerFallback}{" "}
+                      ({b.dialogs.invoice.tinPrefix}:{" "}
                       {checkoutOrder.invoiceDetails?.buyerTin ||
                         checkoutOrder.b2bMetadata?.tinStir ||
                         b2bTinStir ||
@@ -862,7 +901,7 @@ export default function BillingPage() {
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-2">
-                    <span className="text-muted-foreground">Summa:</span>
+                    <span className="text-muted-foreground">{b.dialogs.invoice.amountLabel}</span>
                     <span className="font-mono font-bold text-sm text-foreground">
                       {formatUzs(
                         checkoutOrder.invoiceDetails?.amountUzs ||
@@ -884,7 +923,7 @@ export default function BillingPage() {
                       onClick={handleCopyInvoice}
                     >
                       <Copy className="h-3.5 w-3.5" />
-                      {copiedInvoice ? "Nusxalandi!" : "Nusxa olish"}
+                      {copiedInvoice ? b.dialogs.invoice.copiedBtn : b.dialogs.invoice.copyBtn}
                     </Button>
                     <Button
                       type="button"
@@ -894,7 +933,7 @@ export default function BillingPage() {
                       onClick={() => window.print()}
                     >
                       <Printer className="h-3.5 w-3.5" />
-                      Chop etish
+                      {b.dialogs.invoice.printBtn}
                     </Button>
                   </div>
                   <Button
@@ -904,7 +943,7 @@ export default function BillingPage() {
                     className="h-8 text-xs text-muted-foreground"
                     onClick={handleSwitchPaymentMethod}
                   >
-                    Boshqa usul
+                    {b.dialogs.invoice.switchMethodBtn}
                   </Button>
                 </div>
               </div>
@@ -925,7 +964,7 @@ export default function BillingPage() {
                   ) : (
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   )}
-                  Toʻlovni tasdiqlash (Demo)
+                  {b.dialogs.invoice.confirmDemoBtn}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -940,10 +979,10 @@ export default function BillingPage() {
                     ) : (
                       <QrCode className="h-4 w-4 text-sky-600" />
                     )}
-                    {paymentMethod === "payme" ? "Payme" : "Click"} toʻlovi
+                    {paymentMethod === "payme" ? b.dialogs.sandbox.paymeTitle : b.dialogs.sandbox.clickTitle}
                   </DialogTitle>
                   <Badge variant="outline" className="text-[10px]">
-                    Sandbox
+                    {b.dialogs.sandbox.badge}
                   </Badge>
                 </div>
               </DialogHeader>
@@ -951,13 +990,13 @@ export default function BillingPage() {
               <div className="space-y-3 py-2">
                 <div className="rounded-xl border border-border bg-muted/20 p-3.5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Tarif:</span>
+                    <span className="text-muted-foreground">{b.dialogs.sandbox.planLabel}</span>
                     <span className="font-semibold text-foreground">
-                      {selectedPlanForInfo.name} ({isAnnual ? "Yillik" : "Oylik"})
+                      {activePlanSpec.name} ({isAnnual ? b.dialogs.checkout.cycleAnnualLabel : b.dialogs.checkout.cycleMonthlyLabel})
                     </span>
                   </div>
                   <div className="flex items-center justify-between border-t border-border pt-2">
-                    <span className="text-muted-foreground">Toʻlov summasi:</span>
+                    <span className="text-muted-foreground">{b.dialogs.sandbox.amountLabel}</span>
                     <span className="font-mono font-bold text-sm text-foreground">
                       {formatUzs(
                         checkoutOrder.order?.finalAmountUzs ||
@@ -976,7 +1015,7 @@ export default function BillingPage() {
                   size="sm"
                   onClick={handleSwitchPaymentMethod}
                 >
-                  Boshqa usul
+                  {b.dialogs.sandbox.switchMethodBtn}
                 </Button>
                 <Button
                   type="button"
@@ -992,7 +1031,7 @@ export default function BillingPage() {
                   ) : (
                     <CheckCircle2 className="h-3.5 w-3.5" />
                   )}
-                  Toʻlovni tasdiqlash
+                  {b.dialogs.sandbox.confirmBtn}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -1003,10 +1042,10 @@ export default function BillingPage() {
             <DialogHeader className="space-y-1">
               <div className="flex items-center justify-between">
                 <DialogTitle className="text-base font-bold">
-                  {selectedPlanForInfo.name}
+                  {activePlanSpec.name}
                 </DialogTitle>
                 <Badge variant="indigo" className="text-[10px]">
-                  {isAnnual ? "Yillik" : "Oylik"}
+                  {isAnnual ? b.dialogs.checkout.cycleAnnualLabel : b.dialogs.checkout.cycleMonthlyLabel}
                 </Badge>
               </div>
               <div className="text-xl font-bold font-mono tracking-tight text-foreground">
@@ -1028,8 +1067,8 @@ export default function BillingPage() {
                 <div className="flex items-center gap-2.5">
                   <CreditCard className="h-4 w-4 text-emerald-600 shrink-0" />
                   <div>
-                    <span className="font-semibold text-foreground block">Payme</span>
-                    <span className="text-[11px] text-muted-foreground">Uzcard / Humo</span>
+                    <span className="font-semibold text-foreground block">{b.dialogs.checkout.paymeTitle}</span>
+                    <span className="text-[11px] text-muted-foreground">{b.dialogs.checkout.paymeSubtitle}</span>
                   </div>
                 </div>
                 {paymentMethod === "payme" && (
@@ -1050,8 +1089,8 @@ export default function BillingPage() {
                 <div className="flex items-center gap-2.5">
                   <QrCode className="h-4 w-4 text-sky-600 shrink-0" />
                   <div>
-                    <span className="font-semibold text-foreground block">Click</span>
-                    <span className="text-[11px] text-muted-foreground">Click Up / QR / Karta</span>
+                    <span className="font-semibold text-foreground block">{b.dialogs.checkout.clickTitle}</span>
+                    <span className="text-[11px] text-muted-foreground">{b.dialogs.checkout.clickSubtitle}</span>
                   </div>
                 </div>
                 {paymentMethod === "click" && (
@@ -1073,9 +1112,9 @@ export default function BillingPage() {
                   <div className="flex items-center gap-2.5">
                     <Building2 className="h-4 w-4 text-indigo-600 shrink-0" />
                     <div>
-                      <span className="font-semibold text-foreground block">Bank oʻtkazmasi</span>
+                      <span className="font-semibold text-foreground block">{b.dialogs.checkout.bankTitle}</span>
                       <span className="text-[11px] text-muted-foreground">
-                        Yuridik shaxslar (Hisob-faktura)
+                        {b.dialogs.checkout.bankSubtitle}
                       </span>
                     </div>
                   </div>
@@ -1090,18 +1129,18 @@ export default function BillingPage() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">STIR (INN) *</Label>
+                      <Label className="text-[10px] text-muted-foreground">{b.dialogs.checkout.tinLabel}</Label>
                       <Input
-                        placeholder="301234567"
+                        placeholder={b.dialogs.checkout.tinPlaceholder}
                         value={b2bTinStir}
                         onChange={(e) => setB2bTinStir(e.target.value)}
                         className="h-8 text-xs font-mono"
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">Korxona / YaTT nomi *</Label>
+                      <Label className="text-[10px] text-muted-foreground">{b.dialogs.checkout.companyNameLabel}</Label>
                       <Input
-                        placeholder="MChJ yoki YaTT"
+                        placeholder={b.dialogs.checkout.companyNamePlaceholder}
                         value={b2bCompanyName}
                         onChange={(e) => setB2bCompanyName(e.target.value)}
                         className="h-8 text-xs"
@@ -1120,7 +1159,7 @@ export default function BillingPage() {
                 disabled={isCheckingOut || isConfirmingOrder}
                 onClick={() => setIsPaymentModalOpen(false)}
               >
-                Bekor qilish
+                {b.dialogs.checkout.cancelBtn}
               </Button>
               <Button
                 type="button"
@@ -1137,8 +1176,8 @@ export default function BillingPage() {
                   <ArrowRight className="h-3.5 w-3.5" />
                 )}
                 {paymentMethod === "bank_transfer_didox"
-                  ? "Hisob-faktura olish"
-                  : `Toʻlash — ${formatUzs(finalPriceUzs)}`}
+                  ? b.dialogs.checkout.getInvoiceBtn
+                  : b.dialogs.checkout.payAmountBtn.replace("{amount}", formatUzs(finalPriceUzs))}
               </Button>
             </DialogFooter>
           </DialogContent>

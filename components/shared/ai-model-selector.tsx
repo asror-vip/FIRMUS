@@ -4,6 +4,8 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { AI_MODELS, type AiModelId } from "@/lib/config/plans";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 import { Lock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -11,12 +13,13 @@ import { cn } from "@/lib/utils";
 export function AiModelSelector({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const { subscription, setPreferredAiModel } = useAppState();
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const ms = d.shared.aiModelSelector;
 
   const handlePick = async (modelId: AiModelId) => {
     if (!subscription.limits.allowedModels.includes(modelId)) {
-      toast.info(
-        `${AI_MODELS[modelId].label} modeli Pro va Pro+ tariflarida ochiladi. Obunalar boʻlimidan 7 kunlik bepul sinovni yoqishingiz mumkin.`
-      );
+      toast.info(ms.proLockToast(AI_MODELS[modelId].label));
       router.push("/billing");
       return;
     }
@@ -24,7 +27,7 @@ export function AiModelSelector({ compact = false }: { compact?: boolean }) {
     try {
       await setPreferredAiModel(modelId);
     } catch (err: any) {
-      toast.error(err?.message || "Modelni almashtirib boʻlmadi");
+      toast.error(err?.message || ms.switchErrorToast);
     }
   };
 
@@ -33,6 +36,7 @@ export function AiModelSelector({ compact = false }: { compact?: boolean }) {
       <div className="inline-flex items-center rounded-lg border border-border/80 bg-muted/40 p-0.5 text-[11px]">
         {(["gemini-3.8-flash", "gemini-4-hydrogen"] as AiModelId[]).map((mId) => {
           const meta = AI_MODELS[mId];
+          const localizedDesc = ms.descriptions[mId] || meta.description;
           const isSelected = subscription.preferredModel === mId;
           const isLocked = !subscription.limits.allowedModels.includes(mId);
 
@@ -41,7 +45,7 @@ export function AiModelSelector({ compact = false }: { compact?: boolean }) {
               key={mId}
               type="button"
               onClick={() => handlePick(mId)}
-              title={meta.description}
+              title={localizedDesc}
               className={cn(
                 "inline-flex items-center gap-1 rounded-md font-medium transition-colors",
                 compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]",
@@ -68,7 +72,7 @@ export function AiModelSelector({ compact = false }: { compact?: boolean }) {
 
       {!compact && (
         <span className="text-[10px] text-muted-foreground hidden sm:inline truncate">
-          {AI_MODELS[subscription.preferredModel].description}
+          {ms.descriptions[subscription.preferredModel] || AI_MODELS[subscription.preferredModel].description}
         </span>
       )}
     </div>

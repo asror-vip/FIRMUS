@@ -1,3 +1,6 @@
+import type { Locale } from "@/lib/i18n/types";
+import { getBillingHomeDict, getIntlLocale } from "@/lib/i18n/domains/billing-home";
+
 export type PlanId = "starter" | "professional" | "pro_plus";
 
 export type AiModelId = "gemini-3.8-flash" | "gemini-4-hydrogen";
@@ -338,3 +341,37 @@ export const PAYMENT_METHODS: PaymentMethodMeta[] = [
     description: "Click ilovasi, QR-kod yoki Uzcard/Humo orqali tezkor toʻlov.",
   },
 ];
+
+export function formatUzsByLocale(amount: number, locale: Locale): string {
+  const dict = getBillingHomeDict(locale);
+  const formatted = new Intl.NumberFormat(getIntlLocale(locale)).format(amount);
+  return `${formatted} ${dict.currencyLabel}`;
+}
+
+export function getLocalizedPlanSpec(planId: PlanId, locale: Locale): PlanSpec {
+  const base = PLANS_CONFIG[planId];
+  const localized = getBillingHomeDict(locale).plans.items[planId];
+  return {
+    ...base,
+    name: localized.name,
+    subtitle: localized.subtitle,
+    badge: localized.badge,
+    soloFeatures: localized.soloFeatures,
+    b2bFeatures: localized.b2bFeatures,
+  };
+}
+
+export function getLocalizedPlansList(locale: Locale): PlanSpec[] {
+  return PLANS_LIST.map((plan) => getLocalizedPlanSpec(plan.id, locale));
+}
+
+export function getLocalizedAiModel(modelId: AiModelId, locale: Locale): AiModelMeta {
+  const base = AI_MODELS[modelId];
+  const localized = getBillingHomeDict(locale).plans.aiModels[modelId];
+  return {
+    ...base,
+    label: localized.label,
+    shortLabel: localized.shortLabel,
+    description: localized.description,
+  };
+}

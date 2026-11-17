@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertTriangle, Loader2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict, getIntlLocale } from "@/lib/i18n/domains/shell-shared";
 import type { ScannedDocResult } from "@/lib/services/doc-scan-client";
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -39,15 +41,8 @@ interface ChatScanCardProps {
   onPostToLedger: (editedScan: ScannedDocResult) => Promise<void>;
 }
 
-const QUICK_DEBIT_ACCOUNTS = [
-  { code: "6010", label: "6010 Yetkazib beruvchi" },
-  { code: "9420", label: "9420 Maʼmuriy xarajat" },
-  { code: "9410", label: "9410 Sotish xarajati" },
-  { code: "2910", label: "2910 Tovarlar" },
-  { code: "1010", label: "1010 Materiallar" },
-  { code: "4010", label: "4010 Xaridorlar" },
-  { code: "5110", label: "5110 Bank hisobi" },
-];
+const DEBIT_ACCOUNT_CODES = ["6010", "9420", "9410", "2910", "1010", "4010", "5110"];
+const CREDIT_ACCOUNT_CODES = ["5110", "5010", "6010", "9030", "9020", "9010"];
 
 export function ChatScanCard({
   scan,
@@ -56,6 +51,11 @@ export function ChatScanCard({
   canPost = true,
   onPostToLedger,
 }: ChatScanCardProps) {
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const intlLocale = getIntlLocale(locale);
+  const sc = d.shared.chatScanCard;
+
   const [debitCode, setDebitCode] = useState(scan.suggestedDebitCode || "6010");
   const [creditCode, setCreditCode] = useState(scan.suggestedCreditCode || "5110");
   const [totalAmount, setTotalAmount] = useState(String(scan.totalAmount || 0));
@@ -65,19 +65,19 @@ export function ChatScanCard({
   const handleCopySummary = async () => {
     const text = [
       `${scan.documentType}${scan.documentNumber ? ` №${scan.documentNumber}` : ""} (${scan.date})`,
-      `Kontragent: ${scan.counterparty}${scan.counterpartyStir ? ` (STIR: ${scan.counterpartyStir})` : ""}`,
-      `Summa: ${(Number(totalAmount) || scan.totalAmount).toLocaleString("uz-UZ")} soʻm${
-        scan.vatAmount > 0 ? ` | QQS 12%: ${scan.vatAmount.toLocaleString("uz-UZ")} soʻm` : ""
+      `${sc.copyCounterparty}: ${scan.counterparty}${scan.counterpartyStir ? ` (${t.entity.tin}: ${scan.counterpartyStir})` : ""}`,
+      `${sc.copyAmount}: ${(Number(totalAmount) || scan.totalAmount).toLocaleString(intlLocale)} ${t.common.currency}${
+        scan.vatAmount > 0 ? ` | ${sc.copyVat}: ${scan.vatAmount.toLocaleString(intlLocale)} ${t.common.currency}` : ""
       }`,
-      `Provodka: Dt ${debitCode} / Kt ${creditCode}${scan.vatAmount > 0 ? ` (+ QQS ${scan.vatAccountCode})` : ""}`,
+      `${sc.copyEntry}: ${d.aiDrawer.dtPrefix} ${debitCode} / ${d.aiDrawer.ktPrefix} ${creditCode}${scan.vatAmount > 0 ? ` (+ ${sc.vatLabel} ${scan.vatAccountCode})` : ""}`,
     ].join("\n");
     const ok = await copyToClipboard(text);
     if (ok) {
       setCopied(true);
-      toast.success("Natija nusxalandi");
+      toast.success(sc.copiedToast);
       setTimeout(() => setCopied(false), 1600);
     } else {
-      toast.error("Nusxalab boʻlmadi");
+      toast.error(sc.copyErrorToast);
     }
   };
 
@@ -106,23 +106,23 @@ export function ChatScanCard({
           {isDuplicate && (
             <Badge variant="warning" className="text-[10px] gap-1">
               <AlertTriangle className="h-3 w-3" />
-              Oʻxshash chek tarixda bor
+              {sc.duplicateBadge}
             </Badge>
           )}
           <Badge variant={posted ? "success" : "outline"} className="text-[10px]">
-            {posted ? "Bosh kitobda" : scan.date}
+            {posted ? sc.postedBadge : scan.date}
           </Badge>
         </div>
       </div>
 
       <div className="text-[11px] text-muted-foreground">
         <strong className="text-foreground">{scan.counterparty}</strong>
-        {scan.counterpartyStir ? ` • STIR: ${scan.counterpartyStir}` : ""}
+        {scan.counterpartyStir ? ` • ${t.entity.tin}: ${scan.counterpartyStir}` : ""}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
         <div>
-          <span className="text-[10px] text-muted-foreground block">Jami summa (soʻm)</span>
+          <span className="text-[10px] text-muted-foreground block">{sc.totalAmountLabel(t.common.currency)}</span>
           <input
             type="number"
             min={0}
@@ -133,42 +133,41 @@ export function ChatScanCard({
           />
         </div>
         <div>
-          <span className="text-[10px] text-muted-foreground block">Debet schyot</span>
+          <span className="text-[10px] text-muted-foreground block">{sc.debitAccountLabel}</span>
           <select
             disabled={posted}
             value={debitCode}
             onChange={(e) => setDebitCode(e.target.value)}
             className="mt-0.5 h-7 w-full rounded border border-input bg-background px-1.5 font-mono text-[11px]"
           >
-            {QUICK_DEBIT_ACCOUNTS.map((a) => (
-              <option key={a.code} value={a.code}>
-                {a.label}
+            {DEBIT_ACCOUNT_CODES.map((code) => (
+              <option key={code} value={code}>
+                {sc.debitAccounts[code] || code}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <span className="text-[10px] text-muted-foreground block">Kredit schyot</span>
+          <span className="text-[10px] text-muted-foreground block">{sc.creditAccountLabel}</span>
           <select
             disabled={posted}
             value={creditCode}
             onChange={(e) => setCreditCode(e.target.value)}
             className="mt-0.5 h-7 w-full rounded border border-input bg-background px-1.5 font-mono text-[11px]"
           >
-            <option value="5110">5110 Bank hisobi</option>
-            <option value="5010">5010 Kassa</option>
-            <option value="6010">6010 Yetkazib beruvchi</option>
-            <option value="9030">9030 Xizmat tushumi</option>
-            <option value="9020">9020 Tovar tushumi</option>
-            <option value="9010">9010 Mahsulot tushumi</option>
+            {CREDIT_ACCOUNT_CODES.map((code) => (
+              <option key={code} value={code}>
+                {sc.creditAccounts[code] || code}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
       {scan.vatAmount > 0 && (
         <div className="text-[11px] font-mono text-muted-foreground">
-          QQS (12%): {scan.vatAmount.toLocaleString("uz-UZ")} soʻm • Sof summa:{" "}
-          {scan.netAmount.toLocaleString("uz-UZ")} soʻm
+          {sc.vatLabel}: {scan.vatAmount.toLocaleString(intlLocale)} {t.common.currency} • {sc.netLabel}:{" "}
+          {scan.netAmount.toLocaleString(intlLocale)} {t.common.currency}
         </div>
       )}
 
@@ -181,7 +180,7 @@ export function ChatScanCard({
           onClick={handleCopySummary}
         >
           {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-          {copied ? "Nusxalandi" : "Provodkani nusxalash"}
+          {copied ? sc.copiedBtn : sc.copyBtn}
         </Button>
         {!posted && canPost && (
           <Button
@@ -197,7 +196,7 @@ export function ChatScanCard({
             ) : (
               <CheckCircle2 className="h-3 w-3" />
             )}
-            Tasdiqlab Bosh kitobga yozish
+            {sc.postToLedgerBtn}
           </Button>
         )}
       </div>

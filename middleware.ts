@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getRequestLocale } from "@/lib/i18n/server-locale";
+import { getApiMessages } from "@/lib/i18n/domains/api-messages";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -53,7 +55,7 @@ export async function middleware(request: NextRequest) {
   if (!user && !isAuthPage && !isPublicPage) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json(
-        { error: "Autentifikatsiya talab qilinadi" },
+        { error: getApiMessages(getRequestLocale(request)).authRequired },
         { status: 401 }
       );
     }

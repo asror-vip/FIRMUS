@@ -3,12 +3,16 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAppState } from "@/lib/context/app-state";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 import { Button } from "@/components/ui/button";
 
 const NOTICE_KEY_PREFIX = "firmus_first_login_notice_v1:";
 
 export function FirstLoginNotice() {
   const { user } = useAppState();
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -46,26 +50,26 @@ export function FirstLoginNotice() {
             id="firmus-first-login-notice-title"
             className="text-base font-semibold tracking-tight text-foreground"
           >
-            Yodda tuting
+            {d.shared.firstLoginNotice.title}
           </h2>
           <p className="text-[13px] leading-relaxed text-muted-foreground">
-            FIRMUS AI — bu yordamchi vosita boʻlib, ayrim javob yoki hisoblarda xato qilishi mumkin. Yakuniy provodka va soliq hisobotlarini tasdiqlashdan oldin tekshirib oling. Yuklangan maʼlumotlar{" "}
+            {d.shared.firstLoginNotice.bodyBeforeTerms}{" "}
             <Link
               href="/terms"
               onClick={handleDismiss}
               className="text-foreground underline decoration-dotted underline-offset-4 hover:text-primary transition-colors"
             >
-              Foydalanish shartlari
+              {d.shared.firstLoginNotice.termsLink}
             </Link>{" "}
-            va{" "}
+            {d.shared.firstLoginNotice.bodyBetweenLinks}{" "}
             <Link
               href="/privacy"
               onClick={handleDismiss}
               className="text-foreground underline decoration-dotted underline-offset-4 hover:text-primary transition-colors"
             >
-              Maxfiylik siyosati
+              {d.shared.firstLoginNotice.privacyLink}
             </Link>{" "}
-            asosida himoyalanadi (karta va JShShIR maʼlumotlari avtomatik yashiriladi).
+            {d.shared.firstLoginNotice.bodyAfterPrivacy}
           </p>
         </div>
 
@@ -75,7 +79,7 @@ export function FirstLoginNotice() {
             onClick={handleDismiss}
             className="h-9 rounded-full px-6 text-xs font-semibold"
           >
-            OK
+            {d.shared.firstLoginNotice.acceptBtn}
           </Button>
         </div>
       </div>

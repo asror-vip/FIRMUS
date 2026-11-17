@@ -3,6 +3,8 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
 interface PaginationBarProps {
   page: number;
@@ -19,10 +21,15 @@ export function PaginationBar({
   pageSize = 10,
   totalCount,
   isLoading = false,
-  itemLabel = "yozuv",
+  itemLabel,
   onPageChange,
   className = "",
 }: PaginationBarProps) {
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const pg = d.shared.paginationBar;
+  const resolvedLabel = itemLabel ?? pg.defaultItemLabel;
+
   const safeTotal = Math.max(0, totalCount);
   const totalPages = Math.max(1, Math.ceil(safeTotal / Math.max(1, pageSize)));
   const currentPage = Math.min(Math.max(1, page), totalPages);
@@ -34,8 +41,9 @@ export function PaginationBar({
       className={`flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2.5 text-xs text-muted-foreground ${className}`}
     >
       <span>
-        Jami: <strong className="text-foreground">{safeTotal}</strong> ta {itemLabel}
-        {safeTotal > 0 ? ` (${startItem}–${endItem})` : ""} • Sahifa{" "}
+        {pg.totalPrefix} <strong className="text-foreground">{safeTotal}</strong>
+        {pg.totalUnit ? ` ${pg.totalUnit}` : ""} {resolvedLabel}
+        {safeTotal > 0 ? ` (${startItem}–${endItem})` : ""} • {pg.pageLabel}{" "}
         <strong className="text-foreground">{currentPage}</strong> / {totalPages}
       </span>
       <div className="flex items-center gap-1.5">
@@ -48,7 +56,7 @@ export function PaginationBar({
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
-          Oldingi
+          {pg.previous}
         </Button>
         <Button
           type="button"
@@ -58,7 +66,7 @@ export function PaginationBar({
           disabled={currentPage >= totalPages || isLoading}
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         >
-          Keyingi
+          {pg.next}
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       </div>

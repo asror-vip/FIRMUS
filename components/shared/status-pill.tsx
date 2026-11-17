@@ -4,6 +4,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
 export type StatusPillType =
   | "success"
@@ -24,13 +25,15 @@ interface StatusPillProps {
 }
 
 export function StatusPill({ status, label, className }: StatusPillProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const sp = d.shared.statusPill;
   const norm = status.toLowerCase();
 
   let variant: "success" | "warning" | "destructive" | "indigo" | "slate" | "secondary" = "slate";
   let displayLabel = label || status;
 
-  if (["success", "posted", "signed", "active", "connected", "paid", "in_stock", "completed"].includes(norm)) {
+  if (["success", "posted", "signed", "active", "connected", "paid", "in_stock", "completed", "resolved"].includes(norm)) {
     variant = "success";
     if (!label) {
       if (norm === "posted") displayLabel = t.statuses.posted;
@@ -41,8 +44,9 @@ export function StatusPill({ status, label, className }: StatusPillProps) {
       else if (norm === "success") displayLabel = t.statuses.success;
       else if (norm === "in_stock") displayLabel = t.statuses.in_stock;
       else if (norm === "completed") displayLabel = t.statuses.completed;
+      else if (norm === "resolved") displayLabel = sp.resolved;
     }
-  } else if (["pending", "pending_signature", "due_soon", "syncing", "low_stock", "invited"].includes(norm)) {
+  } else if (["pending", "pending_signature", "due_soon", "syncing", "low_stock", "invited", "trialing", "in_review"].includes(norm)) {
     variant = "warning";
     if (!label) {
       if (norm === "pending") displayLabel = t.statuses.pending;
@@ -51,23 +55,35 @@ export function StatusPill({ status, label, className }: StatusPillProps) {
       else if (norm === "syncing") displayLabel = t.statuses.syncing;
       else if (norm === "low_stock") displayLabel = t.statuses.low_stock;
       else if (norm === "invited") displayLabel = t.statuses.invited;
+      else if (norm === "trialing") displayLabel = sp.trialing;
+      else if (norm === "in_review") displayLabel = sp.inReview;
     }
-  } else if (["failed", "exception", "rejected", "error", "overdue", "critical", "urgent"].includes(norm)) {
+  } else if (["failed", "exception", "rejected", "error", "overdue", "critical", "urgent", "expired", "cancelled"].includes(norm)) {
     variant = "destructive";
     if (!label) {
-      if (norm === "exception") displayLabel = t.statuses.exception;
+      if (norm === "failed") displayLabel = sp.failed;
+      else if (norm === "exception") displayLabel = t.statuses.exception;
       else if (norm === "rejected") displayLabel = t.statuses.rejected;
       else if (norm === "error") displayLabel = t.statuses.error;
       else if (norm === "overdue") displayLabel = t.statuses.overdue;
       else if (norm === "critical") displayLabel = t.statuses.critical;
       else if (norm === "urgent") displayLabel = t.statuses.urgent;
+      else if (norm === "expired") displayLabel = sp.expired;
+      else if (norm === "cancelled") displayLabel = sp.cancelled;
     }
-  } else if (["reconciled", "indigo"].includes(norm)) {
+  } else if (["reconciled", "indigo", "open"].includes(norm)) {
     variant = "indigo";
-    if (!label && norm === "reconciled") displayLabel = t.statuses.reconciled;
-  } else if (["draft"].includes(norm)) {
+    if (!label) {
+      if (norm === "reconciled") displayLabel = t.statuses.reconciled;
+      else if (norm === "open") displayLabel = sp.open;
+    }
+  } else if (["draft", "read-only", "inactive"].includes(norm)) {
     variant = "slate";
-    if (!label) displayLabel = t.statuses.draft;
+    if (!label) {
+      if (norm === "draft") displayLabel = t.statuses.draft;
+      else if (norm === "read-only") displayLabel = sp.readOnly;
+      else if (norm === "inactive") displayLabel = sp.inactive;
+    }
   }
 
   return (

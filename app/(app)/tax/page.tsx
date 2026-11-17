@@ -27,10 +27,14 @@ import {
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 
 export default function TaxPage() {
   const { currentEntity } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  const d = dict.erpExtra.tax;
+  const intlLocale = getIntlLocale(locale);
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
   const [totalTaxCount, setTotalTaxCount] = useState(0);
   const [taxPage, setTaxPage] = useState(1);
@@ -94,11 +98,11 @@ export default function TaxPage() {
       setTotalDeadlinesCount(dbDeadlinesPage.count);
     } catch (err) {
       console.error("Soliq ma'lumotlarini yuklashda xatolik:", err);
-      toast.error("Soliq ma'lumotlarini bazadan yuklab boʻlmadi");
+      toast.error(d.toasts.loadError);
     } finally {
       setIsLoading(false);
     }
-  }, [currentEntity?.id, taxPage, deadlinesPage]);
+  }, [currentEntity?.id, taxPage, deadlinesPage, d.toasts.loadError]);
 
   useEffect(() => {
     setTaxPage(1);
@@ -129,7 +133,7 @@ export default function TaxPage() {
   const netVatPayable = Math.max(0, vatOutput6410 - vatInput4410);
 
   const handleExportTaxCsv = () => {
-    const headers = ["Soliq turi", "Davr", "Hisoblangan summa (UZS)", "To'langan summa (UZS)", "Muddat", "Holat"];
+    const headers = d.csvHeaders;
     const rows = taxRecords.map((rec) => [
       `"${rec.type}"`,
       `"${rec.period}"`,
@@ -148,7 +152,7 @@ export default function TaxPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Soliq majburiyatlari reestri CSV formatida yuklab olindi!");
+    toast.success(d.toasts.csvExported);
   };
 
   const handleConfirmVatCalculation = async () => {
@@ -156,7 +160,7 @@ export default function TaxPage() {
     try {
       const offsetAmount = Math.min(vatOutput6410, vatInput4410);
       if (offsetAmount <= 0 || !currentEntity?.id) {
-        toast.info("Zachyot uchun 6410 va 4410 schyotlarida yetarli qoldiq topilmadi.");
+        toast.info(d.toasts.insufficientVatBalance);
         setIsCalcModalOpen(false);
         return;
       }
@@ -165,22 +169,22 @@ export default function TaxPage() {
         entityId: currentEntity.id,
         entryNumber: `JE-VAT-${Date.now().toString().slice(-5)}`,
         entryDate: today,
-        description: "QQS zachyoti: 4410 (Kiruvchi QQS) hisobidan 6410 (Budjetga QQS) kamaytirildi",
+        description: d.offsetJournalDesc,
         debitAccountCode: "6410",
-        debitAccountName: "Budjetga toʻlovlar boʻyicha qarzlar (Soliqlar)",
+        debitAccountName: d.debit6410Name,
         creditAccountCode: "4410",
-        creditAccountName: "Budjetga oldindan toʻlangan soliqlar (QQS)",
+        creditAccountName: d.credit4410Name,
         amount: offsetAmount,
         sourceType: "tax_offset",
         idempotencyKey: `idem-vat-offset-${currentEntity.id}-${today}-${Math.round(offsetAmount)}`,
       });
       await loadTaxData();
       toast.success(
-        `QQS hisob-kitobi tasdiqlandi! Zachyot summasi (${offsetAmount.toLocaleString()} soʻm) Bosh kitobda (Dt 6410 / Kt 4410) aks ettirildi.`
+        d.toasts.vatOffsetSuccess.replace("{amount}", offsetAmount.toLocaleString(intlLocale))
       );
       setIsCalcModalOpen(false);
     } catch (err: any) {
-      toast.error("QQS provodkasini saqlashda xatolik: " + err.message);
+      toast.error(d.toasts.vatOffsetError.replace("{error}", err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -189,7 +193,7 @@ export default function TaxPage() {
   const handlePayTax = async (rec: TaxRecord) => {
     const unpaid = Math.max(0, rec.calculatedAmount - rec.paidAmount);
     if (unpaid <= 0) {
-      toast.info("Ushbu soliq majburiyati toʻliq toʻlangan!");
+      toast.info(d.toasts.alreadyPaidInfo);
       return;
     }
 
@@ -201,21 +205,23 @@ export default function TaxPage() {
         date: today,
         amount: unpaid,
         type: "expense",
-        counterparty: "Davlat soliq qoʻmitasi (Yagona gʻazna hisobvaragʻi)",
+        counterparty: d.taxCommitteeCounterparty,
         counterpartyStir: "200000001",
-        description: `${rec.type} (${rec.period}) boʻyicha soliq toʻlovi`,
+        description: `${rec.type} (${rec.period}) ${d.taxPaymentDescSuffix}`,
         accountCode: "6410",
-        accountName: "Budjetga toʻlovlar boʻyicha qarzlar (Soliqlar)",
+        accountName: d.debit6410Name,
       });
 
       await payTaxRecordInDb(rec.id, rec.calculatedAmount);
       await loadTaxData();
       setSelectedTax(null);
       toast.success(
-        `«${rec.type}» boʻyicha ${unpaid.toLocaleString()} soʻm soliq toʻlovi amalga oshirildi va Ledgerga (Dt 6410 / Kt 5110) saqlandi!`
+        d.toasts.taxPaidSuccess
+          .replace("{type}", rec.type)
+          .replace("{amount}", unpaid.toLocaleString(intlLocale))
       );
     } catch (err: any) {
-      toast.error("Soliq toʻlovini saqlashda xatolik: " + err.message);
+      toast.error(d.toasts.taxPayError.replace("{error}", err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -260,7 +266,7 @@ export default function TaxPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-foreground">QQS (12% Sof toʻlov)</span>
+            <span className="text-xs font-semibold text-foreground">{d.vatCardTitle}</span>
             <Badge variant="indigo" className="text-[10px] px-1 py-0 h-4">
               {t.common.monthly}
             </Badge>
@@ -269,13 +275,15 @@ export default function TaxPage() {
             <Money amount={netVatPayable} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            Hisoblangan: {vatOutput6410.toLocaleString()} • Zachyot: {vatInput4410.toLocaleString()}
+            {d.vatCardSub
+              .replace("{out}", vatOutput6410.toLocaleString(intlLocale))
+              .replace("{in}", vatInput4410.toLocaleString(intlLocale))}
           </p>
         </Card>
 
         <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-foreground">JShDS (12%)</span>
+            <span className="text-xs font-semibold text-foreground">{d.jshdsCardTitle}</span>
             <Badge
               variant={
                 jshdsRec?.status === "paid"
@@ -293,8 +301,8 @@ export default function TaxPage() {
                 : jshdsRec
                 ? t.common.pending
                 : jshdsAmount > 0
-                ? "Hisoblangan"
-                : "Kutilmoqda"}
+                ? d.calculatedBadge
+                : d.awaitingBadge}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
@@ -302,16 +310,16 @@ export default function TaxPage() {
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
             {jshdsRec
-              ? `Muddat: ${jshdsRec.deadline}`
+              ? `${d.deadlinePrefix} ${jshdsRec.deadline}`
               : jshdsAmount > 0
-              ? "Bosh kitob (6410 Kt) boʻyicha hisoblangan"
-              : "Ushbu davr uchun hisobot yoʻq"}
+              ? d.ledger6410Note
+              : d.noReportForPeriod}
           </p>
         </Card>
 
         <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-foreground">Ijtimoiy soliq (12%)</span>
+            <span className="text-xs font-semibold text-foreground">{d.socialCardTitle}</span>
             <Badge
               variant={
                 socialRec?.status === "paid"
@@ -329,8 +337,8 @@ export default function TaxPage() {
                 : socialRec
                 ? t.common.pending
                 : socialTaxAmount > 0
-                ? "Hisoblangan"
-                : "Kutilmoqda"}
+                ? d.calculatedBadge
+                : d.awaitingBadge}
             </Badge>
           </div>
           <div className="text-lg font-bold font-mono text-foreground">
@@ -338,17 +346,17 @@ export default function TaxPage() {
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
             {socialRec
-              ? `Muddat: ${socialRec.deadline}`
+              ? `${d.deadlinePrefix} ${socialRec.deadline}`
               : socialTaxAmount > 0
-              ? "Bosh kitob (6520 Kt) boʻyicha hisoblangan"
-              : "Ushbu davr uchun hisobot yoʻq"}
+              ? d.ledger6520Note
+              : d.noReportForPeriod}
           </p>
         </Card>
 
         <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">
-              {profitOrTurnoverRec?.type || "Foyda soligʻi (15%)"}
+              {profitOrTurnoverRec?.type || d.profitFallbackTitle}
             </span>
             <Badge
               variant={profitOrTurnoverRec?.status === "paid" ? "success" : "outline"}
@@ -361,7 +369,7 @@ export default function TaxPage() {
             <Money amount={profitOrTurnoverRec?.calculatedAmount || 0} />
           </div>
           <p className="text-[10px] text-muted-foreground mt-1">
-            {profitOrTurnoverRec ? `Davr: ${profitOrTurnoverRec.period}` : "Choraklik hisobot"}
+            {profitOrTurnoverRec ? `${d.periodPrefix} ${profitOrTurnoverRec.period}` : d.quarterlyReportNote}
           </p>
         </Card>
       </div>
@@ -375,14 +383,14 @@ export default function TaxPage() {
               {t.pages.tax.calendarTitle}
             </CardTitle>
             <CardDescription>
-              Soliq.uz taqvimi va muddatlar nazorati
+              {d.calendarDesc}
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
           {deadlines.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-              {isLoading ? "Soliq taqvimi yuklanmoqda..." : "Ushbu korxona uchun yaqinlashayotgan soliq muddatlari kiritilmagan."}
+              {isLoading ? d.loadingCalendar : d.emptyCalendar}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -424,7 +432,7 @@ export default function TaxPage() {
               pageSize={PAGE_SIZE}
               totalCount={totalDeadlinesCount}
               isLoading={isLoading}
-              itemLabel="muddat"
+              itemLabel={d.deadlineItemLabel}
               className="mt-3 rounded-lg border border-border"
               onPageChange={setDeadlinesPage}
             />
@@ -448,8 +456,8 @@ export default function TaxPage() {
               <TableRow>
                 <TableHead>{t.pages.accounting.name}</TableHead>
                 <TableHead>{t.common.period}</TableHead>
-                <TableHead className="text-right">Hisoblangan</TableHead>
-                <TableHead className="text-right">Toʻlangan</TableHead>
+                <TableHead className="text-right">{d.colCalculated}</TableHead>
+                <TableHead className="text-right">{d.colPaid}</TableHead>
                 <TableHead>{t.common.date}</TableHead>
                 <TableHead>{t.common.status}</TableHead>
                 <TableHead className="text-right">{t.common.details}</TableHead>
@@ -459,7 +467,7 @@ export default function TaxPage() {
               {taxRecords.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
-                    {isLoading ? "Soliq majburiyatlari yuklanmoqda..." : "Ushbu korxona boʻyicha soliq majburiyatlari topilmadi."}
+                    {isLoading ? d.loadingRecords : d.emptyRecords}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -503,7 +511,7 @@ export default function TaxPage() {
             pageSize={PAGE_SIZE}
             totalCount={totalTaxCount}
             isLoading={isLoading}
-            itemLabel="soliq"
+            itemLabel={d.taxItemLabel}
             onPageChange={setTaxPage}
           />
         </CardContent>
@@ -517,33 +525,35 @@ export default function TaxPage() {
               {selectedTax?.type}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Hisobot davri: {selectedTax?.period} • Topshirish muddati: {selectedTax?.deadline}
+              {d.modalPeriodDeadline
+                .replace("{period}", selectedTax?.period || "")
+                .replace("{deadline}", selectedTax?.deadline || "")}
             </DialogDescription>
           </DialogHeader>
           {selectedTax && (
             <div className="space-y-3 py-2 text-xs">
               <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Hisoblangan soliq summasi:</span>
+                  <span className="text-muted-foreground">{d.summaryCalculated}</span>
                   <span className="font-mono font-bold text-foreground">
                     <Money amount={selectedTax.calculatedAmount} />
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Toʻlangan summa:</span>
+                  <span className="text-muted-foreground">{d.summaryPaid}</span>
                   <span className="font-mono font-bold text-emerald-600">
                     <Money amount={selectedTax.paidAmount} />
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-border">
-                  <span className="font-semibold text-foreground">Qolgan toʻlov qoldigʻi:</span>
+                  <span className="font-semibold text-foreground">{d.summaryRemaining}</span>
                   <span className="font-mono font-bold text-rose-600">
                     <Money amount={Math.max(0, selectedTax.calculatedAmount - selectedTax.paidAmount)} />
                   </span>
                 </div>
               </div>
               <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
-                <span>Buxgalteriya schyoti: <strong className="font-mono text-foreground">6410</strong></span>
+                <span>{d.accountCodeLabel} <strong className="font-mono text-foreground">6410</strong></span>
                 <StatusPill status={selectedTax.status} />
               </div>
             </div>
@@ -560,7 +570,7 @@ export default function TaxPage() {
                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
               >
                 <CreditCard className="h-3.5 w-3.5" />
-                {isSubmitting ? "Toʻlanmoqda..." : "Soliqni toʻlash (Dt 6410 / Kt 5110)"}
+                {isSubmitting ? d.payingBtn : d.payTaxBtn}
               </Button>
             )}
           </DialogFooter>
@@ -573,22 +583,22 @@ export default function TaxPage() {
           <DialogHeader>
             <DialogTitle>{t.pages.tax.calculateModalTitle}</DialogTitle>
             <DialogDescription className="text-xs">
-              Bosh kitob (6410 va 4410 schyotlar) hamda Didox E-SF asosida real QQS (12%) hisob-kitobi
+              {d.vatModalDesc}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-3 text-xs">
             <div className="p-3.5 rounded-lg border border-indigo-500/30 bg-indigo-500/5 space-y-2">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Chiquvchi E-SF boʻyicha QQS (6410 Kt):</span>
+                <span className="text-muted-foreground">{d.vatOutputLabel}</span>
                 <span className="font-mono font-semibold"><Money amount={vatOutput6410} /></span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Kiruvchi E-SF zachyot QQS (4410 Dt):</span>
+                <span className="text-muted-foreground">{d.vatInputLabel}</span>
                 <span className="font-mono font-semibold text-emerald-600">-<Money amount={vatInput4410} /></span>
               </div>
               <div className="pt-2 border-t border-border flex justify-between font-mono font-bold text-foreground text-sm">
-                <span>Budjetga sof QQS toʻlovi:</span>
+                <span>{d.vatNetLabel}</span>
                 <span className="text-primary"><Money amount={netVatPayable} /></span>
               </div>
             </div>
@@ -603,7 +613,7 @@ export default function TaxPage() {
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
               onClick={handleConfirmVatCalculation}
             >
-              {isSubmitting ? "Saqlanmoqda..." : t.pages.tax.confirmCalculation}
+              {isSubmitting ? d.savingBtn : t.pages.tax.confirmCalculation}
             </Button>
           </DialogFooter>
         </DialogContent>

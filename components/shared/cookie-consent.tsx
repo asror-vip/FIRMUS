@@ -4,10 +4,14 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Cookie } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
 const COOKIE_KEY = "firmus_cookie_consent_v1";
 
 export function CookieConsent() {
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -38,14 +42,14 @@ export function CookieConsent() {
         </div>
         <div className="space-y-2 flex-1">
           <p className="text-foreground leading-relaxed">
-            FIRMUS faqat xavfsiz avtorizatsiya sessiyasi va sozlamalaringizni saqlash uchun texnik cookieʼlardan foydalanadi.{" "}
+            {d.shared.cookieConsent.message}{" "}
             <Link href="/privacy" className="text-primary underline">
-              Maxfiylik siyosati
+              {d.shared.cookieConsent.privacyLink}
             </Link>
           </p>
           <div className="flex items-center justify-end gap-2">
             <Button size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleAccept}>
-              Tushunarli
+              {d.shared.cookieConsent.acceptBtn}
             </Button>
           </div>
         </div>

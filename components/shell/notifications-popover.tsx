@@ -34,11 +34,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
 export function NotificationsPopover() {
   const router = useRouter();
   const { currentEntity } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [unreadOnly] = useState(false);
@@ -73,26 +75,26 @@ export function NotificationsPopover() {
             severity: e.severity === "critical" ? "critical" : "warning",
             title: e.title,
             description: e.description,
-            timestamp: e.date || "Bugun",
+            timestamp: e.date || d.notifications.today,
             isRead: readIds.includes(nid),
-            actionLabel: "AI Auditorda koʻrish",
+            actionLabel: d.notifications.viewInAuditor,
             actionUrl: `/ai-auditor?id=${e.id}`,
           });
         });
 
       (deadlines || [])
         .filter((d: any) => d.status !== "completed")
-        .forEach((d: any) => {
-          const nid = `tax-${d.id}`;
+        .forEach((item: any) => {
+          const nid = `tax-${item.id}`;
           built.push({
             id: nid,
             category: "tax",
-            severity: d.status === "urgent" ? "warning" : "info",
-            title: d.title,
-            description: d.description || `Muddat: ${d.date}`,
-            timestamp: d.date,
+            severity: item.status === "urgent" ? "warning" : "info",
+            title: item.title,
+            description: item.description || `${d.notifications.duePrefix}: ${item.date}`,
+            timestamp: item.date,
             isRead: readIds.includes(nid),
-            actionLabel: "Soliq boʻlimiga oʻtish",
+            actionLabel: d.notifications.goToTax,
             actionUrl: "/tax",
           });
         });
@@ -101,7 +103,7 @@ export function NotificationsPopover() {
     } catch (err) {
       console.error("Failed loading notifications:", err);
     }
-  }, [currentEntity?.id]);
+  }, [currentEntity?.id, d.notifications.duePrefix, d.notifications.goToTax, d.notifications.today, d.notifications.viewInAuditor]);
 
   useEffect(() => {
     loadNotifications();
@@ -129,7 +131,7 @@ export function NotificationsPopover() {
       persistReadIds(next);
       return next;
     });
-    toast.success(t.notifications.markAllRead);
+    toast.success(d.notifications.markAllReadToast);
   };
 
   const handleNotificationClick = (item: NotificationItem) => {

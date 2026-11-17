@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceClient } from "@/lib/supabase/service";
 import { resolveEffectiveSubscription } from "@/lib/ai/subscription-guard";
+import { getRequestLocale } from "@/lib/i18n/server-locale";
+import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -11,7 +16,7 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const { data: orders, error } = await supabase
@@ -22,16 +27,22 @@ export async function GET() {
       .limit(10);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: localizeServerError(error.message, locale) }, { status: 500 });
     }
 
     return NextResponse.json({ orders: orders || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Tizim xatoligi" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message ? localizeServerError(err.message, locale) : msg.systemError },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -39,7 +50,7 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const body = await req.json().catch(() => ({}));
@@ -48,12 +59,12 @@ export async function POST(req: NextRequest) {
     if (body.action === "confirm_order") {
       const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
       if (!orderId) {
-        return NextResponse.json({ error: "orderId talab qilinadi" }, { status: 400 });
+        return NextResponse.json({ error: msg.orderIdRequired }, { status: 400 });
       }
 
       if (process.env.PAYMENT_LIVE_STRICT === "true") {
         return NextResponse.json(
-          { error: "Real toʻlov rejimida buyurtmani qoʻlda tasdiqlash taqiqlangan" },
+          { error: msg.manualConfirmForbidden },
           { status: 403 }
         );
       }
@@ -67,7 +78,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (orderErr || !order) {
-        return NextResponse.json({ error: "Buyurtma topilmadi" }, { status: 404 });
+        return NextResponse.json({ error: msg.orderNotFound }, { status: 404 });
       }
 
       if (order.status === "paid") {
@@ -75,7 +86,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           success: true,
           alreadyPaid: true,
-          message: "Buyurtma avval toʻlangan",
+          message: msg.orderAlreadyPaid,
           subscription: snapshot,
         });
       }
@@ -88,7 +99,11 @@ export async function POST(req: NextRequest) {
 
       if (completeErr) {
         return NextResponse.json(
-          { error: completeErr.message || "Buyurtmani tasdiqlashda xatolik yuz berdi" },
+          {
+            error: completeErr.message
+              ? localizeServerError(completeErr.message, locale)
+              : msg.orderConfirmFailed,
+          },
           { status: 500 }
         );
       }
@@ -96,7 +111,7 @@ export async function POST(req: NextRequest) {
       const updatedSnapshot = await resolveEffectiveSubscription(user.id);
       return NextResponse.json({
         success: true,
-        message: "Tarif muvaffaqiyatli faollashtirildi!",
+        message: msg.orderActivated,
         order: completeRes,
         subscription: updatedSnapshot,
       });
@@ -106,7 +121,7 @@ export async function POST(req: NextRequest) {
     if (body.action === "cancel_order") {
       const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
       if (!orderId) {
-        return NextResponse.json({ error: "orderId talab qilinadi" }, { status: 400 });
+        return NextResponse.json({ error: msg.orderIdRequired }, { status: 400 });
       }
 
       const svc = getServiceClient();
@@ -117,7 +132,11 @@ export async function POST(req: NextRequest) {
 
       if (cancelErr) {
         return NextResponse.json(
-          { error: cancelErr.message || "Buyurtmani bekor qilib boʻlmadi" },
+          {
+            error: cancelErr.message
+              ? localizeServerError(cancelErr.message, locale)
+              : msg.orderCancelFailed,
+          },
           { status: 500 }
         );
       }
@@ -140,21 +159,21 @@ export async function POST(req: NextRequest) {
 
     if (!planId || !["professional", "pro_plus"].includes(planId)) {
       return NextResponse.json(
-        { error: "Notoʻgʻri tarif tanlangan (professional yoki pro_plus boʻlishi kerak)" },
+        { error: msg.invalidPlanId },
         { status: 400 }
       );
     }
 
     if (!billingCycle || !["monthly", "annual"].includes(billingCycle)) {
       return NextResponse.json(
-        { error: "Notoʻgʻri davr tanlangan (monthly yoki annual)" },
+        { error: msg.invalidBillingCycle },
         { status: 400 }
       );
     }
 
     if (!paymentMethod || !["payme", "click", "bank_transfer_didox"].includes(paymentMethod)) {
       return NextResponse.json(
-        { error: "Notoʻgʻri toʻlov tizimi tanlangan (payme, click yoki bank_transfer_didox)" },
+        { error: msg.invalidPaymentMethod },
         { status: 400 }
       );
     }
@@ -162,7 +181,7 @@ export async function POST(req: NextRequest) {
     if (paymentMethod === "bank_transfer_didox") {
       if (!b2bMetadata?.tinStir || !b2bMetadata?.companyName) {
         return NextResponse.json(
-          { error: "Bank oʻtkazmasi uchun tashkilot STIR va nomi kiritilishi shart" },
+          { error: msg.b2bTinNameRequired },
           { status: 400 }
         );
       }
@@ -179,14 +198,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (rpcErr || !orderData) {
-      const rawMsg = rpcErr?.message || "Buyurtma yaratib boʻlmadi";
+      const rawMsg = rpcErr?.message || "";
       const isConflict =
         rawMsg.includes("allaqachon toʻlangan") ||
         rawMsg.includes("yuqoriroq tarif faol") ||
         rawMsg.includes("faol!");
 
       return NextResponse.json(
-        { error: rawMsg },
+        { error: rawMsg ? localizeServerError(rawMsg, locale) : msg.orderCreateFailed },
         { status: isConflict ? 409 : 400 }
       );
     }
@@ -231,10 +250,9 @@ export async function POST(req: NextRequest) {
             invoiceNumber: `INV-${orderId}`,
             buyerTin: b2bMetadata?.tinStir || "",
             buyerName: b2bMetadata?.companyName || "",
-            paymentPurpose: `FIRMUS SaaS obunasi uchun toʻlov (${orderId}). QQSsiz.`,
+            paymentPurpose: msg.b2bInvoicePurpose(orderId),
             amountUzs: finalAmountUzs,
-            contractNotice:
-              "Didox yoki 1C E-SF orqali hisob-faktura yuboriladi yoki bank ilovasida koʻrsatilgan hisob raqamga toʻlov qiling.",
+            contractNotice: msg.b2bContractNotice,
           }
         : null;
 
@@ -258,6 +276,9 @@ export async function POST(req: NextRequest) {
       invoiceDetails,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Tizim xatoligi yuz berdi" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message ? localizeServerError(err.message, locale) : msg.systemError },
+      { status: 500 }
+    );
   }
 }

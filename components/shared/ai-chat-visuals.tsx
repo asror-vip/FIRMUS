@@ -3,14 +3,20 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Sparkles, Copy, Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
 export function AiEmptyHero({
   greeting,
   compact = false,
 }: {
-  greeting: string;
+  greeting?: string;
   compact?: boolean;
 }) {
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const resolvedGreeting = greeting ?? d.shared.aiChatVisuals.heroGreeting;
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="relative mb-4 flex items-center justify-center">
@@ -33,15 +39,21 @@ export function AiEmptyHero({
           compact ? "text-base" : "text-xl sm:text-2xl"
         }`}
       >
-        {greeting}
+        {resolvedGreeting}
       </h2>
     </div>
   );
 }
 
 export function AiThinkingBubble() {
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+
   return (
-    <div className="flex items-start gap-2.5 max-w-[85%] animate-in fade-in duration-200">
+    <div
+      className="flex items-start gap-2.5 max-w-[85%] animate-in fade-in duration-200"
+      aria-label={d.shared.aiChatVisuals.thinkingLabel}
+    >
       <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-sm">
         <Sparkles className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: "2.8s" }} />
       </div>
@@ -162,6 +174,9 @@ export function AiStreamingMessage({
   onStreamDone?: () => void;
   onRegenerate?: () => void;
 }) {
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const cv = d.shared.aiChatVisuals;
   const [visibleLen, setVisibleLen] = useState<number>(animate ? 0 : text.length);
   const [isDone, setIsDone] = useState<boolean>(!animate);
   const [copied, setCopied] = useState(false);
@@ -222,9 +237,10 @@ export function AiStreamingMessage({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      toast.success(cv.copyToast);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Nusxalab boʻlmadi");
+      toast.error(cv.copyErrorToast);
     }
   };
 
@@ -244,20 +260,20 @@ export function AiStreamingMessage({
               type="button"
               onClick={onRegenerate}
               className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/70 transition-colors"
-              title="Qayta javob olish"
+              title={cv.regenerateTitle}
             >
               <RotateCcw className="h-3 w-3" />
-              <span>Qayta</span>
+              <span>{cv.regenerateBtn}</span>
             </button>
           )}
           <button
             type="button"
             onClick={handleCopy}
             className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/70 transition-colors"
-            title="Nusxalash"
+            title={cv.copyTitle}
           >
             {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-            <span>{copied ? "Nusxalandi" : "Nusxa"}</span>
+            <span>{copied ? cv.copiedBtn : cv.copyBtn}</span>
           </button>
         </div>
       )}

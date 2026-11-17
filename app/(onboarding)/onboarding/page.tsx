@@ -4,8 +4,11 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
+import { LanguageToggle } from "@/components/shared/language-toggle";
 import { createWorkspaceRecord, createBusinessEntity } from "@/lib/services/supabase-service";
-import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
+import { businessEntitySchema } from "@/lib/validations/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +24,9 @@ import { toast } from "sonner";
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, refreshContext } = useAppState();
+  const { locale } = useTranslation();
+  const d = getAuthLegalDict(locale).onboarding;
+
   const [step, setStep] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -38,15 +44,18 @@ export default function OnboardingPage() {
 
   if (!FEATURES.multiCompanyMode) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4 text-xs text-muted-foreground">
-        Asboblar paneliga yoʻnaltirilmoqda...
+      <div className="relative min-h-screen bg-background flex items-center justify-center p-4 text-xs text-muted-foreground">
+        <div className="absolute top-4 right-4">
+          <LanguageToggle />
+        </div>
+        {d.loadingRedirect}
       </div>
     );
   }
 
   const nextStep = () => {
     if (step === 2 && workspaceName.trim().length < 3) {
-      toast.error("Ishchi maydon (Workspace) nomini kamida 3 ta belgi bilan kiriting");
+      toast.error(d.workspaceMinToast);
       return;
     }
     if (step === 3) {
@@ -57,7 +66,14 @@ export default function OnboardingPage() {
         taxRegime,
       });
       if (!parsed.success) {
-        toast.error(getFirstZodError(parsed.error));
+        const issueField = parsed.error.issues[0]?.path[0];
+        if (issueField === "legalName") {
+          toast.error(d.entityNameMinToast);
+        } else if (issueField === "tinStir") {
+          toast.error(d.tinFormatToast);
+        } else {
+          toast.error(d.validationFallbackToast);
+        }
         return;
       }
     }
@@ -68,7 +84,7 @@ export default function OnboardingPage() {
 
   const handleCompleteOnboarding = async () => {
     if (!user?.id) {
-      toast.error("Saqlash uchun avval tizimga kiring.");
+      toast.error(d.loginRequiredToast);
       router.push("/login");
       return;
     }
@@ -82,7 +98,7 @@ export default function OnboardingPage() {
         tinStir: stir.trim(),
         companyType: "MChJ",
         taxRegime,
-        accountantName: "Bosh buxgalter",
+        accountantName: d.defaultAccountantName,
       });
 
       if (typeof window !== "undefined") {
@@ -91,31 +107,40 @@ export default function OnboardingPage() {
       }
 
       await refreshContext();
-      toast.success("Ishchi maydon va korxona yaratildi!");
+      toast.success(d.saveSuccessToast);
       router.push("/");
     } catch (err: any) {
-      toast.error("Sozlashni saqlashda xatolik: " + (err.message || "Nomaʼlum xatolik"));
+      toast.error(d.saveErrorPrefix + (err.message || d.unknownError));
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4">
+    <div className="relative min-h-screen bg-background flex flex-col justify-center items-center p-4">
+      <div className="absolute top-4 right-4">
+        <LanguageToggle />
+      </div>
+
       <div className="w-full max-w-xl space-y-6">
-        <div className="text-center space-y-1">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl overflow-hidden shadow-sm mb-2 border border-border">
+        <div className="text-center space-y-1.5">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl overflow-hidden shadow-sm mb-1 border border-border">
             <img
               src="/brand/firmus-f.jpg"
               alt="FIRMUS Logo"
               className="h-full w-full object-cover"
             />
           </div>
+          <div>
+            <span className="inline-flex items-center rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-600">
+              {d.badge}
+            </span>
+          </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            FIRMUS ga xush kelibsiz!
+            {d.title}
           </h1>
           <p className="text-xs text-muted-foreground">
-            {step}-bosqich / 4: Korxonani 1 daqiqada sozlash
+            {d.subtitle.replace("{step}", String(step))}
           </p>
         </div>
 
@@ -130,9 +155,9 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div>
               <CardHeader>
-                <CardTitle className="text-base font-bold">1. Faoliyat turini tanlang</CardTitle>
+                <CardTitle className="text-base font-bold">{d.workspaceTypeLabel}</CardTitle>
                 <CardDescription className="text-xs">
-                  Siz bitta kompaniyani boshqarasizmi yoki buxgalteriya firmasimisiz?
+                  {d.step1Desc}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 pt-0 text-xs">
@@ -149,9 +174,9 @@ export default function OnboardingPage() {
                       <Briefcase className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-foreground">Buxgalteriya Firmasi (BPO)</h3>
+                      <h3 className="font-bold text-sm text-foreground">{d.types.accounting_firm.title}</h3>
                       <p className="text-muted-foreground text-xs mt-0.5">
-                        Bir nechta mijoz korxonalarini bitta oynadan yuritish.
+                        {d.types.accounting_firm.desc}
                       </p>
                     </div>
                   </div>
@@ -170,9 +195,9 @@ export default function OnboardingPage() {
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-foreground">Yagona Korxona (Kompaniya)</h3>
+                      <h3 className="font-bold text-sm text-foreground">{d.types.individual_company.title}</h3>
                       <p className="text-muted-foreground text-xs mt-0.5">
-                        Korxona bank koʻchirmalari va soliq hisobini yuritish.
+                        {d.types.individual_company.desc}
                       </p>
                     </div>
                   </div>
@@ -184,20 +209,20 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div>
               <CardHeader>
-                <CardTitle className="text-base font-bold">2. Ishchi maydon yaratish</CardTitle>
+                <CardTitle className="text-base font-bold">{d.step2Title}</CardTitle>
                 <CardDescription className="text-xs">
-                  Korxonalaringiz jamlanadigan ishchi maydon nomi.
+                  {d.step2Desc}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-0 text-xs">
                 <div>
                   <label className="font-semibold text-foreground block mb-1">
-                    Ishchi maydon (Workspace) nomi:
+                    {d.workspaceNameLabel}
                   </label>
                   <Input
                     value={workspaceName}
                     onChange={(e) => setWorkspaceName(e.target.value)}
-                    placeholder="Ishchi maydon nomi"
+                    placeholder={d.workspaceNamePlaceholder}
                     className="text-xs h-9"
                   />
                 </div>
@@ -208,43 +233,43 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div>
               <CardHeader>
-                <CardTitle className="text-base font-bold">3. Korxonani qoʻshish</CardTitle>
+                <CardTitle className="text-base font-bold">{d.step3Title}</CardTitle>
                 <CardDescription className="text-xs">
-                  Soliq toʻlovchi identifikatsion raqami (STIR) va soliq rejimi.
+                  {d.step3Desc}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 pt-0 text-xs">
                 <div>
-                  <label className="font-semibold text-foreground block mb-1">STIR (9 ta raqam) *:</label>
+                  <label className="font-semibold text-foreground block mb-1">{d.tinLabel}</label>
                   <Input
                     value={stir}
                     maxLength={9}
                     onChange={(e) => setStir(e.target.value)}
-                    placeholder="STIR"
+                    placeholder={d.tinPlaceholder}
                     className="font-mono text-xs h-9"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-foreground block mb-1">Yuridik nomi:</label>
+                  <label className="font-semibold text-foreground block mb-1">{d.entityNameLabel}</label>
                   <Input
                     value={entityName}
                     onChange={(e) => setEntityName(e.target.value)}
-                    placeholder="Korxona yuridik nomi"
+                    placeholder={d.entityNamePlaceholder}
                     className="text-xs h-9"
                   />
                 </div>
 
                 <div>
-                  <label className="font-semibold text-foreground block mb-1">Soliq rejimi:</label>
+                  <label className="font-semibold text-foreground block mb-1">{d.taxRegimeLabel}</label>
                   <select
                     value={taxRegime}
                     onChange={(e) => setTaxRegime(e.target.value)}
                     className="w-full h-9 rounded-lg border border-input bg-card px-3 text-xs text-foreground"
                   >
-                    <option value="vat_profit_tax">Umumbelgilangan (QQS 12% + Foyda soligʻi)</option>
-                    <option value="turnover_tax">Aylanmadan olinadigan soliq (4%)</option>
-                    <option value="fixed_tax">Qatʼiy belgilangan soliq (YaTT)</option>
+                    <option value="vat_profit_tax">{d.taxRegimes.vat_profit_tax}</option>
+                    <option value="turnover_tax">{d.taxRegimes.turnover_tax}</option>
+                    <option value="fixed_tax">{d.taxRegimes.fixed_tax}</option>
                   </select>
                 </div>
               </CardContent>
@@ -257,9 +282,11 @@ export default function OnboardingPage() {
                 <CheckCircle2 className="h-8 w-8" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-foreground">Barchasi tayyor!</h3>
+                <h3 className="text-lg font-bold text-foreground">{d.step4Title}</h3>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 leading-relaxed">
-                  FIRMUS AI buxgalteriya tizimi «{workspaceName}» maydoni va «{entityName}» korxonasi uchun ishga tushirishga tayyor.
+                  {d.step4Desc
+                    .replace("{workspaceName}", workspaceName)
+                    .replace("{entityName}", entityName)}
                 </p>
               </div>
 
@@ -269,7 +296,7 @@ export default function OnboardingPage() {
                   disabled={isSaving}
                   onClick={handleCompleteOnboarding}
                 >
-                  {isSaving ? "Saqlanmoqda..." : "Saqlash va Dashboardga oʻtish"} <ArrowRight className="ml-2 h-4 w-4" />
+                  {isSaving ? d.savingBtn : d.submitBtn} <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -280,7 +307,7 @@ export default function OnboardingPage() {
               {step > 1 ? (
                 <Button variant="outline" size="sm" onClick={prevStep} className="text-xs h-8">
                   <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-                  Orqaga
+                  {d.backBtn}
                 </Button>
               ) : (
                 <div />
@@ -291,7 +318,7 @@ export default function OnboardingPage() {
                 onClick={nextStep}
                 className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Keyingisi <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                {d.nextBtn} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
               </Button>
             </div>
           )}

@@ -8,6 +8,7 @@ import { NotificationsPopover } from "./notifications-popover";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -53,13 +54,14 @@ export function Topbar() {
     setLanguage,
   } = useAppState();
 
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
   const { theme, setTheme } = useTheme();
 
   const displayName =
     user?.user_metadata?.full_name ||
     user?.user_metadata?.name ||
-    (user?.email ? user.email.split("@")[0] : "Bosh buxgalter");
+    (user?.email ? user.email.split("@")[0] : d.topbar.defaultDisplayName);
 
   const displayEmail = user?.email ? maskEmail(user.email) : "FIRMUS";
 
@@ -124,6 +126,8 @@ export function Topbar() {
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          title={d.topbar.toggleThemeLabel}
+          aria-label={d.topbar.toggleThemeLabel}
         >
           {theme === "dark" ? (
             <Sun className="h-4 w-4 text-amber-400" />
@@ -195,7 +199,7 @@ export function Topbar() {
               className="text-xs cursor-pointer"
             >
               <CreditCard className="mr-2 h-3.5 w-3.5" />
-              Obunalar
+              {d.topbar.billingMenuLabel}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => router.push("/settings")}
@@ -206,7 +210,7 @@ export function Topbar() {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={async () => {
-                toast.info("Tizimdan chiqilmoqda...");
+                toast.info(d.topbar.signOutToast);
                 await handleSignOut();
               }}
               className="text-xs text-rose-600 cursor-pointer"

@@ -30,12 +30,13 @@ import {
   calculateVacationPayUz,
 } from "@/lib/services/uz-tax-calculator";
 import {
-  AI_IMAGE_FORMAT_ERROR,
   compressImageForAi,
   computeSha256Hex,
   isSupportedAiImageFile,
   type CompressedImageResult,
 } from "@/lib/utils/image-compression";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getAssistantDict } from "@/lib/i18n/domains/assistant";
 import {
   postScannedDocToLedger,
   scanCompressedImageAndSave,
@@ -95,14 +96,6 @@ async function copyToClipboard(text: string): Promise<boolean> {
   return false;
 }
 
-const TOOL_PAGE_TITLES: Record<string, string> = {
-  chat: "AI Chat",
-  scan: "Faktura / Chek Skaner",
-  calc: "Kalkulyator",
-  contract: "Shartnoma tahlili",
-  history: "Saqlangan tarix",
-};
-
 interface ChatTurn {
   id: string;
   sender: "user" | "ai";
@@ -123,6 +116,9 @@ const HISTORY_PAGE_SIZE = 10;
 function AssistantContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t, locale } = useTranslation();
+  const d = getAssistantDict(locale);
+  const numLocale = locale === "ru" ? "ru-RU" : locale === "en" ? "en-US" : "uz-UZ";
   const {
     currentEntity,
     isContextReady,
@@ -337,7 +333,7 @@ function AssistantContent() {
     setIsDraggingOverChat(false);
     if (!file) return;
     if (!isSupportedAiImageFile(file)) {
-      toast.error(AI_IMAGE_FORMAT_ERROR);
+      toast.error(d.toasts.invalidImageFormat);
       return;
     }
     try {
@@ -347,7 +343,7 @@ function AssistantContent() {
       });
       setAttachedChatImage(compressed);
     } catch (err: any) {
-      toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
+      toast.error(err?.message || d.toasts.invalidImageFormat);
     }
   };
 
@@ -407,7 +403,7 @@ function AssistantContent() {
       : {
           id: `u-${Date.now()}`,
           sender: "user",
-          text: query || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
+          text: query || `${d.chat.imageSentPrefix} ${imgToSend?.fileName || d.chat.imageSentDefaultName}`,
           imagePreviewUrl: imgToSend?.dataUrl,
         };
     const nextList = userTurn ? [...baseList, userTurn] : [...baseList];
@@ -442,9 +438,9 @@ function AssistantContent() {
           id: `a-${Date.now()}`,
           sender: "ai",
           text:
-            `${cachedHit ? "(Tarixdan topildi — 0 kredit) " : ""}` +
-            `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
-            (scan.provodkaExplanation || "Provodka tayyorlandi."),
+            `${cachedHit ? d.chat.cachedFromHistoryPrefix : ""}` +
+            `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString(numLocale)} ${t.common.currency}. ` +
+            (scan.provodkaExplanation || d.chat.scanPreparedFallback),
           modelUsed: scan.modelUsed,
           scanResult: scan,
           scanBatchId: savedBatchId,
@@ -471,7 +467,7 @@ function AssistantContent() {
       });
       const data = await res.json();
       if (data?.usage) setSubscriptionSnapshot(data.usage);
-      if (!res.ok) throw new Error(data.error || "AI javob qaytarmadi");
+      if (!res.ok) throw new Error(data.error || d.toasts.aiNoResponse);
 
       const aiTurn: ChatTurn = {
         id: `a-${Date.now()}`,
@@ -487,7 +483,7 @@ function AssistantContent() {
       await persistChatThread(completed);
     } catch (err: any) {
       if (err?.name === "AbortError") return;
-      toast.error("AI javobida xatolik: " + err.message);
+      toast.error(`${d.toasts.aiResponseErrorPrefix}: ${err.message}`);
     } finally {
       setIsSending(false);
     }
@@ -505,7 +501,7 @@ function AssistantContent() {
 
   const handlePostChatScan = async (turn: ChatTurn, editedScan: ScannedDocResult) => {
     if (!currentEntity?.id) {
-      toast.error("Bosh kitobga yozish uchun yuqoridan korxona qoʻshing");
+      toast.error(d.toasts.selectEntityForLedger);
       return;
     }
     try {
@@ -519,9 +515,9 @@ function AssistantContent() {
       );
       setMessages(updated);
       await Promise.all([loadSavedScans(), loadUnifiedHistory(), persistChatThread(updated)]);
-      toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
+      toast.success(d.toasts.scanPostedToLedger);
     } catch (err: any) {
-      toast.error("Bosh kitobga yozishda xatolik: " + err.message);
+      toast.error(`${d.toasts.ledgerWriteErrorPrefix}: ${err.message}`);
     }
   };
 
@@ -539,7 +535,7 @@ function AssistantContent() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Amalni bajarib boʻlmadi");
+      if (!res.ok) throw new Error(data.error || d.toasts.actionExecuteFailed);
       const updated: ChatTurn[] = messages.map((m) =>
         m.id === turn.id
           ? { ...m, actionStatus: decision === "approve" ? "approved" : "rejected" }
@@ -549,9 +545,9 @@ function AssistantContent() {
       await persistChatThread(updated);
       if (decision === "approve") {
         window.dispatchEvent(new CustomEvent("firmus:refresh-data", { detail: { entityId: currentEntity.id } }));
-        toast.success(data.message || "Provodka Bosh kitobga yozildi!");
+        toast.success(data.message || d.toasts.proposalPostedToLedger);
       } else {
-        toast.info("Taklif bekor qilindi.");
+        toast.info(d.toasts.proposalRejected);
       }
     } catch (err: any) {
       toast.error(err.message);
@@ -564,7 +560,7 @@ function AssistantContent() {
     new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Faylni oʻqib boʻlmadi"));
+      reader.onerror = () => reject(new Error(d.toasts.fileReadError));
       reader.readAsDataURL(file);
     });
 
@@ -573,12 +569,12 @@ function AssistantContent() {
     try {
       if (file.type === "application/pdf") {
         if (!subscription.limits.pdfAllowed) {
-          toast.info("PDF yuklash Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul sinovni yoqing.");
+          toast.info(d.toasts.pdfProOnly);
           return;
         }
         if (file.size > subscription.limits.pdfMaxBytes) {
           const maxMb = Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024));
-          toast.error(`PDF hajmi ${subscription.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak`);
+          toast.error(d.toasts.pdfSizeLimit(subscription.planName, maxMb));
           return;
         }
         const dataUrl = await readFileAsBase64(file);
@@ -591,7 +587,7 @@ function AssistantContent() {
       }
 
       if (!isSupportedAiImageFile(file)) {
-        toast.error("Rasm yoki PDF formati notoʻgʻri. PNG, JPG, WEBP yoki PDF yuklang.");
+        toast.error(d.toasts.invalidScanFileFormat);
         return;
       }
 
@@ -611,7 +607,7 @@ function AssistantContent() {
 
   const handleRunScan = async () => {
     if (!scanBase64 || !scanMimeType) {
-      toast.error("Avval faktura, chek yoki TTN rasmini (yoki PDF) tanlang");
+      toast.error(d.toasts.selectScanFileFirst);
       return;
     }
     setIsScanning(true);
@@ -632,12 +628,12 @@ function AssistantContent() {
       });
       const data = await res.json();
       if (data?.usage) setSubscriptionSnapshot(data.usage);
-      if (!res.ok) throw new Error(data.error || "Hujjatni tahlil qilib boʻlmadi");
+      if (!res.ok) throw new Error(data.error || d.toasts.docAnalyzeFailed);
       setScanResult(data);
       setActiveScanBatchId(data.savedBatchId || null);
 
       if (data.cachedHit) {
-        toast.success("Ushbu hujjat avval oʻqilgan — tarixdan olindi (0 kredit)!");
+        toast.success(d.toasts.docCachedHit);
         return;
       }
 
@@ -647,7 +643,7 @@ function AssistantContent() {
             entityId: currentEntity.id,
             batchType: "document_scan",
             periodMonth: /^\d{4}-\d{2}/.test(data.date || "") ? data.date.slice(0, 7) : undefined,
-            title: `${data.documentType || "Hujjat"} ${data.documentNumber || ""} (${data.counterparty || ""})`.trim(),
+            title: `${data.documentType || d.scan.defaultDocLabel} ${data.documentNumber || ""} (${data.counterparty || ""})`.trim(),
             bankFileName: scanFileName || undefined,
             fileHash,
             rowCount: Array.isArray(data.items) ? Math.max(1, data.items.length) : 1,
@@ -669,9 +665,9 @@ function AssistantContent() {
         }
       }
 
-      toast.success("Hujjat oʻqildi!");
+      toast.success(d.toasts.docScannedSuccess);
     } catch (err: any) {
-      toast.error("Skaner xatosi: " + err.message);
+      toast.error(`${d.toasts.scanErrorPrefix}: ${err.message}`);
     } finally {
       setIsScanning(false);
     }
@@ -679,11 +675,11 @@ function AssistantContent() {
 
   const handlePostScannedToLedger = async () => {
     if (!currentEntity?.id) {
-      toast.error("Bosh kitobga yozish uchun yuqoridan korxona qoʻshing");
+      toast.error(d.toasts.selectEntityForLedger);
       return;
     }
     if (!scanResult || scanResult.totalAmount <= 0) {
-      toast.error("Yozish uchun summa > 0 boʻlishi kerak");
+      toast.error(d.toasts.amountMustBePositive);
       return;
     }
     setIsPostingDoc(true);
@@ -694,9 +690,9 @@ function AssistantContent() {
         batchId: activeScanBatchId,
       });
       await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
-      toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
+      toast.success(d.toasts.scanPostedToLedger);
     } catch (err: any) {
-      toast.error("Bosh kitobga yozishda xatolik: " + err.message);
+      toast.error(`${d.toasts.ledgerWriteErrorPrefix}: ${err.message}`);
     } finally {
       setIsPostingDoc(false);
     }
@@ -707,12 +703,12 @@ function AssistantContent() {
     try {
       if (file.type === "application/pdf") {
         if (!subscription.limits.pdfAllowed) {
-          toast.info("Shartnoma PDF yuklash Pro va Pro+ tariflarida mavjud. Obunalar boʻlimidan 7 kunlik bepul sinovni yoqing.");
+          toast.info(d.toasts.contractPdfProOnly);
           return;
         }
         if (file.size > subscription.limits.pdfMaxBytes) {
           const maxMb = Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024));
-          toast.error(`PDF hajmi ${subscription.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak`);
+          toast.error(d.toasts.pdfSizeLimit(subscription.planName, maxMb));
           return;
         }
         const dataUrl = await readFileAsBase64(file);
@@ -725,7 +721,7 @@ function AssistantContent() {
       }
 
       if (!isSupportedAiImageFile(file)) {
-        toast.error("Shartnoma uchun faqat PNG, JPG, WEBP rasm yoki PDF fayl yuklang.");
+        toast.error(d.toasts.invalidContractFileFormat);
         return;
       }
 
@@ -745,12 +741,15 @@ function AssistantContent() {
 
   const handleAnalyzeContract = async () => {
     if (!contractText.trim() && !contractFileInfo) {
-      toast.error("Shartnoma matnini joylashtiring yoki PDF/rasm fayl yuklang");
+      toast.error(d.toasts.contractInputRequired);
       return;
     }
     if (contractText.trim().length > subscription.limits.contractTextMaxChars) {
       toast.error(
-        `Shartnoma matni ${subscription.planName} tarifi limiti (${subscription.limits.contractTextMaxChars.toLocaleString("uz-UZ")} belgi) dan oshib ketdi.`
+        d.toasts.contractLengthLimit(
+          subscription.planName,
+          subscription.limits.contractTextMaxChars.toLocaleString(numLocale)
+        )
       );
       return;
     }
@@ -774,11 +773,11 @@ function AssistantContent() {
       });
       const data = await res.json();
       if (data?.usage) setSubscriptionSnapshot(data.usage);
-      if (!res.ok) throw new Error(data.error || "Shartnomani tahlil qilib boʻlmadi");
+      if (!res.ok) throw new Error(data.error || d.toasts.contractAnalyzeFailed);
       setContractResult(data);
 
       if (data.cachedHit) {
-        toast.success("Ushbu shartnoma avval tekshirilgan — tarixdan olindi (0 kredit)!");
+        toast.success(d.toasts.contractCachedHit);
         return;
       }
 
@@ -787,7 +786,7 @@ function AssistantContent() {
           await saveWorkBatch({
             entityId: currentEntity.id,
             batchType: "contract_risk",
-            title: `Shartnoma: ${contractFileInfo?.name || data.counterparty || "Matnli tekshiruv"}`.slice(0, 180),
+            title: `${d.contract.batchTitlePrefix}: ${contractFileInfo?.name || data.counterparty || d.contract.textCheckFallback}`.slice(0, 180),
             bankFileName: contractFileInfo?.name,
             fileHash,
             rowCount: Array.isArray(data.risks) ? data.risks.length : 0,
@@ -806,9 +805,9 @@ function AssistantContent() {
         }
       }
 
-      toast.success("Shartnoma xatarlari tahlil qilindi!");
+      toast.success(d.toasts.contractAnalyzedSuccess);
     } catch (err: any) {
-      toast.error("Tahlilda xatolik: " + err.message);
+      toast.error(`${d.toasts.contractErrorPrefix}: ${err.message}`);
     } finally {
       setIsCheckingContract(false);
     }
@@ -823,7 +822,7 @@ function AssistantContent() {
     try {
       const full = await fetchWorkBatchById(batch.id);
       if (!full?.sanitizedPayload) {
-        toast.error("Saqlangan hujjat maʼlumoti topilmadi");
+        toast.error(d.toasts.savedDocNotFound);
         return;
       }
       if (batch.batchType === "document_scan") {
@@ -832,14 +831,14 @@ function AssistantContent() {
         setScanPreviewUrl(null);
         setActiveScanBatchId(full.id);
         handleTabChange("scan");
-        toast.success("Saqlangan hujjat ochildi");
+        toast.success(d.toasts.savedDocOpened);
       } else {
         setContractResult(full.sanitizedPayload as ScannedDocResult);
         handleTabChange("contract");
-        toast.success("Saqlangan shartnoma tahlili ochildi");
+        toast.success(d.toasts.savedContractOpened);
       }
     } catch (err: any) {
-      toast.error("Ochishda xatolik: " + err.message);
+      toast.error(`${d.toasts.openErrorPrefix}: ${err.message}`);
     } finally {
       setOpeningBatchId(null);
     }
@@ -851,8 +850,8 @@ function AssistantContent() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-xl font-bold tracking-tight text-foreground">
           {FEATURES.fullAccountingErp
-            ? "AI Yordamchi"
-            : TOOL_PAGE_TITLES[activeTab] || "AI Yordamchi"}
+            ? d.header.title
+            : d.header.toolTitles[activeTab as keyof typeof d.header.toolTitles] || d.header.title}
         </h1>
 
         <Link
@@ -862,9 +861,9 @@ function AssistantContent() {
           <Sparkles className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
           <span className="font-medium text-foreground">
             {subscription.isTrialActive
-              ? "Pro (Sinov)"
+              ? d.header.trialActive
               : subscription.trialAvailable
-              ? `${subscription.planName} • 7 kun bepul Pro`
+              ? d.header.trialAvailable(subscription.planName)
               : subscription.planName}
           </span>
         </Link>
@@ -877,34 +876,34 @@ function AssistantContent() {
           <TabsList className="h-9 text-xs flex-wrap">
             <TabsTrigger value="chat" className="gap-1.5 text-xs">
               <Sparkles className="h-3.5 w-3.5" />
-              AI Chat
+              {d.tabs.chat}
             </TabsTrigger>
             <TabsTrigger value="scan" className="gap-1.5 text-xs">
               <Camera className="h-3.5 w-3.5" />
-              Faktura / Chek Skaner
+              {d.tabs.scan}
             </TabsTrigger>
             <TabsTrigger value="calc" className="gap-1.5 text-xs">
               <Calculator className="h-3.5 w-3.5" />
-              Kalkulyator
+              {d.tabs.calc}
             </TabsTrigger>
             <TabsTrigger value="contract" className="gap-1.5 text-xs">
               <FileWarning className="h-3.5 w-3.5" />
-              Shartnoma tahlili
+              {d.tabs.contract}
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-1.5 text-xs">
               <History className="h-3.5 w-3.5" />
-              Tarix ({allHistoryCount})
+              {d.tabs.history} ({allHistoryCount})
             </TabsTrigger>
           </TabsList>
         ) : (
           /* Solo Tools Mode mobile-only horizontal pill bar */
           <div className="flex lg:hidden overflow-x-auto no-scrollbar gap-1.5 pb-1 -mx-1 px-1">
             {[
-              { id: "chat", label: "AI Chat", icon: Sparkles },
-              { id: "scan", label: "Skaner", icon: Camera },
-              { id: "calc", label: "Kalkulyator", icon: Calculator },
-              { id: "contract", label: "Shartnoma", icon: FileWarning },
-              { id: "history", label: "Tarix", icon: History },
+              { id: "chat", label: d.tabs.mobile.chat, icon: Sparkles },
+              { id: "scan", label: d.tabs.mobile.scan, icon: Camera },
+              { id: "calc", label: d.tabs.mobile.calc, icon: Calculator },
+              { id: "contract", label: d.tabs.mobile.contract, icon: FileWarning },
+              { id: "history", label: d.tabs.mobile.history, icon: History },
             ].map((tab) => {
               const Icon = tab.icon;
               const isSelected = activeTab === tab.id;
@@ -972,13 +971,13 @@ function AssistantContent() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                      title={showChatSidebar ? "Chatlar tarixini yopish" : "Chatlar tarixini ochish"}
+                      title={showChatSidebar ? d.chat.hideHistory : d.chat.showHistory}
                       onClick={() => setShowChatSidebar((s) => !s)}
                     >
                       <PanelLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-xs font-medium text-muted-foreground">
-                      {activeThreadId ? "Saqlangan suhbat" : "Yangi suhbat"}
+                      {activeThreadId ? d.chat.savedThread : d.chat.newThread}
                     </span>
                   </div>
 
@@ -990,7 +989,7 @@ function AssistantContent() {
                     onClick={handleNewChat}
                   >
                     <SquarePen className="h-3.5 w-3.5" />
-                    <span>Yangi chat</span>
+                    <span>{d.chat.newChat}</span>
                   </Button>
                 </div>
 
@@ -1000,7 +999,7 @@ function AssistantContent() {
                     className="flex-1 flex flex-col space-y-4 max-h-[440px] overflow-y-auto pr-1"
                   >
                     {messages.length === 0 && !isSending ? (
-                      <AiEmptyHero greeting="Xush kelibsiz. Nima yordam bera olaman?" />
+                      <AiEmptyHero greeting={d.chat.emptyGreeting} />
                     ) : (
                       messages.map((m, idx) => (
                         <div
@@ -1014,7 +1013,7 @@ function AssistantContent() {
                               {m.imagePreviewUrl && (
                                 <img
                                   src={m.imagePreviewUrl}
-                                  alt="Yuklangan rasm"
+                                  alt={d.chat.uploadedImageAlt}
                                   className="mb-2 max-h-44 rounded-lg border border-white/20 object-contain"
                                 />
                               )}
@@ -1066,7 +1065,7 @@ function AssistantContent() {
                                           onClick={() => handleChatProposal(m, "approve")}
                                         >
                                           {executingId === m.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                                          Tasdiqlash
+                                          {d.chat.approve}
                                         </Button>
                                         <Button
                                           size="sm"
@@ -1075,12 +1074,12 @@ function AssistantContent() {
                                           disabled={executingId === m.id}
                                           onClick={() => handleChatProposal(m, "reject")}
                                         >
-                                          Rad etish
+                                          {d.chat.reject}
                                         </Button>
                                       </div>
                                     ) : (
                                       <Badge variant={m.actionStatus === "approved" ? "success" : "outline"} className="text-[10px]">
-                                        {m.actionStatus === "approved" ? "Bosh kitobga yozildi" : "Bekor qilindi"}
+                                        {m.actionStatus === "approved" ? d.chat.postedToLedger : d.chat.rejected}
                                       </Badge>
                                     )}
                                   </div>
@@ -1120,11 +1119,11 @@ function AssistantContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="border-dashed">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Faktura, TTN yoki Chek yuklash</CardTitle>
+                <CardTitle className="text-sm font-semibold">{d.scan.uploadTitle}</CardTitle>
                 <CardDescription className="text-xs">
                   {subscription.limits.pdfAllowed
-                    ? `PNG, JPG, WEBP yoki PDF (max ${Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024))} MB)`
-                    : "PNG, JPG, WEBP (PDF uchun Pro tarif)"}
+                    ? d.scan.uploadDescPdf(Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024)))
+                    : d.scan.uploadDescImagesOnly}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
@@ -1148,12 +1147,12 @@ function AssistantContent() {
                   <Upload className="h-5 w-5 text-indigo-600" />
                   <span>
                     {scanFileName ||
-                      (subscription.limits.pdfAllowed ? "Rasm yoki PDF tanlash" : "Rasm tanlash (PNG, JPG, WEBP)")}
+                      (subscription.limits.pdfAllowed ? d.scan.selectFilePdf : d.scan.selectFileImage)}
                   </span>
                 </Button>
                 {scanPreviewUrl && (
                   <div className="rounded-md border border-border overflow-hidden max-h-48 flex justify-center bg-muted/30">
-                    <img src={scanPreviewUrl} alt="Yuklangan hujjat" className="max-h-48 object-contain" />
+                    <img src={scanPreviewUrl} alt={d.scan.uploadedDocAlt} className="max-h-48 object-contain" />
                   </div>
                 )}
                 <Button
@@ -1163,47 +1162,47 @@ function AssistantContent() {
                   onClick={handleRunScan}
                 >
                   {isScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  Tahlil qilish
+                  {d.scan.analyzeButton}
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Natija</CardTitle>
+                <CardTitle className="text-sm font-semibold">{d.scan.resultTitle}</CardTitle>
               </CardHeader>
               <CardContent className="text-xs space-y-3">
                 {!scanResult ? (
                   <p className="text-muted-foreground py-8 text-center">
-                    Hujjat tanlanmagan
+                    {d.scan.emptyResult}
                   </p>
                 ) : (
                   <>
                     <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-3">
                       <div>
-                        <span className="text-[10px] text-muted-foreground">Hujjat turi</span>
+                        <span className="text-[10px] text-muted-foreground">{d.scan.fields.docType}</span>
                         <div className="font-semibold">{scanResult.documentType} {scanResult.documentNumber}</div>
                       </div>
                       <div>
-                        <span className="text-[10px] text-muted-foreground">Sana</span>
+                        <span className="text-[10px] text-muted-foreground">{d.scan.fields.date}</span>
                         <div className="font-mono">{scanResult.date}</div>
                       </div>
                       <div>
-                        <span className="text-[10px] text-muted-foreground">Kontragent</span>
+                        <span className="text-[10px] text-muted-foreground">{d.scan.fields.counterparty}</span>
                         <div className="font-semibold">{scanResult.counterparty}</div>
                       </div>
                       <div>
-                        <span className="text-[10px] text-muted-foreground">STIR</span>
-                        <div className="font-mono">{scanResult.counterpartyStir || "Aniqlanmadi"}</div>
+                        <span className="text-[10px] text-muted-foreground">{d.scan.fields.tin}</span>
+                        <div className="font-mono">{scanResult.counterpartyStir || d.scan.fields.notDetected}</div>
                       </div>
                       <div>
-                        <span className="text-[10px] text-muted-foreground">Jami summa</span>
+                        <span className="text-[10px] text-muted-foreground">{d.scan.fields.totalAmount}</span>
                         <div className="font-mono font-bold text-foreground">
                           <Money amount={scanResult.totalAmount} />
                         </div>
                       </div>
                       <div>
-                        <span className="text-[10px] text-muted-foreground">QQS (12%)</span>
+                        <span className="text-[10px] text-muted-foreground">{d.scan.fields.vat12}</span>
                         <div className="font-mono font-semibold text-emerald-600">
                           <Money amount={scanResult.vatAmount} />
                         </div>
@@ -1212,8 +1211,8 @@ function AssistantContent() {
 
                     <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 space-y-1">
                       <div className="font-semibold text-foreground">
-                        Provodka: Dt {scanResult.suggestedDebitCode} / Kt {scanResult.suggestedCreditCode}
-                        {scanResult.vatAmount > 0 ? ` (+ QQS ${scanResult.vatAccountCode})` : ""}
+                        {d.scan.entryPrefix}: {d.calc.debitAbbr} {scanResult.suggestedDebitCode} / {d.calc.creditAbbr} {scanResult.suggestedCreditCode}
+                        {scanResult.vatAmount > 0 ? ` (+ ${d.scan.vatTag} ${scanResult.vatAccountCode})` : ""}
                       </div>
                       <p className="text-[11px] text-muted-foreground">{scanResult.provodkaExplanation}</p>
                     </div>
@@ -1223,9 +1222,9 @@ function AssistantContent() {
                         <Table>
                           <TableHeader>
                             <TableRow className="text-[10px]">
-                              <TableHead>Tovar / Xizmat</TableHead>
-                              <TableHead>MXIK</TableHead>
-                              <TableHead className="text-right">Summa</TableHead>
+                              <TableHead>{d.scan.table.item}</TableHead>
+                              <TableHead>{d.scan.table.mxik}</TableHead>
+                              <TableHead className="text-right">{d.scan.table.amount}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -1250,24 +1249,24 @@ function AssistantContent() {
                         onClick={async () => {
                           const text = [
                             `${scanResult.documentType}${scanResult.documentNumber ? ` №${scanResult.documentNumber}` : ""} (${scanResult.date})`,
-                            `Kontragent: ${scanResult.counterparty}${scanResult.counterpartyStir ? ` (STIR: ${scanResult.counterpartyStir})` : ""}`,
-                            `Jami summa: ${scanResult.totalAmount.toLocaleString("uz-UZ")} soʻm${
-                              scanResult.vatAmount > 0 ? ` | QQS 12%: ${scanResult.vatAmount.toLocaleString("uz-UZ")} soʻm` : ""
+                            `${d.scan.copyTemplate.counterparty}: ${scanResult.counterparty}${scanResult.counterpartyStir ? ` (${d.scan.copyTemplate.tin}: ${scanResult.counterpartyStir})` : ""}`,
+                            `${d.scan.copyTemplate.totalAmount}: ${scanResult.totalAmount.toLocaleString(numLocale)} ${t.common.currency}${
+                              scanResult.vatAmount > 0 ? ` | ${d.scan.copyTemplate.vat12}: ${scanResult.vatAmount.toLocaleString(numLocale)} ${t.common.currency}` : ""
                             }`,
-                            `Provodka: Dt ${scanResult.suggestedDebitCode} / Kt ${scanResult.suggestedCreditCode}${
-                              scanResult.vatAmount > 0 ? ` (+ QQS ${scanResult.vatAccountCode})` : ""
+                            `${d.scan.copyTemplate.entry}: ${d.calc.debitAbbr} ${scanResult.suggestedDebitCode} / ${d.calc.creditAbbr} ${scanResult.suggestedCreditCode}${
+                              scanResult.vatAmount > 0 ? ` (+ ${d.scan.vatTag} ${scanResult.vatAccountCode})` : ""
                             }`,
                           ].join("\n");
                           const ok = await copyToClipboard(text);
                           if (ok) {
-                            toast.success("Natija va provodka nusxalandi");
+                            toast.success(d.toasts.resultCopied);
                           } else {
-                            toast.error("Nusxalab boʻlmadi");
+                            toast.error(d.toasts.copyFailed);
                           }
                         }}
                       >
                         <Copy className="h-3.5 w-3.5" />
-                        Natijani nusxalash
+                        {d.scan.copyResult}
                       </Button>
                       {FEATURES.fullAccountingErp && (
                         <Button
@@ -1278,7 +1277,7 @@ function AssistantContent() {
                           onClick={handlePostScannedToLedger}
                         >
                           {isPostingDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                          Bosh kitobga atomik yozish
+                          {d.scan.postToLedger}
                         </Button>
                       )}
                     </div>
@@ -1293,23 +1292,23 @@ function AssistantContent() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <History className="h-4 w-4 text-muted-foreground" />
-                  Saqlangan hujjatlar ({savedScansCount})
+                  {d.scan.savedDocsTitle} ({savedScansCount})
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 {savedScans.length === 0 ? (
                   <div className="py-6 text-center text-xs text-muted-foreground">
-                    {isLoadingScans ? "Yuklanmoqda..." : "Hali saqlangan chek yoki fakturalar yoʻq."}
+                    {isLoadingScans ? t.common.loading : d.scan.noSavedDocs}
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Oy</TableHead>
-                        <TableHead>Hujjat / Kontragent</TableHead>
-                        <TableHead className="text-right">Summa</TableHead>
-                        <TableHead>Holat</TableHead>
-                        <TableHead className="text-right">Amal</TableHead>
+                        <TableHead>{d.table.month}</TableHead>
+                        <TableHead>{d.scan.savedTable.docCounterparty}</TableHead>
+                        <TableHead className="text-right">{d.table.amount}</TableHead>
+                        <TableHead>{d.table.status}</TableHead>
+                        <TableHead className="text-right">{d.table.action}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1322,9 +1321,9 @@ function AssistantContent() {
                           </TableCell>
                           <TableCell>
                             {s.status === "posted_to_ledger" ? (
-                              <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
+                              <Badge variant="success" className="text-[10px]">{d.statuses.postedToLedger}</Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
+                              <Badge variant="outline" className="text-[10px]">{d.statuses.reviewed}</Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
@@ -1340,19 +1339,19 @@ function AssistantContent() {
                                 }}
                               >
                                 <FolderOpen className="h-3 w-3" />
-                                Ochish
+                                {d.actions.open}
                               </Button>
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                                aria-label="Oʻchirish"
+                                aria-label={d.actions.delete}
                                 onClick={async () => {
                                   await deleteWorkBatch(s.id);
                                   if (activeScanBatchId === s.id) setActiveScanBatchId(null);
                                   await Promise.all([loadSavedScans(), loadUnifiedHistory()]);
-                                  toast.success("Tarixdan oʻchirildi");
+                                  toast.success(d.toasts.deletedFromHistory);
                                 }}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1369,7 +1368,7 @@ function AssistantContent() {
                   pageSize={HISTORY_PAGE_SIZE}
                   totalCount={savedScansCount}
                   isLoading={isLoadingScans}
-                  itemLabel="hujjat"
+                  itemLabel={d.scan.paginationItemLabel}
                   onPageChange={setSavedScansPage}
                 />
               </CardContent>
@@ -1383,9 +1382,9 @@ function AssistantContent() {
             {/* Payroll Calculator */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Ish haqi va soliq kalkulyatori (JShDS 12%)</CardTitle>
+                <CardTitle className="text-sm font-semibold">{d.calc.payroll.title}</CardTitle>
                 <CardDescription className="text-xs">
-                  {payrollCalc.taxArticleRef}
+                  {d.calc.payroll.taxArticleRef}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
@@ -1397,7 +1396,7 @@ function AssistantContent() {
                     className="h-7 text-[11px] flex-1"
                     onClick={() => setCalcSalaryDir("gross_to_net")}
                   >
-                    Brutto → Qoʻlga tegadi
+                    {d.calc.payroll.grossToNet}
                   </Button>
                   <Button
                     type="button"
@@ -1406,7 +1405,7 @@ function AssistantContent() {
                     className="h-7 text-[11px] flex-1"
                     onClick={() => setCalcSalaryDir("net_to_gross")}
                   >
-                    Qoʻlga tegadi → Brutto
+                    {d.calc.payroll.netToGross}
                   </Button>
                 </div>
 
@@ -1416,40 +1415,44 @@ function AssistantContent() {
                   value={calcSalaryAmount}
                   onChange={(e) => setCalcSalaryAmount(e.target.value)}
                   className="h-9 font-mono text-xs"
-                  placeholder="Summa"
+                  placeholder={d.calc.payroll.amountPlaceholder}
                 />
 
                 <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Hisoblangan (Brutto):</span>
+                    <span className="text-muted-foreground">{d.calc.payroll.grossLabel}</span>
                     <span className="font-mono font-semibold"><Money amount={payrollCalc.gross} /></span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">JShDS (12%, shundan 0.1% INPS):</span>
+                    <span className="text-muted-foreground">{d.calc.payroll.pitLabel}</span>
                     <span className="font-mono text-rose-600">-<Money amount={payrollCalc.jshds12} /></span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-1.5">
-                    <span className="font-semibold">Xodim qoʻliga tegadi (Netto):</span>
+                    <span className="font-semibold">{d.calc.payroll.netLabel}</span>
                     <span className="font-mono font-bold text-emerald-600"><Money amount={payrollCalc.net} /></span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Ish beruvchi ijtimoiy soligʻi (12%):</span>
+                    <span className="text-muted-foreground">{d.calc.payroll.socialTaxLabel}</span>
                     <span className="font-mono"><Money amount={payrollCalc.socialTax12} /></span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Ish beruvchining jami xarajati:</span>
+                    <span className="text-muted-foreground">{d.calc.payroll.totalEmployerCostLabel}</span>
                     <span className="font-mono font-semibold"><Money amount={payrollCalc.totalEmployerCost} /></span>
                   </div>
                 </div>
 
                 <div className="space-y-1 pt-1">
-                  <div className="text-[11px] font-semibold text-foreground">Provodkalar:</div>
-                  {payrollCalc.provodka.map((p, i) => (
-                    <div key={i} className="flex justify-between text-[11px] font-mono text-muted-foreground">
-                      <span>Dt {p.debitCode} / Kt {p.creditCode} ({p.description})</span>
-                      <span><Money amount={p.amount} /></span>
-                    </div>
-                  ))}
+                  <div className="text-[11px] font-semibold text-foreground">{d.calc.payroll.entriesLabel}</div>
+                  {payrollCalc.provodka.map((p, i) => {
+                    const entryKey = `${p.debitCode}-${p.creditCode}`;
+                    const localizedDesc = d.calc.payroll.entryDescriptions[entryKey] || p.description;
+                    return (
+                      <div key={i} className="flex justify-between text-[11px] font-mono text-muted-foreground">
+                        <span>{d.calc.debitAbbr} {p.debitCode} / {d.calc.creditAbbr} {p.creditCode} ({localizedDesc})</span>
+                        <span><Money amount={p.amount} /></span>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -1458,8 +1461,8 @@ function AssistantContent() {
             <div className="space-y-4">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">QQS (12%) tezkor hisoblagich</CardTitle>
-                  <CardDescription className="text-xs">{vatCalc.taxArticleRef}</CardDescription>
+                  <CardTitle className="text-sm font-semibold">{d.calc.vat.title}</CardTitle>
+                  <CardDescription className="text-xs">{d.calc.vat.taxArticleRef}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 text-xs">
                   <div className="flex gap-2">
@@ -1470,7 +1473,7 @@ function AssistantContent() {
                       className="h-7 text-[11px] flex-1"
                       onClick={() => setCalcVatMode("included")}
                     >
-                      Ichidan QQS ajratish (×12/112)
+                      {d.calc.vat.extractMode}
                     </Button>
                     <Button
                       type="button"
@@ -1479,7 +1482,7 @@ function AssistantContent() {
                       className="h-7 text-[11px] flex-1"
                       onClick={() => setCalcVatMode("excluded")}
                     >
-                      Ustiga 12% QQS qoʻshish
+                      {d.calc.vat.addMode}
                     </Button>
                   </div>
                   <Input
@@ -1491,15 +1494,15 @@ function AssistantContent() {
                   />
                   <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-2.5 text-center">
                     <div>
-                      <div className="text-[10px] text-muted-foreground">QQSsiz sof</div>
+                      <div className="text-[10px] text-muted-foreground">{d.calc.vat.netLabel}</div>
                       <div className="font-mono font-semibold"><Money amount={vatCalc.net} /></div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-muted-foreground">QQS 12%</div>
+                      <div className="text-[10px] text-muted-foreground">{d.calc.vat.vatLabel}</div>
                       <div className="font-mono font-bold text-indigo-600"><Money amount={vatCalc.vat12} /></div>
                     </div>
                     <div>
-                      <div className="text-[10px] text-muted-foreground">Jami</div>
+                      <div className="text-[10px] text-muted-foreground">{d.calc.vat.totalLabel}</div>
                       <div className="font-mono font-bold"><Money amount={vatCalc.total} /></div>
                     </div>
                   </div>
@@ -1508,11 +1511,11 @@ function AssistantContent() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Aylanmadan soliq (4%) va Taʼtil puli</CardTitle>
+                  <CardTitle className="text-sm font-semibold">{d.calc.other.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="space-y-1.5 rounded-lg bg-muted/40 p-2.5">
-                    <div className="font-semibold">Aylanmadan soliq (4%)</div>
+                    <div className="font-semibold">{d.calc.other.turnoverTitle}</div>
                     <Input
                       type="number"
                       min={0}
@@ -1521,13 +1524,13 @@ function AssistantContent() {
                       className="h-8 font-mono text-xs"
                     />
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-muted-foreground">Soliq (9430/6410):</span>
+                      <span className="text-muted-foreground">{d.calc.other.turnoverTaxLabel}</span>
                       <span className="font-mono font-bold"><Money amount={turnoverCalc.tax} /></span>
                     </div>
                   </div>
 
                   <div className="space-y-1.5 rounded-lg bg-muted/40 p-2.5">
-                    <div className="font-semibold">Taʼtil puli ({vacationCalc.days} kun)</div>
+                    <div className="font-semibold">{d.calc.other.vacationTitle(vacationCalc.days)}</div>
                     <Input
                       type="number"
                       min={1}
@@ -1537,7 +1540,7 @@ function AssistantContent() {
                       className="h-8 font-mono text-xs"
                     />
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-muted-foreground">Qoʻliga tegadi:</span>
+                      <span className="text-muted-foreground">{d.calc.other.vacationNetLabel}</span>
                       <span className="font-mono font-bold text-emerald-600"><Money amount={vacationCalc.netVacation} /></span>
                     </div>
                   </div>
@@ -1552,7 +1555,7 @@ function AssistantContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Shartnoma yuklash</CardTitle>
+                <CardTitle className="text-sm font-semibold">{d.contract.uploadTitle}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
                 <input
@@ -1577,14 +1580,14 @@ function AssistantContent() {
                   {contractFileInfo
                     ? contractFileInfo.name
                     : subscription.limits.pdfAllowed
-                    ? `PDF yoki rasm biriktirish (max ${Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024))} MB)`
-                    : "Rasm biriktirish (PDF uchun Pro tarif)"}
+                    ? d.contract.attachPdfOrImage(Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024)))
+                    : d.contract.attachImageOnly}
                 </Button>
                 <textarea
                   rows={7}
                   value={contractText}
                   onChange={(e) => setContractText(e.target.value)}
-                  placeholder="Shartnoma matni"
+                  placeholder={d.contract.textareaPlaceholder}
                   className="w-full rounded-md border border-input bg-background p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                 />
                 <Button
@@ -1594,19 +1597,19 @@ function AssistantContent() {
                   onClick={handleAnalyzeContract}
                 >
                   {isCheckingContract ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileWarning className="h-3.5 w-3.5" />}
-                  Tekshirish
+                  {d.contract.analyzeButton}
                 </Button>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Natija</CardTitle>
+                <CardTitle className="text-sm font-semibold">{d.contract.resultTitle}</CardTitle>
               </CardHeader>
               <CardContent className="text-xs space-y-3">
                 {!contractResult ? (
                   <p className="text-muted-foreground py-8 text-center">
-                    Hujjat kiritilmagan
+                    {d.contract.emptyResult}
                   </p>
                 ) : (
                   <>
@@ -1614,7 +1617,7 @@ function AssistantContent() {
                     {contractResult.risks.length === 0 ? (
                       <div className="flex items-center gap-2 text-emerald-600 rounded-lg bg-emerald-500/10 p-3">
                         <CheckCircle2 className="h-4 w-4 shrink-0" />
-                        <span>Kritik moliyaviy yoki soliq xatari topilmadi.</span>
+                        <span>{d.contract.noRisksFound}</span>
                       </div>
                     ) : (
                       <ul className="space-y-2">
@@ -1644,21 +1647,21 @@ function AssistantContent() {
                 <div>
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <History className="h-4 w-4 text-indigo-500" />
-                    Saqlangan ishlar tarixi ({allHistoryCount})
+                    {d.history.title} ({allHistoryCount})
                   </CardTitle>
                   <CardDescription className="text-xs">
                     {FEATURES.multiCompanyMode
-                      ? "Korxona va oy kesimida barcha yuklangan bank/1C fayllari, chek skanerlari va shartnomalar (sahifada 10 tadan bazadan yuklanadi)."
-                      : "Oy kesimida barcha bank/1C solishtirishlari, chek skanerlari va shartnomalar (sahifada 10 tadan bazadan yuklanadi)."}
+                      ? d.history.descMultiCompany
+                      : d.history.descSingleCompany}
                   </CardDescription>
                 </div>
 
                 <div className="flex items-center gap-1 flex-wrap">
                   {[
-                    { key: "all", label: "Barchasi" },
-                    { key: "reconcile", label: "Bank ↔ 1C" },
-                    { key: "document_scan", label: "Chek / Faktura" },
-                    { key: "contract_risk", label: "Shartnoma" },
+                    { key: "all", label: d.history.filters.all },
+                    { key: "reconcile", label: d.history.filters.reconcile },
+                    { key: "document_scan", label: d.history.filters.document_scan },
+                    { key: "contract_risk", label: d.history.filters.contract_risk },
                   ].map((opt) => (
                     <Button
                       key={opt.key}
@@ -1679,7 +1682,7 @@ function AssistantContent() {
 
               {availableMonths.length > 0 && (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-muted-foreground mr-1">Oy:</span>
+                  <span className="text-[11px] text-muted-foreground mr-1">{d.history.monthLabel}</span>
                   <Button
                     type="button"
                     size="sm"
@@ -1690,7 +1693,7 @@ function AssistantContent() {
                       setAllHistoryPage(1);
                     }}
                   >
-                    Barchasi
+                    {d.history.filters.all}
                   </Button>
                   {availableMonths.map((m) => (
                     <Button
@@ -1715,34 +1718,34 @@ function AssistantContent() {
               {!isContextReady || isLoadingHistory ? (
                 <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                  Tarix yuklanmoqda...
+                  {d.history.loading}
                 </div>
               ) : !currentEntity?.id || allHistory.length === 0 ? (
                 <div className="py-8 text-center text-xs text-muted-foreground">
                   {FEATURES.multiCompanyMode && !currentEntity?.id
-                    ? "Tarixni koʻrish uchun yuqoridan korxona tanlang."
-                    : "Hozircha saqlangan ishlar tarixi yoʻq. Chek rasmini yuboring yoki Bank ↔ 1C fayl yuklang."}
+                    ? d.history.emptyNoEntity
+                    : d.history.emptyNoItems}
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Oy</TableHead>
-                      <TableHead>Turi</TableHead>
-                      <TableHead>Nomi / Fayl</TableHead>
-                      <TableHead className="text-right">Summa</TableHead>
-                      <TableHead>Holat</TableHead>
-                      <TableHead className="text-right">Amal</TableHead>
+                      <TableHead>{d.table.month}</TableHead>
+                      <TableHead>{d.history.table.type}</TableHead>
+                      <TableHead>{d.history.table.nameFile}</TableHead>
+                      <TableHead className="text-right">{d.table.amount}</TableHead>
+                      <TableHead>{d.table.status}</TableHead>
+                      <TableHead className="text-right">{d.table.action}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {allHistory.map((item) => {
                       const typeLabel =
                         item.batchType === "reconcile"
-                          ? "Bank ↔ 1C"
+                          ? d.history.filters.reconcile
                           : item.batchType === "contract_risk"
-                          ? "Shartnoma"
-                          : "Chek / Faktura";
+                          ? d.history.filters.contract_risk
+                          : d.history.filters.document_scan;
                       const amountVal =
                         item.batchType === "reconcile"
                           ? item.totalIncome + item.totalExpense
@@ -1763,9 +1766,9 @@ function AssistantContent() {
                           </TableCell>
                           <TableCell>
                             {item.status === "posted_to_ledger" ? (
-                              <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
+                              <Badge variant="success" className="text-[10px]">{d.statuses.postedToLedger}</Badge>
                             ) : (
-                              <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
+                              <Badge variant="outline" className="text-[10px]">{d.statuses.reviewed}</Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
@@ -1783,19 +1786,19 @@ function AssistantContent() {
                                 ) : (
                                   <FolderOpen className="h-3 w-3" />
                                 )}
-                                Ochish
+                                {d.actions.open}
                               </Button>
                               <Button
                                 type="button"
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                                aria-label="Oʻchirish"
+                                aria-label={d.actions.delete}
                                 onClick={async () => {
                                   await deleteWorkBatch(item.id);
                                   if (activeScanBatchId === item.id) setActiveScanBatchId(null);
                                   await Promise.all([loadUnifiedHistory(), loadSavedScans()]);
-                                  toast.success("Tarixdan oʻchirildi");
+                                  toast.success(d.toasts.deletedFromHistory);
                                 }}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -1814,7 +1817,7 @@ function AssistantContent() {
                   pageSize={HISTORY_PAGE_SIZE}
                   totalCount={allHistoryCount}
                   isLoading={isLoadingHistory}
-                  itemLabel="ish"
+                  itemLabel={d.history.paginationItemLabel}
                   onPageChange={setAllHistoryPage}
                 />
               )}
@@ -1826,9 +1829,14 @@ function AssistantContent() {
   );
 }
 
+function AssistantSuspenseFallback() {
+  const { t } = useTranslation();
+  return <div className="p-6 text-xs text-muted-foreground">{t.common.loading}</div>;
+}
+
 export default function AssistantPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+    <Suspense fallback={<AssistantSuspenseFallback />}>
       <AssistantContent />
     </Suspense>
   );

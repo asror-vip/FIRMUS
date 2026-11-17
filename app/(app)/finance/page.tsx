@@ -11,6 +11,7 @@ import { Money } from "@/components/shared/money";
 import { Download, TrendingUp, DollarSign, PieChart } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 import {
   ResponsiveContainer,
   BarChart,
@@ -24,7 +25,10 @@ import {
 
 export default function FinancePage() {
   const { currentEntity } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  const d = dict.erpExtra.finance;
+  const intlLocale = getIntlLocale(locale);
   const [activeTab, setActiveTab] = useState("pnl");
   const [trialBalance, setTrialBalance] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -78,14 +82,14 @@ export default function FinancePage() {
   const netProfit = operatingProfit - profitTax15;
 
   const pnlStatement = [
-    { code: "010", category: "Mahsulot (tovar, ish, xizmat)larni sotishdan sof tushum (9010)", currentPeriod: netRevenue, prevPeriod: 0, isHeader: false },
-    { code: "020", category: "Sotilgan mahsulotlarning tannarxi (9110)", currentPeriod: costOfSales, prevPeriod: 0, isHeader: false },
-    { code: "030", category: "Mahsulot sotishdan yalpi foyda (zarar)", currentPeriod: grossProfit, prevPeriod: 0, isHeader: true },
-    { code: "050", category: "Maʼmuriy xarajatlar (9420)", currentPeriod: adminExpenses, prevPeriod: 0, isHeader: false },
-    { code: "060", category: "Boshqa operatsion xarajatlar (9430)", currentPeriod: otherOpExpenses, prevPeriod: 0, isHeader: false },
-    { code: "100", category: "Asosiy faoliyatdan olingan foyda", currentPeriod: operatingProfit, prevPeriod: 0, isHeader: true },
-    { code: "250", category: "Foyda soligʻi (15%)", currentPeriod: profitTax15, prevPeriod: 0, isHeader: false },
-    { code: "270", category: "Hisobot davrining sof foydasi (zarari)", currentPeriod: netProfit, prevPeriod: 0, isHeader: true },
+    { code: "010", category: d.pnlRows.r010, currentPeriod: netRevenue, prevPeriod: 0, isHeader: false },
+    { code: "020", category: d.pnlRows.r020, currentPeriod: costOfSales, prevPeriod: 0, isHeader: false },
+    { code: "030", category: d.pnlRows.r030, currentPeriod: grossProfit, prevPeriod: 0, isHeader: true },
+    { code: "050", category: d.pnlRows.r050, currentPeriod: adminExpenses, prevPeriod: 0, isHeader: false },
+    { code: "060", category: d.pnlRows.r060, currentPeriod: otherOpExpenses, prevPeriod: 0, isHeader: false },
+    { code: "100", category: d.pnlRows.r100, currentPeriod: operatingProfit, prevPeriod: 0, isHeader: true },
+    { code: "250", category: d.pnlRows.r250, currentPeriod: profitTax15, prevPeriod: 0, isHeader: false },
+    { code: "270", category: d.pnlRows.r270, currentPeriod: netProfit, prevPeriod: 0, isHeader: true },
   ];
 
   // Real Balance Sheet computed dynamically from Trial Balance
@@ -110,19 +114,19 @@ export default function FinancePage() {
   const totalLiabilities = payablesSuppliers + taxPayables + payrollPayables;
 
   const balanceSheet = [
-    { section: "I. AKTIVLAR (MABLAĞLAR)", code: "", amount: totalAssets, isSectionHeader: true, isHeader: false },
-    { section: "Asosiy vositalar va kapital qoʻyilmalar (0100, 0820)", code: "010", amount: fixedAssets, isSectionHeader: false, isHeader: false },
-    { section: "Tovar-moddiy zaxiralar va ombor (1010–2910)", code: "140", amount: inventoryVal, isSectionHeader: false, isHeader: false },
-    { section: "Debitorlik qarzlari va boʻnaklar (4010–4410)", code: "210", amount: receivablesVal, isSectionHeader: false, isHeader: false },
-    { section: "Pul mablagʻlari: Kassa va Bank schyotlari (5010–5210)", code: "320", amount: cashVal, isSectionHeader: false, isHeader: false },
-    { section: "BALANS AKTIVI JAMI", code: "400", amount: totalAssets, isSectionHeader: false, isHeader: true },
-    { section: "II. PASSIVLAR (MAJBURIYATLAR VA KAPITAL)", code: "", amount: totalEquity + totalLiabilities, isSectionHeader: true, isHeader: false },
-    { section: "Ustav kapitali (8330)", code: "410", amount: equityCapital, isSectionHeader: false, isHeader: false },
-    { section: "Taqsimlanmagan foyda (8710 + Sof foyda)", code: "450", amount: retainedEarnings, isSectionHeader: false, isHeader: false },
-    { section: "Mol yetkazib beruvchilar va avanslar (6010, 6310)", code: "610", amount: payablesSuppliers, isSectionHeader: false, isHeader: false },
-    { section: "Budjet va soliq qarzlari (6410)", code: "640", amount: taxPayables, isSectionHeader: false, isHeader: false },
-    { section: "Mehnat haqi qarzlari (6710)", code: "670", amount: payrollPayables, isSectionHeader: false, isHeader: false },
-    { section: "BALANS PASSIVI JAMI", code: "780", amount: totalEquity + totalLiabilities, isSectionHeader: false, isHeader: true },
+    { section: d.balanceRows.assetsHeader, code: "", amount: totalAssets, isSectionHeader: true, isHeader: false },
+    { section: d.balanceRows.fixedAssets, code: "010", amount: fixedAssets, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.inventory, code: "140", amount: inventoryVal, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.receivables, code: "210", amount: receivablesVal, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.cash, code: "320", amount: cashVal, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.assetsTotal, code: "400", amount: totalAssets, isSectionHeader: false, isHeader: true },
+    { section: d.balanceRows.liabilitiesHeader, code: "", amount: totalEquity + totalLiabilities, isSectionHeader: true, isHeader: false },
+    { section: d.balanceRows.equityCapital, code: "410", amount: equityCapital, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.retainedEarnings, code: "450", amount: retainedEarnings, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.payablesSuppliers, code: "610", amount: payablesSuppliers, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.taxPayables, code: "640", amount: taxPayables, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.payrollPayables, code: "670", amount: payrollPayables, isSectionHeader: false, isHeader: false },
+    { section: d.balanceRows.liabilitiesTotal, code: "780", amount: totalEquity + totalLiabilities, isSectionHeader: false, isHeader: true },
   ];
 
   // Real Cash Flow chart data from transactions
@@ -140,7 +144,7 @@ export default function FinancePage() {
     let csvContent = "";
     if (activeTab === "pnl") {
       filename = `shakl_2_moliyaviy_natijalar_${new Date().getFullYear()}.csv`;
-      const headers = ["Satr kodi", "Ko'rsatkich nomi", "O'tgan davr (UZS)", "Hisobot davri (UZS)"];
+      const headers = d.pnlCsvHeaders;
       const rows = pnlStatement.map((item) => [
         item.code,
         `"${item.category.replace(/"/g, '""')}"`,
@@ -150,7 +154,7 @@ export default function FinancePage() {
       csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     } else {
       filename = `shakl_1_buxgalteriya_balansi_${new Date().getFullYear()}.csv`;
-      const headers = ["Satr kodi", "Ko'rsatkich nomi", "Summa (UZS)"];
+      const headers = d.balanceCsvHeaders;
       const rows = balanceSheet.map((item) => [
         item.code || "-",
         `"${item.section.replace(/"/g, '""')}"`,
@@ -166,12 +170,12 @@ export default function FinancePage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(`${filename} muvaffaqiyatli yuklab olindi!`);
+    toast.success(d.toasts.excelExported.replace("{filename}", filename));
   };
 
   const handleExportPdf = () => {
     window.print();
-    toast.success("Hisobot chop etish / PDF saqlash uchun tayyorlandi");
+    toast.success(d.toasts.pdfReady);
   };
 
   return (
@@ -182,18 +186,18 @@ export default function FinancePage() {
             {t.pages.finance.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {currentEntity?.name} • Real Bosh kitob (Ledger) asosidagi shakllar
+            {currentEntity?.name} • {d.subtitleSuffix}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={handleExportPdf}>
             <Download className="h-3.5 w-3.5" />
-            PDF {t.common.export} (Shakl 1/2)
+            {d.pdfBtnLabel} {t.common.export}
           </Button>
           <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={handleExportExcel}>
             <Download className="h-3.5 w-3.5" />
-            Excel {t.common.export}
+            {d.excelBtnLabel} {t.common.export}
           </Button>
         </div>
       </div>
@@ -328,7 +332,7 @@ export default function FinancePage() {
                         tick={{ fontSize: 10 }}
                         tickFormatter={(val) => `${(val / 1000000).toFixed(0)}m`}
                       />
-                      <Tooltip formatter={(val: any) => [`${Number(val).toLocaleString()} ${t.common.currency}`]} />
+                      <Tooltip formatter={(val: any) => [`${Number(val).toLocaleString(intlLocale)} ${t.common.currency}`]} />
                       <Legend wrapperStyle={{ fontSize: "11px" }} />
                       <Bar dataKey="income" name={t.common.income} fill="#10B981" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="expense" name={t.common.expense} fill="#4F46E5" radius={[4, 4, 0, 0]} />
@@ -336,7 +340,7 @@ export default function FinancePage() {
                   </ResponsiveContainer>
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                    Pul oqimlari maʼlumoti hozircha mavjud emas.
+                    {d.emptyCashflow}
                   </div>
                 )}
               </div>

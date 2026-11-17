@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 import { cn } from "@/lib/utils";
 
 interface AiActionLog {
@@ -53,7 +54,10 @@ function AiAuditorContent() {
   const searchParams = useSearchParams();
   const targetExcId = searchParams.get("id");
   const { currentEntity } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  const d = dict.erpExtra.aiAuditor;
+  const intlLocale = getIntlLocale(locale);
 
   const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
   const [totalExceptionsCount, setTotalExceptionsCount] = useState(0);
@@ -146,7 +150,11 @@ function AiAuditorContent() {
     if (!currentEntity?.id) return;
     loadActionLogs(currentEntity.id);
     await loadExceptions(currentEntity.id);
-    toast.success(`AI Auditor tekshiruvi yakunlandi: ${excCounts.open} ta ochiq va ${excCounts.total} ta jami yozuv aniqlandi.`);
+    toast.success(
+      d.toasts.recheckDone
+        .replace("{open}", String(excCounts.open))
+        .replace("{total}", String(excCounts.total))
+    );
   };
 
   const filtered = exceptions;
@@ -160,11 +168,11 @@ function AiAuditorContent() {
           entityId: currentEntity.id,
           entryNumber: `JE-AUD-${exc.id.slice(0, 6).toUpperCase()}`,
           entryDate: new Date().toISOString().split("T")[0],
-          description: `AI Auditor tuzatuvchi provodkasi: ${exc.title}`,
+          description: `${d.correctiveEntryPrefix}: ${exc.title}`,
           debitAccountCode: "6010",
-          debitAccountName: "Mol yetkazib beruvchilarga toʻlanadigan schyotlar",
+          debitAccountName: d.account6010Name,
           creditAccountCode: "5110",
-          creditAccountName: "Hisob-kitob schyoti (Milliy valyutada)",
+          creditAccountName: d.account5110Name,
           amount: exc.amount,
           sourceType: "ai_auditor",
           sourceReferenceId: exc.id,
@@ -188,11 +196,11 @@ function AiAuditorContent() {
       toast.success(
         customLabel ||
           (action === "approve"
-            ? "AI tavsiyasi maʼqullandi va tuzatuvchi provodka Bosh kitobga (Ledger) saqlandi!"
-            : "Istisno rad etildi va koʻrib chiqish (in_review) holatiga oʻtkazildi.")
+            ? d.toasts.approvedSuccess
+            : d.toasts.rejectedSuccess)
       );
     } catch (err: any) {
-      toast.error("Amalni bajarishda xatolik: " + (err.message || "Xatolik"));
+      toast.error(d.toasts.actionError.replace("{error}", err.message || d.errorFallback));
     } finally {
       setIsMutating(false);
     }
@@ -212,7 +220,7 @@ function AiAuditorContent() {
               {t.pages.aiAuditor.title}
             </h1>
             <Badge variant="indigo" className="text-[10px] px-2 py-0.5">
-              24/7 Monitoring
+              {d.monitoringBadge}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -228,7 +236,7 @@ function AiAuditorContent() {
           disabled={isLoading}
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-          Qayta tekshirish
+          {d.recheckBtn}
         </Button>
       </div>
 
@@ -236,7 +244,7 @@ function AiAuditorContent() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="p-4 flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground">Ochiq shubhalar</span>
+            <span className="text-xs text-muted-foreground">{d.openSuspicions}</span>
             <p className="text-xl font-bold font-mono text-foreground mt-0.5">{openCount}</p>
           </div>
           <div className="h-9 w-9 rounded-lg bg-rose-500/10 text-rose-600 flex items-center justify-center">
@@ -256,7 +264,7 @@ function AiAuditorContent() {
 
         <Card className="p-4 flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground">Hal qilingan</span>
+            <span className="text-xs text-muted-foreground">{d.resolvedCountLabel}</span>
             <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">{resolvedCount}</p>
           </div>
           <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
@@ -286,8 +294,8 @@ function AiAuditorContent() {
             >
               <option value="all">{t.common.all}</option>
               <option value="critical">{t.statuses.critical}</option>
-              <option value="warning">Ogohlantirish</option>
-              <option value="info">Info</option>
+              <option value="warning">{d.severityWarning}</option>
+              <option value="info">{d.severityInfo}</option>
             </select>
           </div>
 
@@ -335,7 +343,7 @@ function AiAuditorContent() {
               ))
             ) : (
               <div className="p-8 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xl">
-                Ushbu korxona uchun mos xatoliklar topilmadi.
+                {d.emptyExceptions}
               </div>
             )}
           </div>
@@ -344,7 +352,7 @@ function AiAuditorContent() {
             pageSize={PAGE_SIZE}
             totalCount={totalExceptionsCount}
             isLoading={isLoading}
-            itemLabel="shubha"
+            itemLabel={d.exceptionItemLabel}
             className="rounded-lg border border-border bg-card"
             onPageChange={setExcPage}
           />
@@ -382,16 +390,16 @@ function AiAuditorContent() {
                     </span>
                     <div className="grid grid-cols-2 gap-3 pt-1">
                       <div>
-                        <span className="text-[10px] text-muted-foreground block">Manba tizim:</span>
+                        <span className="text-[10px] text-muted-foreground block">{d.sourceSystemLabel}</span>
                         <span className="font-medium text-foreground">{selectedExc.evidence.sourceSystem}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-muted-foreground block">Hujjat / Tranzaksiya ID:</span>
+                        <span className="text-[10px] text-muted-foreground block">{d.referenceIdLabel}</span>
                         <span className="font-mono text-foreground">{selectedExc.evidence.referenceId}</span>
                       </div>
                     </div>
                     <div className="pt-2 border-t border-border/60">
-                      <span className="text-[10px] text-muted-foreground block">Tafsilotlar:</span>
+                      <span className="text-[10px] text-muted-foreground block">{d.detailsLabel}</span>
                       <span className="text-foreground leading-relaxed">{selectedExc.evidence.details}</span>
                     </div>
                   </div>
@@ -436,7 +444,7 @@ function AiAuditorContent() {
                     handleResolve(
                       selectedExc,
                       "reject",
-                      "Masʼul bosh buxgalterga shaxsiy koʻrik uchun («in_review») yuborildi!"
+                      d.forwardSuccessMsg
                     )
                   }
                 >
@@ -462,14 +470,14 @@ function AiAuditorContent() {
                     onClick={() => handleResolve(selectedExc, "approve")}
                   >
                     <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                    {selectedExc.status === "resolved" ? "Hal qilingan" : t.pages.aiAuditor.approveButton}
+                    {selectedExc.status === "resolved" ? d.resolvedBtn : t.pages.aiAuditor.approveButton}
                   </Button>
                 </div>
               </div>
             </Card>
           ) : (
             <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-xs">
-              Tafsilotlarni koʻrish uchun roʻyxatdan istisno tanlang
+              {d.selectPrompt}
             </div>
           )}
         </div>
@@ -481,10 +489,10 @@ function AiAuditorContent() {
           <div>
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-500" />
-              AI Agent Harakatlar Jurnali (Audit Trail)
+              {d.auditTrailTitle}
             </CardTitle>
             <CardDescription className="text-xs">
-              AI Copilot va Agent tomonidan amalga oshirilgan barcha takliflar va Human-in-the-Loop qarorlari tarixi
+              {d.auditTrailDesc}
             </CardDescription>
           </div>
           <Button
@@ -495,29 +503,29 @@ function AiAuditorContent() {
             disabled={isLoadingLogs}
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isLoadingLogs && "animate-spin")} />
-            Yangilash
+            {d.refreshBtn}
           </Button>
         </CardHeader>
         <CardContent>
           {isLoadingLogs ? (
             <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
               <RefreshCw className="h-4 w-4 animate-spin text-indigo-500" />
-              Jurnal yuklanmoqda...
+              {d.loadingLogs}
             </div>
           ) : actionLogs.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
-              Hozircha AI agent harakatlar jurnali mavjud emas. AI Drawer orqali provodka yoki operatsiyalarni tasdiqlaganingizda bu yerda aks etadi.
+              {d.emptyLogs}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-muted-foreground text-left">
-                    <th className="pb-2 font-medium">Vaqt</th>
-                    <th className="pb-2 font-medium">Amal turi</th>
-                    <th className="pb-2 font-medium">Tavsif (Summary)</th>
-                    <th className="pb-2 font-medium">Model</th>
-                    <th className="pb-2 font-medium text-right">Qaror (Decision)</th>
+                    <th className="pb-2 font-medium">{d.colTime}</th>
+                    <th className="pb-2 font-medium">{d.colActionType}</th>
+                    <th className="pb-2 font-medium">{d.colSummary}</th>
+                    <th className="pb-2 font-medium">{d.colModel}</th>
+                    <th className="pb-2 font-medium text-right">{d.colDecision}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -532,7 +540,7 @@ function AiAuditorContent() {
                     return (
                       <tr key={log.id} className="hover:bg-muted/40 transition-colors">
                         <td className="py-2.5 pr-3 text-muted-foreground whitespace-nowrap font-mono text-[11px]">
-                          {new Date(log.created_at).toLocaleString("uz-UZ", {
+                          {new Date(log.created_at).toLocaleString(intlLocale, {
                             year: "numeric",
                             month: "2-digit",
                             day: "2-digit",
@@ -573,7 +581,7 @@ function AiAuditorContent() {
             pageSize={PAGE_SIZE}
             totalCount={totalLogsCount}
             isLoading={isLoadingLogs}
-            itemLabel="harakat"
+            itemLabel={d.logItemLabel}
             className="mt-2"
             onPageChange={setLogsPage}
           />
@@ -583,15 +591,15 @@ function AiAuditorContent() {
   );
 }
 
+function AiAuditorLoadingFallback() {
+  const { locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  return <div className="p-8 text-center text-xs text-muted-foreground">{dict.commonLoading}</div>;
+}
+
 export default function AiAuditorPage() {
   return (
-    <React.Suspense
-      fallback={
-        <div className="p-8 text-center text-xs text-muted-foreground">
-          AI Auditor yuklanmoqda...
-        </div>
-      }
-    >
+    <React.Suspense fallback={<AiAuditorLoadingFallback />}>
       <AiAuditorContent />
     </React.Suspense>
   );

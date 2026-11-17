@@ -22,7 +22,9 @@ import {
 } from "@/lib/services/supabase-service";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
+import { formatUzsByLocale, getLocalizedPlanSpec, normalizePlanId } from "@/lib/config/plans";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getBillingHomeDict, getIntlLocale } from "@/lib/i18n/domains/billing-home";
 import {
   Sparkles,
   ArrowRight,
@@ -57,14 +59,10 @@ export default function DashboardPage() {
   return <FullErpDashboard />;
 }
 
-const PLAN_LABELS: Record<string, string> = {
-  starter: "Starter",
-  professional: "Professional",
-  enterprise: "Enterprise",
-};
-
 function SoloToolsHome() {
   const router = useRouter();
+  const { locale } = useTranslation();
+  const solo = getBillingHomeDict(locale).home.solo;
   const { currentWorkspace, currentEntity, isContextReady, subscription, toggleAiDrawer } =
     useAppState();
   const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
@@ -102,48 +100,51 @@ function SoloToolsHome() {
   }, [isContextReady, currentWorkspace?.id, currentEntity?.id]);
 
   const planName = subscription.isTrialActive
-    ? "Pro (Sinov)"
-    : subscription.planName || PLAN_LABELS[currentWorkspace?.currentPlan || "starter"] || "Starter";
+    ? solo.planTrialLabel
+    : getLocalizedPlanSpec(
+        normalizePlanId(subscription.planId || currentWorkspace?.currentPlan),
+        locale
+      ).name;
 
   const tools = [
     {
-      title: "AI Chat & Yordamchi",
-      desc: "Soliq, BHMS provodkalar va chek rasmi tahlili",
+      title: solo.tools.aiChatTitle,
+      desc: solo.tools.aiChatDesc,
       href: "/assistant",
       icon: Sparkles,
       accent: "border-indigo-500/30 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400",
     },
     {
-      title: "Bank ↔ 1C AI Sverka",
-      desc: "Bank koʻchirmasi va 1C fayllarini tezkor solishtirish",
+      title: solo.tools.reconcileTitle,
+      desc: solo.tools.reconcileDesc,
       href: "/reconcile",
       icon: Scale,
       accent: "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400",
     },
     {
-      title: "Faktura / Chek Skaner",
-      desc: "Rasm yoki PDF hujjatdan schyot va summani ajratish",
+      title: solo.tools.scanTitle,
+      desc: solo.tools.scanDesc,
       href: "/assistant?tab=scan",
       icon: Camera,
       accent: "border-sky-500/30 bg-sky-500/5 text-sky-600 dark:text-sky-400",
     },
     {
-      title: "Soliq & Maosh Kalkulyatori",
-      desc: "JShDS 12%, QQS 12%, aylanma 4% va taʼtil hisobi",
+      title: solo.tools.calcTitle,
+      desc: solo.tools.calcDesc,
       href: "/assistant?tab=calc",
       icon: Calculator,
       accent: "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400",
     },
     {
-      title: "Shartnoma Xavf Tekshiruvi",
-      desc: "Penya, avans va QQS shartlarini AI bilan tekshirish",
+      title: solo.tools.contractTitle,
+      desc: solo.tools.contractDesc,
       href: "/assistant?tab=contract",
       icon: FileWarning,
       accent: "border-rose-500/30 bg-rose-500/5 text-rose-600 dark:text-rose-400",
     },
     {
-      title: "Saqlangan Tarix",
-      desc: "Barcha sverka, skan va shartnoma natijalari",
+      title: solo.tools.historyTitle,
+      desc: solo.tools.historyDesc,
       href: "/assistant?tab=history",
       icon: History,
       accent: "border-border bg-muted/30 text-foreground",
@@ -156,10 +157,10 @@ function SoloToolsHome() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-            Bosh sahifa
+            {solo.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Buxgalteriya, soliq va hujjat tahlili uchun shaxsiy AI asboblar
+            {solo.subtitle}
           </p>
         </div>
 
@@ -171,7 +172,7 @@ function SoloToolsHome() {
             className="text-xs h-8 gap-1.5"
           >
             <History className="h-3.5 w-3.5" />
-            Saqlangan tarix
+            {solo.savedHistoryBtn}
           </Button>
           <Button
             size="sm"
@@ -179,7 +180,7 @@ function SoloToolsHome() {
             className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            FIRMUS AI
+            {solo.firmusAiBtn}
           </Button>
         </div>
       </div>
@@ -187,33 +188,33 @@ function SoloToolsHome() {
       {/* Quick Usage Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Shu oydagi ishlar"
+          title={solo.kpi.monthlyWorksTitle}
           value={isLoading ? "…" : String(usage.monthlyBatches)}
-          subtitle="Sverka, chek skan va shartnomalar"
+          subtitle={solo.kpi.monthlyWorksSub}
           icon={<FileStack className="h-4 w-4 text-emerald-500" />}
           onClick={() => router.push("/assistant?tab=history")}
         />
         <KpiCard
-          title="AI Suhbatlar"
+          title={solo.kpi.aiChatsTitle}
           value={isLoading ? "…" : String(usage.aiThreadsCount)}
-          subtitle="Saqlangan chat tarixi"
+          subtitle={solo.kpi.aiChatsSub}
           icon={<MessageSquare className="h-4 w-4 text-indigo-500" />}
           onClick={() => router.push("/assistant")}
         />
         <KpiCard
-          title="Jami saqlangan ishlar"
+          title={solo.kpi.totalWorksTitle}
           value={isLoading ? "…" : String(totalBatches)}
-          subtitle="Barcha oylar kesimida"
+          subtitle={solo.kpi.totalWorksSub}
           icon={<CheckCircle2 className="h-4 w-4 text-sky-500" />}
           onClick={() => router.push("/assistant?tab=history")}
         />
         <KpiCard
-          title="Joriy tarif"
+          title={solo.kpi.currentPlanTitle}
           value={planName}
           subtitle={
             subscription.trialAvailable
-              ? "7 kun bepul Pro sinov mavjud"
-              : "Obuna va limitlarni boshqarish"
+              ? solo.kpi.trialAvailableSub
+              : solo.kpi.managePlanSub
           }
           icon={<CreditCard className="h-4 w-4 text-amber-500" />}
           onClick={() => router.push("/billing")}
@@ -222,7 +223,7 @@ function SoloToolsHome() {
 
       {/* Tools Grid */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Asboblar</h2>
+        <h2 className="text-sm font-semibold text-foreground">{solo.toolsSectionTitle}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tools.map((tool) => {
             const Icon = tool.icon;
@@ -250,7 +251,7 @@ function SoloToolsHome() {
                   </div>
                   <div className="flex justify-end">
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary">
-                      Ochish <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                      {solo.openCta} <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                     </span>
                   </div>
                 </CardContent>
@@ -264,43 +265,41 @@ function SoloToolsHome() {
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-sm font-semibold">Oxirgi ishlar</CardTitle>
+            <CardTitle className="text-sm font-semibold">{solo.recentWorks.title}</CardTitle>
             <CardDescription className="text-xs">
-              Soʻnggi saqlangan sverka, skan va shartnoma tekshiruvlari
+              {solo.recentWorks.subtitle}
             </CardDescription>
           </div>
           <Link
             href="/assistant?tab=history"
             className="text-xs text-primary hover:underline flex items-center gap-1"
           >
-            Barchasi <ArrowRight className="h-3 w-3" />
+            {solo.recentWorks.viewAll} <ArrowRight className="h-3 w-3" />
           </Link>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           {recentBatches.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              {isLoading
-                ? "Yuklanmoqda..."
-                : "Hozircha saqlangan ishlar yoʻq. Yuqoridagi asboblardan birini tanlab boshlang."}
+              {isLoading ? solo.recentWorks.loading : solo.recentWorks.empty}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Oy</TableHead>
-                  <TableHead>Turi</TableHead>
-                  <TableHead>Nomi</TableHead>
-                  <TableHead className="text-right">Amal</TableHead>
+                  <TableHead>{solo.recentWorks.colMonth}</TableHead>
+                  <TableHead>{solo.recentWorks.colType}</TableHead>
+                  <TableHead>{solo.recentWorks.colName}</TableHead>
+                  <TableHead className="text-right">{solo.recentWorks.colAction}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {recentBatches.map((item) => {
                   const typeLabel =
                     item.batchType === "reconcile"
-                      ? "Bank ↔ 1C"
+                      ? solo.recentWorks.typeReconcile
                       : item.batchType === "contract_risk"
-                      ? "Shartnoma"
-                      : "Chek / Faktura";
+                      ? solo.recentWorks.typeContract
+                      : solo.recentWorks.typeReceipt;
                   const targetHref =
                     item.batchType === "reconcile"
                       ? `/reconcile?batchId=${encodeURIComponent(item.id)}`
@@ -325,7 +324,7 @@ function SoloToolsHome() {
                           onClick={() => router.push(targetHref)}
                         >
                           <FolderOpen className="h-3 w-3" />
-                          Ochish
+                          {solo.recentWorks.openBtn}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -343,7 +342,9 @@ function SoloToolsHome() {
 function FullErpDashboard() {
   const router = useRouter();
   const { currentEntity, toggleAiDrawer } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const erp = getBillingHomeDict(locale).home.erp;
+  const intlLocale = getIntlLocale(locale);
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [recentExceptions, setRecentExceptions] = useState<any[]>([]);
@@ -433,7 +434,7 @@ function FullErpDashboard() {
             className="text-xs h-8 gap-1.5"
           >
             <History className="h-3.5 w-3.5" />
-            Saqlangan tarix
+            {erp.savedHistoryBtn}
           </Button>
           <Button
             variant="outline"
@@ -442,7 +443,7 @@ function FullErpDashboard() {
             className="text-xs h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
           >
             <Scale className="h-3.5 w-3.5" />
-            Bank ↔ 1C AI Sverka
+            {erp.reconcileHeaderBtn}
           </Button>
           <Button
             size="sm"
@@ -460,25 +461,35 @@ function FullErpDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Card className="border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60 transition-colors">
           <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-              <Scale className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span>Bank ↔ 1C Sverka</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                <Scale className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>{erp.quickCards.reconcileTitle}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                {erp.quickCards.reconcileDesc}
+              </p>
             </div>
             <Button
               size="sm"
               onClick={() => router.push("/reconcile")}
               className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shrink-0"
             >
-              Ochish <ArrowRight className="h-3.5 w-3.5" />
+              {erp.quickCards.reconcileCta} <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardContent>
         </Card>
 
         <Card className="border-indigo-500/30 bg-indigo-500/5 hover:border-indigo-500/60 transition-colors">
           <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-              <Camera className="h-4 w-4 text-indigo-600 shrink-0" />
-              <span>Faktura / Chek Skaner</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                <Camera className="h-4 w-4 text-indigo-600 shrink-0" />
+                <span>{erp.quickCards.scanTitle}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                {erp.quickCards.scanDesc}
+              </p>
             </div>
             <Button
               size="sm"
@@ -486,16 +497,21 @@ function FullErpDashboard() {
               onClick={() => router.push("/assistant?tab=scan")}
               className="text-xs h-8 gap-1 border-indigo-500/40 shrink-0"
             >
-              Yuklash <ArrowRight className="h-3.5 w-3.5" />
+              {erp.quickCards.scanCta} <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardContent>
         </Card>
 
         <Card className="border-border hover:border-primary/50 transition-colors">
           <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-              <Calculator className="h-4 w-4 text-primary shrink-0" />
-              <span>Kalkulyator va Soliq AI</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                <Calculator className="h-4 w-4 text-primary shrink-0" />
+                <span>{erp.quickCards.calcTitle}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                {erp.quickCards.calcDesc}
+              </p>
             </div>
             <Button
               size="sm"
@@ -503,7 +519,7 @@ function FullErpDashboard() {
               onClick={() => router.push("/assistant?tab=calc")}
               className="text-xs h-8 gap-1 shrink-0"
             >
-              Ochish <ArrowRight className="h-3.5 w-3.5" />
+              {erp.quickCards.calcCta} <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardContent>
         </Card>
@@ -514,7 +530,9 @@ function FullErpDashboard() {
         <KpiCard
           title={t.dashboard.kpiAutomated}
           value={`${automatedRate}%`}
-          subtitle={`${postedCount} / ${txCounts.total} ta operatsiya oʻtkazilgan`}
+          subtitle={erp.postedOperationsSub
+            .replace("{posted}", String(postedCount))
+            .replace("{total}", String(txCounts.total))}
           icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
           onClick={() => router.push("/accounting")}
         />
@@ -538,9 +556,9 @@ function FullErpDashboard() {
         />
 
         <KpiCard
-          title="Sof QQS (6410–4410)"
-          value={`${new Intl.NumberFormat("uz-UZ").format(Math.round(vatNetPayable))} soʻm`}
-          subtitle="Bosh kitobdagi joriy QQS majburiyati"
+          title={erp.netVatTitle}
+          value={formatUzsByLocale(Math.round(vatNetPayable), locale)}
+          subtitle={erp.netVatSub}
           icon={<Scale className="h-4 w-4 text-emerald-500" />}
           onClick={() => router.push("/tax")}
         />
@@ -605,10 +623,10 @@ function FullErpDashboard() {
                                 {payload[0].payload.date}
                               </p>
                               <p className="text-emerald-600 dark:text-emerald-400">
-                                {t.common.income}: {Number(payload[0].value || 0).toLocaleString()} {t.common.currency}
+                                {t.common.income}: {Number(payload[0].value || 0).toLocaleString(intlLocale)} {t.common.currency}
                               </p>
                               <p className="text-indigo-600 dark:text-indigo-400">
-                                {t.common.expense}: {Number(payload[1].value || 0).toLocaleString()} {t.common.currency}
+                                {t.common.expense}: {Number(payload[1].value || 0).toLocaleString(intlLocale)} {t.common.currency}
                               </p>
                             </div>
                           );
@@ -636,7 +654,7 @@ function FullErpDashboard() {
                 </ResponsiveContainer>
               ) : (
                 <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                  Ushbu korxona boʻyicha hozircha pul oqimi operatsiyalari mavjud emas.
+                  {erp.emptyCashflow}
                 </div>
               )}
             </div>
@@ -646,8 +664,8 @@ function FullErpDashboard() {
         {/* Right 1/3: Quick Accountant Workflows */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Tezkor buxgalter amallari</CardTitle>
-            <CardDescription>Eng koʻp ishlatiladigan kundalik vazifalar</CardDescription>
+            <CardTitle className="text-sm font-semibold">{erp.quickWorkflowsTitle}</CardTitle>
+            <CardDescription>{erp.quickWorkflowsSubtitle}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 pt-0 text-xs">
             <button
@@ -656,8 +674,8 @@ function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors flex items-center justify-between"
             >
               <div>
-                <div className="font-semibold text-foreground">Bank ↔ 1C AI Sverka</div>
-                <div className="text-[10px] text-muted-foreground">Fayl yuklab 5 soniyada solishtirish</div>
+                <div className="font-semibold text-foreground">{erp.workflows.reconcileTitle}</div>
+                <div className="text-[10px] text-muted-foreground">{erp.workflows.reconcileSub}</div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
             </button>
@@ -667,8 +685,8 @@ function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
             >
               <div>
-                <div className="font-semibold text-foreground">Oborot-saldovaya vedomost</div>
-                <div className="text-[10px] text-muted-foreground">Qoldiqlar va davr yopish</div>
+                <div className="font-semibold text-foreground">{erp.workflows.trialBalanceTitle}</div>
+                <div className="text-[10px] text-muted-foreground">{erp.workflows.trialBalanceSub}</div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
@@ -678,8 +696,8 @@ function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
             >
               <div>
-                <div className="font-semibold text-foreground">Soliqlar va Moliya</div>
-                <div className="text-[10px] text-muted-foreground">QQS (12%), Balans va Foyda hisoboti</div>
+                <div className="font-semibold text-foreground">{erp.workflows.taxFinanceTitle}</div>
+                <div className="text-[10px] text-muted-foreground">{erp.workflows.taxFinanceSub}</div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
@@ -689,8 +707,8 @@ function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
             >
               <div>
-                <div className="font-semibold text-foreground">Korxona sozlamalari</div>
-                <div className="text-[10px] text-muted-foreground">STIR, soliq rejimi va tilni boshqarish</div>
+                <div className="font-semibold text-foreground">{erp.workflows.entitySettingsTitle}</div>
+                <div className="text-[10px] text-muted-foreground">{erp.workflows.entitySettingsSub}</div>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
@@ -750,7 +768,7 @@ function FullErpDashboard() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-6 text-xs text-muted-foreground">
-                      Tasdiqlashni kutayotgan tranzaksiyalar yoʻq.
+                      {erp.emptyPendingApprovals}
                     </TableCell>
                   </TableRow>
                 )}
@@ -810,7 +828,7 @@ function FullErpDashboard() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-6 text-xs text-muted-foreground">
-                      Ochiq audit xatoliklari topilmadi.
+                      {erp.emptyExceptions}
                     </TableCell>
                   </TableRow>
                 )}
@@ -833,9 +851,13 @@ function FullErpDashboard() {
               </span>
             </div>
             <p className="text-xs text-foreground mt-0.5 leading-relaxed max-w-3xl">
-              «{currentEntity?.name}» korxonasining Bosh kitobiga (6410–4410 schyotlar) koʻra joriy sof QQS majburiyati{" "}
-              <strong>{new Intl.NumberFormat("uz-UZ").format(Math.round(vatNetPayable))} {t.common.currency}</strong> va ochiq istisnolar{" "}
-              <strong>{openExceptionsCount} ta</strong>ni tashkil etmoqda.
+              {erp.aiVatCalloutPrefix.replace("{entity}", currentEntity?.name || "")}
+              <strong>
+                {new Intl.NumberFormat(intlLocale).format(Math.round(vatNetPayable))} {t.common.currency}
+              </strong>
+              {erp.aiVatCalloutMid}
+              <strong>{erp.aiVatCalloutCountSuffix.replace("{count}", String(openExceptionsCount))}</strong>
+              {erp.aiVatCalloutEnd}
             </p>
           </div>
         </div>

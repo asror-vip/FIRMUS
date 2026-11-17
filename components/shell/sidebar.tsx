@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -105,26 +106,27 @@ function SidebarNavigation({
 export function Sidebar() {
   const pathname = usePathname();
   const { toggleAiDrawer } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const soloToolsGroups: NavigationGroup[] = [
     {
-      label: "Asboblar",
+      label: d.sidebar.toolsGroupLabel,
       items: [
-        { name: "Bosh sahifa", href: "/", icon: LayoutDashboard },
-        { name: "AI Chat", href: "/assistant", icon: Sparkles },
-        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
-        { name: "Faktura / Chek Skaner", href: "/assistant?tab=scan", icon: Camera },
-        { name: "Kalkulyator", href: "/assistant?tab=calc", icon: Calculator },
-        { name: "Shartnoma tahlili", href: "/assistant?tab=contract", icon: FileWarning },
-        { name: "Saqlangan tarix", href: "/assistant?tab=history", icon: History },
+        { name: d.sidebar.solo.home, href: "/", icon: LayoutDashboard },
+        { name: d.sidebar.solo.aiChat, href: "/assistant", icon: Sparkles },
+        { name: d.sidebar.solo.reconcile, href: "/reconcile", icon: Scale },
+        { name: d.sidebar.solo.scanner, href: "/assistant?tab=scan", icon: Camera },
+        { name: d.sidebar.solo.calculator, href: "/assistant?tab=calc", icon: Calculator },
+        { name: d.sidebar.solo.contract, href: "/assistant?tab=contract", icon: FileWarning },
+        { name: d.sidebar.solo.history, href: "/assistant?tab=history", icon: History },
       ],
     },
     {
       label: t.nav.groups.system,
       items: [
-        { name: "Obunalar", href: "/billing", icon: CreditCard },
+        { name: d.sidebar.solo.billing, href: "/billing", icon: CreditCard },
         { name: t.nav.settings, href: "/settings", icon: Settings },
       ],
     },
@@ -135,8 +137,8 @@ export function Sidebar() {
       label: t.nav.groups.overview,
       items: [
         { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
-        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
-        { name: "AI Hamkasb & Skaner", href: "/assistant", icon: Sparkles },
+        { name: d.sidebar.erp.reconcile, href: "/reconcile", icon: Scale },
+        { name: d.sidebar.erp.assistant, href: "/assistant", icon: Sparkles },
         { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
       ],
     },
@@ -157,7 +159,7 @@ export function Sidebar() {
     {
       label: t.nav.groups.system,
       items: [
-        { name: "Obunalar", href: "/billing", icon: CreditCard },
+        { name: d.sidebar.erp.billing, href: "/billing", icon: CreditCard },
         { name: t.nav.settings, href: "/settings", icon: Settings },
       ],
     },
@@ -183,7 +185,8 @@ export function Sidebar() {
           <button
             onClick={() => setIsCollapsed(false)}
             className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-all group relative"
-            title="Menyuni ochish (Expand sidebar)"
+            title={d.sidebar.expandSidebar}
+            aria-label={d.sidebar.expandSidebar}
           >
             <PanelLeft className="h-5 w-5 transition-transform group-hover:scale-110 text-foreground" />
           </button>
@@ -202,14 +205,15 @@ export function Sidebar() {
                   FIRMUS
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono leading-none">
-                  {FEATURES.multiCompanyMode ? "AI SaaS • Oʻzbekiston" : "AI Tools • Buxgalteriya"}
+                  {FEATURES.multiCompanyMode ? d.sidebar.brandSubMulti : d.sidebar.brandSubSolo}
                 </span>
               </div>
             </Link>
             <button
               onClick={() => setIsCollapsed(true)}
               className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              title="Menyuni yigʻish (Collapse sidebar)"
+              title={d.sidebar.collapseSidebar}
+              aria-label={d.sidebar.collapseSidebar}
             >
               <PanelLeft className="h-4 w-4" />
             </button>
@@ -231,7 +235,7 @@ export function Sidebar() {
         <div className="p-3 mx-2.5 mb-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 text-xs">
           <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold mb-1">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>FIRMUS AI Agent</span>
+            <span>{d.sidebar.aiAgentTitle}</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-tight mb-2">
             {t.sidebarFooter.copilotSubtitle}
@@ -266,7 +270,7 @@ export function Sidebar() {
           <div className="h-full px-3 flex items-center justify-center">
             <div
               className="h-2 w-2 rounded-full bg-emerald-500"
-              title="Faol"
+              title={d.sidebar.activeBadge}
             />
           </div>
         )}

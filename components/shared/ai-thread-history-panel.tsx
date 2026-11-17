@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict, getIntlLocale } from "@/lib/i18n/domains/shell-shared";
 import {
   fetchAiChatThreadsPaginated,
   fetchAiChatThreadById,
@@ -38,14 +40,14 @@ interface AiThreadHistoryPanelProps {
 
 const THREAD_PAGE_SIZE = 10;
 
-function formatShortDate(iso: string): string {
+function formatShortDate(iso: string, intlLocale: string): string {
   try {
     const d = new Date(iso);
     const now = new Date();
     if (d.toDateString() === now.toDateString()) {
-      return d.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString(intlLocale, { hour: "2-digit", minute: "2-digit" });
     }
-    return d.toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit" });
+    return d.toLocaleDateString(intlLocale, { day: "2-digit", month: "2-digit" });
   } catch {
     return "";
   }
@@ -60,6 +62,11 @@ export function AiThreadHistoryPanel({
   refreshTrigger = 0,
   compact = false,
 }: AiThreadHistoryPanelProps) {
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const intlLocale = getIntlLocale(locale);
+  const th = d.shared.aiThreadHistoryPanel;
+
   const [threads, setThreads] = useState<AiChatThreadMeta[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -110,7 +117,7 @@ export function AiThreadHistoryPanel({
         onSelectThread(detail);
       }
     } catch (err: any) {
-      toast.error("Suhbatni yuklab boʻlmadi: " + err.message);
+      toast.error(th.loadErrorToast(err.message));
     } finally {
       setOpeningId(null);
     }
@@ -128,7 +135,7 @@ export function AiThreadHistoryPanel({
       );
       window.dispatchEvent(new CustomEvent("firmus:ai-threads-updated"));
     } catch (err: any) {
-      toast.error("Nomni oʻzgartirib boʻlmadi: " + err.message);
+      toast.error(th.renameErrorToast(err.message));
     } finally {
       setEditingId(null);
     }
@@ -142,7 +149,7 @@ export function AiThreadHistoryPanel({
       await loadThreads();
       window.dispatchEvent(new CustomEvent("firmus:ai-threads-updated"));
     } catch (err: any) {
-      toast.error("Oʻchirishda xatolik: " + err.message);
+      toast.error(th.deleteErrorToast(err.message));
     }
   };
 
@@ -159,7 +166,7 @@ export function AiThreadHistoryPanel({
           onClick={onNewChat}
         >
           <SquarePen className="h-3.5 w-3.5 text-indigo-500" />
-          Yangi chat
+          {th.newChatBtn}
         </Button>
 
         <div className="relative">
@@ -167,7 +174,7 @@ export function AiThreadHistoryPanel({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Chatlardan qidirish..."
+            placeholder={th.searchPlaceholder}
             className="h-7 pl-8 text-[11px]"
           />
         </div>
@@ -177,11 +184,11 @@ export function AiThreadHistoryPanel({
         {isLoading && threads.length === 0 ? (
           <div className="py-8 flex items-center justify-center text-muted-foreground gap-1.5 text-[11px]">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Yuklanmoqda...
+            {t.common.loading}
           </div>
         ) : threads.length === 0 ? (
           <div className="py-8 text-center text-[11px] text-muted-foreground px-2">
-            Suhbatlar tarixi boʻsh
+            {th.empty}
           </div>
         ) : (
           threads.map((item) => {
@@ -238,13 +245,14 @@ export function AiThreadHistoryPanel({
                     <div className="flex-1 min-w-0">
                       <div className="truncate text-[11px]">{item.title}</div>
                       <div className="text-[9px] text-muted-foreground/70 font-mono">
-                        {formatShortDate(item.updatedAt)}
+                        {formatShortDate(item.updatedAt, intlLocale)}
                       </div>
                     </div>
                     <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
                       <button
                         type="button"
-                        aria-label="Nomini oʻzgartirish"
+                        aria-label={th.renameLabel}
+                        title={th.renameLabel}
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditingId(item.id);
@@ -256,7 +264,8 @@ export function AiThreadHistoryPanel({
                       </button>
                       <button
                         type="button"
-                        aria-label="Oʻchirish"
+                        aria-label={th.deleteLabel}
+                        title={th.deleteLabel}
                         onClick={(e) => handleDelete(e, item.id)}
                         className="p-1 rounded hover:bg-background/80 text-muted-foreground hover:text-destructive"
                       >
@@ -282,7 +291,7 @@ export function AiThreadHistoryPanel({
               disabled={page <= 1 || isLoading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               className="p-1 rounded hover:bg-muted disabled:opacity-40"
-              aria-label="Oldingi"
+              aria-label={d.shared.paginationBar.previous}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
@@ -291,7 +300,7 @@ export function AiThreadHistoryPanel({
               disabled={page >= totalPages || isLoading}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               className="p-1 rounded hover:bg-muted disabled:opacity-40"
-              aria-label="Keyingi"
+              aria-label={d.shared.paginationBar.next}
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </button>

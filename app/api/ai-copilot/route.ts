@@ -7,8 +7,13 @@ import {
   authorizeAndConsumeAiCredits,
   refundConsumedAiCredits,
 } from "@/lib/ai/subscription-guard";
+import { getRequestLocale } from "@/lib/i18n/server-locale";
+import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
 
 export async function POST(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -16,14 +21,15 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const body = await req.json();
     const parsed = copilotRequestSchema.safeParse(body);
     if (!parsed.success) {
+      const issueMsg = parsed.error.issues[0]?.message;
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Notoʻgʻri soʻrov" },
+        { error: issueMsg ? localizeServerError(issueMsg, locale) : msg.invalidRequest },
         { status: 400 }
       );
     }
@@ -40,7 +46,7 @@ export async function POST(req: NextRequest) {
     if (!authz.ok) {
       return NextResponse.json(
         {
-          error: authz.error,
+          error: localizeServerError(authz.error, locale),
           upgradeRequired: Boolean(authz.upgradeRequired),
           usage: authz.snapshot,
         },
@@ -67,11 +73,13 @@ export async function POST(req: NextRequest) {
       targetEntity = data;
     }
 
+    const aiMessage = `${message}\n\n[${msg.aiLanguageInstruction(locale)}]`;
+
     let result;
     try {
       if (!targetEntity) {
         result = await runAdvisoryAgent({
-          message,
+          message: aiMessage,
           history,
           modelChain: authz.modelChain,
         });
@@ -81,7 +89,7 @@ export async function POST(req: NextRequest) {
           userId: user.id,
           userEmail: user.email,
           entity: targetEntity,
-          message,
+          message: aiMessage,
           history,
           modelChain: authz.modelChain,
           soloToolsMode: !FEATURES.fullAccountingErp,
@@ -123,7 +131,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("AI Copilot API error:", err);
     return NextResponse.json(
-      { error: err?.message || "AI Copilot soʻrovida xatolik" },
+      { error: err?.message ? localizeServerError(err.message, locale) : msg.copilotError },
       { status: 500 }
     );
   }

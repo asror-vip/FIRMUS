@@ -6,6 +6,8 @@ import {
   canonicalizeEmail,
   isDisposableEmailDomain,
 } from "@/lib/utils/email-guard";
+import { getRequestLocale } from "@/lib/i18n/server-locale";
+import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
 
 function sha256(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -36,6 +38,9 @@ function extractClientIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -43,14 +48,13 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     if (user.email && isDisposableEmailDomain(user.email)) {
       return NextResponse.json(
         {
-          error:
-            "Vaqtinchalik (bir martalik) pochta orqali bepul sinov berilmaydi. Doimiy pochta orqali kiring.",
+          error: msg.disposableEmailTrialForbidden,
         },
         { status: 403 }
       );
@@ -81,17 +85,20 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "7 kunlik bepul Pro sinov davri faollashtirildi!",
+      message: msg.trialActivated,
       subscription: snapshot,
     });
   } catch (err: any) {
-    const message = err?.message || "Sinov muddatini yoqib boʻlmadi";
+    const rawMessage = err?.message || "";
     const status =
-      message.includes("avval") ||
-      message.includes("allaqachon") ||
-      message.includes("limiti tugagan")
+      rawMessage.includes("avval") ||
+      rawMessage.includes("allaqachon") ||
+      rawMessage.includes("limiti tugagan")
         ? 409
         : 400;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json(
+      { error: rawMessage ? localizeServerError(rawMessage, locale) : msg.trialActivateFailed },
+      { status }
+    );
   }
 }

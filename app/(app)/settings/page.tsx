@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getReconcileErpDict } from "@/lib/i18n/domains/reconcile-erp";
 
 function maskEmail(email?: string | null): string {
   if (!email || !email.includes("@")) return email || "—";
@@ -48,7 +49,9 @@ function maskEmail(email?: string | null): string {
 
 function SettingsContent() {
   const searchParams = useSearchParams();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  const d = dict.erpExtra.settings;
   const {
     user,
     currentWorkspace,
@@ -71,7 +74,7 @@ function SettingsContent() {
     tinStir: "",
     companyType: "MChJ",
     taxRegime: "vat_profit_tax",
-    accountantName: "Bosh buxgalter",
+    accountantName: d.defaultAccountantName,
   });
 
   const [activeTab, setActiveTab] = useState(FEATURES.multiCompanyMode ? "entities" : "profile");
@@ -135,11 +138,11 @@ function SettingsContent() {
       setEntities(filtered);
     } catch (err) {
       console.error("Error loading entities:", err);
-      toast.error("Korxonalarni bazadan yuklab boʻlmadi");
+      toast.error(d.toasts.loadEntitiesError);
     } finally {
       setIsLoading(false);
     }
-  }, [currentWorkspace?.id]);
+  }, [currentWorkspace?.id, d.toasts.loadEntitiesError]);
 
   useEffect(() => {
     loadEntities();
@@ -169,11 +172,11 @@ function SettingsContent() {
         tinStir: parsed.data.tinStir,
         companyType: parsed.data.companyType,
         taxRegime: parsed.data.taxRegime,
-        accountantName: parsed.data.accountantName || "Bosh buxgalter",
+        accountantName: parsed.data.accountantName || d.defaultAccountantName,
       });
 
       await Promise.all([loadEntities(), refreshContext()]);
-      toast.success("Yangi yuridik korxona va 22 ta BHMS schyoti Supabase bazasiga saqlandi!");
+      toast.success(d.toasts.entityCreated);
       setIsAddEntityOpen(false);
       setNewEntity({
         legalName: "",
@@ -181,10 +184,10 @@ function SettingsContent() {
         tinStir: "",
         companyType: "MChJ",
         taxRegime: "vat_profit_tax",
-        accountantName: "Bosh buxgalter",
+        accountantName: d.defaultAccountantName,
       });
     } catch (err: any) {
-      toast.error("Korxona qoʻshishda xatolik: " + err.message);
+      toast.error(d.toasts.entityCreateError.replace("{error}", err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -217,10 +220,10 @@ function SettingsContent() {
         accountantName: parsed.data.accountantName,
       });
       await Promise.all([loadEntities(), refreshContext()]);
-      toast.success(`«${parsed.data.legalName}» maʼlumotlari Supabase bazasida yangilandi!`);
+      toast.success(d.toasts.entityUpdated.replace("{name}", parsed.data.legalName));
       setEditingEntity(null);
     } catch (err: any) {
-      toast.error("Tahrirlashda xatolik: " + err.message);
+      toast.error(d.toasts.entityUpdateError.replace("{error}", err.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -236,7 +239,7 @@ function SettingsContent() {
         <p className="text-xs text-muted-foreground mt-0.5">
           {FEATURES.multiCompanyMode
             ? t.pages.settings.subtitle
-            : "Shaxsiy profil, xavfsizlik, bildirishnomalar va interfeys tili"}
+            : d.personalSubtitle}
         </p>
       </div>
 
@@ -250,7 +253,7 @@ function SettingsContent() {
           )}
           <TabsTrigger value="profile" className="text-xs gap-1.5">
             <User className="h-3.5 w-3.5" />
-            Profil
+            {d.profileTab}
           </TabsTrigger>
           <TabsTrigger value="security" className="text-xs gap-1.5">
             <Shield className="h-3.5 w-3.5" />
@@ -269,30 +272,30 @@ function SettingsContent() {
         <TabsContent value="profile" className="space-y-4 mt-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Shaxsiy hisob maʼlumotlari</CardTitle>
+              <CardTitle className="text-sm font-semibold">{d.personalCardTitle}</CardTitle>
               <CardDescription className="text-xs">
-                Akkauntingiz va joriy obuna holati
+                {d.personalCardDesc}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
-                  <span className="text-[11px] text-muted-foreground block">Ism / Profil</span>
+                  <span className="text-[11px] text-muted-foreground block">{d.nameProfileLabel}</span>
                   <span className="font-semibold text-foreground mt-0.5 block">
                     {user?.user_metadata?.full_name ||
                       user?.user_metadata?.name ||
-                      (user?.email ? user.email.split("@")[0] : "Foydalanuvchi")}
+                      (user?.email ? user.email.split("@")[0] : d.defaultUserName)}
                   </span>
                 </div>
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground">Elektron pochta</span>
+                    <span className="text-[11px] text-muted-foreground">{d.emailLabel}</span>
                     <button
                       type="button"
                       onClick={() => setShowEmail((prev) => !prev)}
                       className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
-                      title={showEmail ? "Yashirish" : "Koʻrsatish"}
-                      aria-label={showEmail ? "Elektron pochtani yashirish" : "Elektron pochtani koʻrsatish"}
+                      title={showEmail ? d.hideTooltip : d.showTooltip}
+                      aria-label={showEmail ? d.hideEmailAria : d.showEmailAria}
                     >
                       {showEmail ? (
                         <EyeOff className="h-3.5 w-3.5" />
@@ -310,19 +313,19 @@ function SettingsContent() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border p-3.5">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">Joriy tarif</span>
+                    <span className="font-semibold text-foreground">{d.currentPlanLabel}</span>
                     <Badge variant="indigo" className="text-[10px]">
-                      {subscription.isTrialActive ? "Pro (Sinov)" : subscription.planName}
+                      {subscription.isTrialActive ? d.trialPlanBadge : subscription.planName}
                     </Badge>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Tarif va oylik foydalanish limitlarini Obunalar sahifasida koʻring
+                    {d.planDesc}
                   </p>
                 </div>
                 <Button asChild size="sm" variant="outline" className="h-8 text-xs gap-1.5 shrink-0">
                   <Link href="/billing">
                     <CreditCard className="h-3.5 w-3.5" />
-                    Obunalarni ochish
+                    {d.openBillingBtn}
                   </Link>
                 </Button>
               </div>
@@ -371,9 +374,7 @@ function SettingsContent() {
                   {entities.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
-                        {isLoading
-                          ? "Korxonalar yuklanmoqda..."
-                          : "Ushbu ishchi maydonda korxonalar kiritilmagan."}
+                        {isLoading ? d.loadingEntities : d.emptyEntities}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -394,10 +395,10 @@ function SettingsContent() {
                       <TableCell>
                         <Badge variant="outline" className="text-[10px]">
                           {ent.taxRegime === "vat_profit_tax"
-                            ? "QQS + Foyda"
+                            ? d.regimeVatProfit
                             : ent.taxRegime === "turnover_tax"
-                            ? "Aylanma soliq (4%)"
-                            : "Qatʼiy soliq"}
+                            ? d.regimeTurnover
+                            : d.regimeFixed}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
@@ -460,12 +461,12 @@ function SettingsContent() {
                 <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
                   <div className="flex justify-between font-mono text-[11px]">
                     <span className="font-semibold text-foreground">
-                      {(user?.email ? maskEmail(user.email) : "Autentifikatsiya qilingan sessiya")} • {t.pages.settings.currentSession}
+                      {(user?.email ? maskEmail(user.email) : d.authenticatedSession)} • {t.pages.settings.currentSession}
                     </span>
                     <span className="text-emerald-600 dark:text-emerald-400">{t.pages.settings.online}</span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Supabase Auth JWT sessiya • {t.common.date}: {t.common.now}
+                    {d.supabaseSessionNote} • {t.common.date}: {t.common.now}
                   </p>
                 </div>
               </div>
@@ -493,7 +494,7 @@ function SettingsContent() {
                   onCheckedChange={(val) => {
                     setEmailAlerts(val);
                     persistPrefs({ twoFactorEnabled, emailAlerts: val, telegramAlerts });
-                    toast.success(val ? "Email ogohlantirishlari yoqildi" : "Email ogohlantirishlari oʻchirildi");
+                    toast.success(val ? d.toasts.emailAlertsOn : d.toasts.emailAlertsOff);
                   }}
                 />
               </div>
@@ -510,7 +511,7 @@ function SettingsContent() {
                   onCheckedChange={(val) => {
                     setTelegramAlerts(val);
                     persistPrefs({ twoFactorEnabled, emailAlerts, telegramAlerts: val });
-                    toast.success(val ? "Telegram bildirishnomalari yoqildi" : "Telegram bildirishnomalari oʻchirildi");
+                    toast.success(val ? d.toasts.telegramAlertsOn : d.toasts.telegramAlertsOff);
                   }}
                 />
               </div>
@@ -527,15 +528,16 @@ function SettingsContent() {
             </CardHeader>
             <CardContent className="space-y-2 text-xs">
               {[
-                { code: "uz", name: "Oʻzbekcha (Lotin)", flag: "🇺🇿" },
-                { code: "ru", name: "Русский (Официальный)", flag: "🇷🇺" },
-                { code: "en", name: "English (Global)", flag: "🇬🇧" },
+                { code: "uz", name: d.langUz, flag: "🇺🇿" },
+                { code: "ru", name: d.langRu, flag: "🇷🇺" },
+                { code: "en", name: d.langEn, flag: "🇬🇧" },
               ].map((lang) => (
                 <div
                   key={lang.code}
                   onClick={() => {
                     setLanguage(lang.code as any);
-                    toast.success(`Til oʻzgartirildi: ${lang.name}`);
+                    const nextDict = getReconcileErpDict(lang.code as any).erpExtra.settings;
+                    toast.success(nextDict.toasts.languageChanged.replace("{lang}", lang.name));
                   }}
                   className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${
                     language === lang.code
@@ -565,15 +567,15 @@ function SettingsContent() {
               {t.pages.settings.addEntity}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Yangi yuridik korxona rekvizitlarini kiritish va Supabase bazasiga saqlash.
+              {d.addEntityDesc}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateEntity} className="space-y-3 pt-2 text-xs">
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Yuridik nomi *</Label>
+              <Label className="text-[11px] font-medium text-foreground">{d.legalNameLabel}</Label>
               <Input
-                placeholder="Korxona yuridik nomi"
+                placeholder={d.legalNamePlaceholder}
                 value={newEntity.legalName}
                 onChange={(e) => setNewEntity({ ...newEntity, legalName: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -583,18 +585,18 @@ function SettingsContent() {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Savdo belgisi</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.tradeNameLabel}</Label>
                 <Input
-                  placeholder="Qisqa nomi"
+                  placeholder={d.tradeNamePlaceholder}
                   value={newEntity.tradeName}
                   onChange={(e) => setNewEntity({ ...newEntity, tradeName: e.target.value })}
                   className="h-8 text-xs mt-1"
                 />
               </div>
               <div>
-                <Label className="text-[11px] font-medium text-foreground">STIR (9 ta raqam) *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.tinLabel}</Label>
                 <Input
-                  placeholder="STIR"
+                  placeholder={d.tinPlaceholder}
                   maxLength={9}
                   value={newEntity.tinStir}
                   onChange={(e) => setNewEntity({ ...newEntity, tinStir: e.target.value })}
@@ -606,37 +608,37 @@ function SettingsContent() {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Tashkiliy shakli *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.legalFormLabel}</Label>
                 <select
                   value={newEntity.companyType}
                   onChange={(e) => setNewEntity({ ...newEntity, companyType: e.target.value })}
                   className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
                 >
-                  <option value="MChJ">MChJ (Masʼuliyati cheklangan jamiyat)</option>
-                  <option value="YaTT">YaTT (Yakka tartibdagi tadbirkor)</option>
-                  <option value="XK">XK (Xususiy korxona)</option>
-                  <option value="AJ">AJ (Aksiyadorlik jamiyati)</option>
-                  <option value="OK">OK (Oilaviy korxona)</option>
+                  <option value="MChJ">{d.companyTypes.mchj}</option>
+                  <option value="YaTT">{d.companyTypes.yatt}</option>
+                  <option value="XK">{d.companyTypes.xk}</option>
+                  <option value="AJ">{d.companyTypes.aj}</option>
+                  <option value="OK">{d.companyTypes.ok}</option>
                 </select>
               </div>
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Soliq rejimi *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.taxRegimeLabel}</Label>
                 <select
                   value={newEntity.taxRegime}
                   onChange={(e) => setNewEntity({ ...newEntity, taxRegime: e.target.value })}
                   className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
                 >
-                  <option value="vat_profit_tax">QQS (12%) + Foyda soligʻi</option>
-                  <option value="turnover_tax">Aylanmadan olinadigan soliq (4%)</option>
-                  <option value="fixed_tax">Qatʼiy belgilangan soliq</option>
+                  <option value="vat_profit_tax">{d.taxRegimeOptVat}</option>
+                  <option value="turnover_tax">{d.taxRegimeOptTurnover}</option>
+                  <option value="fixed_tax">{d.taxRegimeOptFixed}</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Masʼul lavozimi (ixtiyoriy)</Label>
+              <Label className="text-[11px] font-medium text-foreground">{d.rolePositionLabel}</Label>
               <Input
-                placeholder="Lavozimi"
+                placeholder={d.rolePositionPlaceholder}
                 value={newEntity.accountantName}
                 onChange={(e) => setNewEntity({ ...newEntity, accountantName: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -660,7 +662,7 @@ function SettingsContent() {
                 className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Saqlanmoqda..." : "Korxonani qoʻshish"}
+                {isSubmitting ? d.savingBtn : d.addEntitySubmitBtn}
               </Button>
             </DialogFooter>
           </form>
@@ -672,16 +674,16 @@ function SettingsContent() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground">
-              Korxona maʼlumotlarini tahrirlash
+              {d.editEntityTitle}
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Yuridik shaxs rekvizitlari va soliq rejimini yangilash
+              {d.editEntityDesc}
             </DialogDescription>
           </DialogHeader>
           {editingEntity && (
             <form onSubmit={handleUpdateEntity} className="space-y-3 pt-2 text-xs">
               <div>
-                <Label className="text-[11px] font-medium">Yuridik nomi *</Label>
+                <Label className="text-[11px] font-medium">{d.legalNameLabel}</Label>
                 <Input
                   value={editingEntity.name}
                   onChange={(e) => setEditingEntity({ ...editingEntity, name: e.target.value })}
@@ -691,7 +693,7 @@ function SettingsContent() {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-[11px] font-medium">STIR (INN) *</Label>
+                  <Label className="text-[11px] font-medium">{d.tinInnLabel}</Label>
                   <Input
                     value={editingEntity.tinStir}
                     onChange={(e) => setEditingEntity({ ...editingEntity, tinStir: e.target.value })}
@@ -700,20 +702,20 @@ function SettingsContent() {
                   />
                 </div>
                 <div>
-                  <Label className="text-[11px] font-medium">Soliq rejimi</Label>
+                  <Label className="text-[11px] font-medium">{d.editTaxRegimeLabel}</Label>
                   <select
                     value={editingEntity.taxRegime}
                     onChange={(e) => setEditingEntity({ ...editingEntity, taxRegime: e.target.value })}
                     className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
                   >
-                    <option value="vat_profit_tax">QQS + Foyda</option>
-                    <option value="turnover_tax">Aylanma soliq (4%)</option>
-                    <option value="fixed_tax">Qatʼiy soliq</option>
+                    <option value="vat_profit_tax">{d.regimeVatProfit}</option>
+                    <option value="turnover_tax">{d.regimeTurnover}</option>
+                    <option value="fixed_tax">{d.regimeFixed}</option>
                   </select>
                 </div>
               </div>
               <div>
-                <Label className="text-[11px] font-medium">Bosh buxgalter</Label>
+                <Label className="text-[11px] font-medium">{d.chiefAccountantLabel}</Label>
                 <Input
                   value={editingEntity.accountantName || ""}
                   onChange={(e) => setEditingEntity({ ...editingEntity, accountantName: e.target.value })}
@@ -730,7 +732,7 @@ function SettingsContent() {
                   disabled={isSubmitting}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
                 >
-                  {isSubmitting ? "Saqlanmoqda..." : t.common.save}
+                  {isSubmitting ? d.savingBtn : t.common.save}
                 </Button>
               </DialogFooter>
             </form>
@@ -741,9 +743,15 @@ function SettingsContent() {
   );
 }
 
+function SettingsLoadingFallback() {
+  const { locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  return <div className="p-6 text-xs text-muted-foreground">{dict.commonLoading}</div>;
+}
+
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+    <Suspense fallback={<SettingsLoadingFallback />}>
       <SettingsContent />
     </Suspense>
   );

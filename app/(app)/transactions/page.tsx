@@ -34,12 +34,16 @@ import {
 import { toast } from "sonner";
 import { useAppState } from "@/lib/context/app-state";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 
 function TransactionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentEntity, currentRole } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  const d = dict.erpExtra.transactions;
+  const intlLocale = getIntlLocale(locale);
 
   const initialTab = searchParams.get("tab") || "all";
   const initialTxId = searchParams.get("id");
@@ -90,7 +94,7 @@ function TransactionsContent() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast.success("1C:Buxgalteriya uchun bank koʻchirmasi (kl_to_1c.txt) muvaffaqiyatli yuklandi!");
+    toast.success(d.toasts.exported1C);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,13 +106,13 @@ function TransactionsContent() {
       const buffer = await file.arrayBuffer();
       const parsed = await parseStatementFileBuffer(buffer, file.name, currentEntity?.tinStir || "");
       if (parsed.length === 0) {
-        toast.error("Fayldan toʻlov operatsiyalari topilmadi. Fayl formati Excel (.xlsx/.xls), Client-Bank (.txt), XML yoki CSV boʻlishi kerak.");
+        toast.error(d.toasts.noParsedOps);
       } else {
         setImportedList(parsed);
-        toast.success(`Fayldan ${parsed.length} ta bank toʻlovi muvaffaqiyatli aniqlandi!`);
+        toast.success(d.toasts.parsedOpsSuccess.replace("{count}", String(parsed.length)));
       }
     } catch (err: any) {
-      toast.error("Faylni oʻqishda xatolik: " + (err?.message || "Nomaʼlum xato"));
+      toast.error(d.toasts.fileReadError.replace("{error}", err?.message || d.unknownError));
     }
   };
 
@@ -136,11 +140,11 @@ function TransactionsContent() {
       }
     } catch (err: any) {
       console.error("Error loading transactions:", err);
-      toast.error("Tranzaksiyalarni yuklab boʻlmadi: " + err.message);
+      toast.error(d.toasts.loadTxError.replace("{error}", err.message));
     } finally {
       setIsLoading(false);
     }
-  }, [currentEntity?.id, currentPage, pageSize, activeTab, search, initialTxId]);
+  }, [currentEntity?.id, currentPage, pageSize, activeTab, search, initialTxId, d.toasts.loadTxError]);
 
   useEffect(() => {
     loadTransactions();
@@ -157,19 +161,19 @@ function TransactionsContent() {
     try {
       const saved = await importBatchTransactions(importedList, currentEntity?.id);
       await loadTransactions();
-      toast.success(`${saved.length} ta bank toʻlovi Supabase bazasiga kiritildi va Ledgerga bogʻlandi!`);
+      toast.success(d.toasts.importedToDb.replace("{count}", String(saved.length)));
       setIsImportOpen(false);
       setImportedList([]);
       setImportFileName("");
     } catch (err: any) {
-      toast.error("Import qilishda xatolik: " + err.message);
+      toast.error(d.toasts.importError.replace("{error}", err.message));
     } finally {
       setIsImporting(false);
     }
   };
 
   const handleExport = () => {
-    const headers = ["ID", "Sana", "Kontragent", "STIR", "Turi", "Summa", "Tavsif", "Holat"];
+    const headers = d.csvHeaders;
     const rows = transactions.map((tx) => [
       tx.id,
       tx.date,
@@ -188,7 +192,7 @@ function TransactionsContent() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Tranzaksiyalar CSV formatida yuklab olindi");
+    toast.success(d.toasts.csvExported);
   };
 
   const handleCreateTx = async (e: React.FormEvent) => {
@@ -218,11 +222,11 @@ function TransactionsContent() {
         counterpartyStir: parsed.data.counterpartyStir || undefined,
         description: parsed.data.description,
         accountCode: parsed.data.accountCode,
-        accountName: parsed.data.type === "income" ? "Xaridorlar schyoti" : "Yetkazib beruvchilar schyoti",
+        accountName: parsed.data.type === "income" ? d.incomeAccFallbackName : d.expenseAccFallbackName,
       });
 
       await loadTransactions();
-      toast.success("Tranzaksiya Supabase maʼlumotlar bazasiga muvaffaqiyatli saqlandi!");
+      toast.success(d.toasts.txSaved);
       setIsAddOpen(false);
       setNewTx({
         date: new Date().toISOString().split("T")[0],
@@ -234,7 +238,7 @@ function TransactionsContent() {
         accountCode: "6010",
       });
     } catch (err: any) {
-      toast.error("Xatolik yuz berdi: " + (err.message || "Saqlash muvaffaqiyatsiz"));
+      toast.error(d.toasts.txSaveError.replace("{error}", err.message || d.saveFailedFallback));
     } finally {
       setIsSubmitting(false);
     }
@@ -280,10 +284,10 @@ function TransactionsContent() {
         accountCode: tx.accountCode,
       });
       await loadTransactions();
-      toast.success(`«${tx.counterparty}» tranzaksiyasi tasdiqlandi va Bosh kitobga (Ledger) provodka tushirildi!`);
+      toast.success(d.toasts.txApproved.replace("{counterparty}", tx.counterparty));
       setSelectedTx(null);
     } catch (err: any) {
-      toast.error("Tasdiqlashda xatolik: " + err.message);
+      toast.error(d.toasts.txApproveError.replace("{error}", err.message));
     }
   };
 
@@ -291,10 +295,10 @@ function TransactionsContent() {
     try {
       await updateTransactionStatus(tx.id, "rejected");
       await loadTransactions();
-      toast.success(`«${tx.counterparty}» tranzaksiyasi rad etildi.`);
+      toast.success(d.toasts.txRejected.replace("{counterparty}", tx.counterparty));
       setSelectedTx(null);
     } catch (err: any) {
-      toast.error("Rad etishda xatolik: " + err.message);
+      toast.error(d.toasts.txRejectError.replace("{error}", err.message));
     }
   };
 
@@ -313,10 +317,10 @@ function TransactionsContent() {
         });
       }
       await loadTransactions();
-      toast.success(`${selectedIds.length} ta tranzaksiya tasdiqlandi va Bosh kitobga (Ledger) provodkalar tushirildi!`);
+      toast.success(d.toasts.batchApproved.replace("{count}", String(selectedIds.length)));
       setSelectedIds([]);
     } catch (err: any) {
-      toast.error("Ommaviy tasdiqlashda xatolik: " + err.message);
+      toast.error(d.toasts.batchApproveError.replace("{error}", err.message));
     }
   };
 
@@ -341,7 +345,7 @@ function TransactionsContent() {
             onClick={() => setIsImportOpen(true)}
           >
             <Upload className="h-3.5 w-3.5" />
-            Vypiska import (.txt / CSV)
+            {d.importBtn}
           </Button>
 
           <Button
@@ -349,10 +353,10 @@ function TransactionsContent() {
             size="sm"
             className="text-xs h-8 gap-1.5"
             onClick={handleExport1C}
-            title="1C:Buxgalteriya Client-Bank formatida yuklab olish"
+            title={d.export1CTitle}
           >
             <FileCode className="h-3.5 w-3.5 text-amber-600" />
-            1C ga eksport
+            {d.export1CBtn}
           </Button>
 
           <Button
@@ -415,7 +419,7 @@ function TransactionsContent() {
       {isFilterOpen && (
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-xl border border-border bg-muted/20 p-3 text-xs">
           <div>
-            <Label className="text-[11px] text-muted-foreground">Sanadan</Label>
+            <Label className="text-[11px] text-muted-foreground">{d.dateFromLabel}</Label>
             <Input
               type="date"
               value={dateFrom}
@@ -424,7 +428,7 @@ function TransactionsContent() {
             />
           </div>
           <div>
-            <Label className="text-[11px] text-muted-foreground">Sanagacha</Label>
+            <Label className="text-[11px] text-muted-foreground">{d.dateToLabel}</Label>
             <Input
               type="date"
               value={dateTo}
@@ -433,10 +437,10 @@ function TransactionsContent() {
             />
           </div>
           <div>
-            <Label className="text-[11px] text-muted-foreground">Minimal summa (UZS)</Label>
+            <Label className="text-[11px] text-muted-foreground">{d.minAmountLabel}</Label>
             <Input
               type="number"
-              placeholder="Minimal summa"
+              placeholder={d.minAmountPlaceholder}
               value={minAmount}
               onChange={(e) => setMinAmount(e.target.value)}
               className="h-8 text-xs font-mono mt-1 bg-background"
@@ -454,7 +458,7 @@ function TransactionsContent() {
                 setMinAmount("");
               }}
             >
-              Filtrlarni tozalash
+              {d.clearFiltersBtn}
             </Button>
           </div>
         </div>
@@ -512,9 +516,7 @@ function TransactionsContent() {
             {paginatedTx.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
-                  {isLoading
-                    ? "Tranzaksiyalar Supabase bazasidan yuklanmoqda..."
-                    : "Ushbu korxona boʻyicha mos tranzaksiya topilmadi."}
+                  {isLoading ? d.loadingRows : d.emptyRows}
                 </TableCell>
               </TableRow>
             ) : (
@@ -569,7 +571,7 @@ function TransactionsContent() {
         {/* Pagination Footer */}
         <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
           <span>
-            Jami: <strong className="text-foreground">{totalCount}</strong> ta operatsiya (Sahifa {currentPage} / {totalPages})
+            {d.totalPrefix} <strong className="text-foreground">{totalCount}</strong> {d.operationsWord} ({d.pageWord} {currentPage} / {totalPages})
           </span>
           <div className="flex items-center gap-1.5">
             <Button
@@ -579,7 +581,7 @@ function TransactionsContent() {
               disabled={currentPage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             >
-              Oldingi
+              {d.prevBtn}
             </Button>
             <Button
               variant="outline"
@@ -588,7 +590,7 @@ function TransactionsContent() {
               disabled={currentPage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             >
-              Keyingi
+              {d.nextBtn}
             </Button>
           </div>
         </div>
@@ -600,7 +602,7 @@ function TransactionsContent() {
           <div className="flex items-center justify-between pb-4 border-b border-border">
             <div>
               <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                Tranzaksiya ID: {selectedTx.id}
+                {d.txIdPrefix}: {selectedTx.id}
               </span>
               <h2 className="text-base font-bold text-foreground mt-0.5">
                 {selectedTx.counterparty}
@@ -688,7 +690,7 @@ function TransactionsContent() {
                   className="h-7 text-xs"
                   onClick={() => router.push("/reconcile")}
                 >
-                  Sverka <ArrowUpRight className="ml-1 h-3 w-3" />
+                  {d.reconcileBtn} <ArrowUpRight className="ml-1 h-3 w-3" />
                 </Button>
               </div>
             )}
@@ -702,7 +704,7 @@ function TransactionsContent() {
                   onClick={() => handleApproveTx(selectedTx)}
                 >
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                  {selectedTx.status === "posted" ? "Tasdiqlangan" : t.common.approve}
+                  {selectedTx.status === "posted" ? d.approvedBtn : t.common.approve}
                 </Button>
                 <Button
                   variant="outline"
@@ -723,10 +725,10 @@ function TransactionsContent() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground">
-              Yangi bank tranzaksiyasini qoʻshish
+              {d.addTxTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Supabase maʼlumotlar bazasiga yangi kirim yoki chiqim operatsiyasini kiriting.
+              {d.addTxDesc}
             </DialogDescription>
           </DialogHeader>
 
@@ -743,7 +745,7 @@ function TransactionsContent() {
                 }`}
               >
                 <ArrowUpRight className="h-3.5 w-3.5" />
-                Kirim (Daromad)
+                {d.incomeTypeBtn}
               </button>
               <button
                 type="button"
@@ -755,13 +757,13 @@ function TransactionsContent() {
                 }`}
               >
                 <ArrowUpRight className="h-3.5 w-3.5 rotate-90" />
-                Chiqim (Xarajat)
+                {d.expenseTypeBtn}
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Sana *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.dateLabel}</Label>
                 <Input
                   type="date"
                   value={newTx.date}
@@ -771,10 +773,10 @@ function TransactionsContent() {
                 />
               </div>
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Summa (UZS) *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.amountLabel}</Label>
                 <Input
                   type="number"
-                  placeholder="Summa"
+                  placeholder={d.amountPlaceholder}
                   value={newTx.amount}
                   onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
                   className="h-8 text-xs font-mono mt-1"
@@ -785,9 +787,9 @@ function TransactionsContent() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Kontragent nomi *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.counterpartyLabel}</Label>
                 <Input
-                  placeholder="Kontragent nomi"
+                  placeholder={d.counterpartyPlaceholder}
                   value={newTx.counterparty}
                   onChange={(e) => setNewTx({ ...newTx, counterparty: e.target.value })}
                   className="h-8 text-xs mt-1"
@@ -795,9 +797,9 @@ function TransactionsContent() {
                 />
               </div>
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Kontragent STIR</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.counterpartyStirLabel}</Label>
                 <Input
-                  placeholder="STIR"
+                  placeholder={d.stirPlaceholder}
                   maxLength={9}
                   value={newTx.counterpartyStir}
                   onChange={(e) => setNewTx({ ...newTx, counterpartyStir: e.target.value })}
@@ -807,9 +809,9 @@ function TransactionsContent() {
             </div>
 
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Buxgalteriya schyoti</Label>
+              <Label className="text-[11px] font-medium text-foreground">{d.accountCodeLabel}</Label>
               <Input
-                placeholder="Schyot kodi"
+                placeholder={d.accountCodePlaceholder}
                 value={newTx.accountCode}
                 onChange={(e) => setNewTx({ ...newTx, accountCode: e.target.value })}
                 className="h-8 text-xs font-mono mt-1"
@@ -817,9 +819,9 @@ function TransactionsContent() {
             </div>
 
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Toʻlov maqsadi / Tavsif *</Label>
+              <Label className="text-[11px] font-medium text-foreground">{d.purposeLabel}</Label>
               <Input
-                placeholder="Toʻlov maqsadi"
+                placeholder={d.purposePlaceholder}
                 value={newTx.description}
                 onChange={(e) => setNewTx({ ...newTx, description: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -844,7 +846,7 @@ function TransactionsContent() {
                 className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Saqlanmoqda..." : "Bazaga saqlash"}
+                {isSubmitting ? d.savingBtn : d.saveToDbBtn}
               </Button>
             </DialogFooter>
           </form>
@@ -857,10 +859,10 @@ function TransactionsContent() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
               <Upload className="h-4 w-4 text-indigo-600" />
-              Bank koʻchirmasini yuklash (Vypiska Import)
+              {d.importTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Kapitalbank, Hamkorbank, Ipotekabank, SQB yoki NBU Bank-Klientidan yuklangan 1C (.txt) yoki .csv faylini tanlang.
+              {d.importDesc}
             </DialogDescription>
           </DialogHeader>
 
@@ -869,10 +871,10 @@ function TransactionsContent() {
             <div className="rounded-xl border border-dashed border-border p-5 text-center bg-muted/20 hover:bg-muted/40 transition-colors">
               <Upload className="mx-auto h-7 w-7 text-indigo-600 mb-2" />
               <label htmlFor="bank-file-upload" className="cursor-pointer font-semibold text-xs text-indigo-600 hover:underline">
-                Faylni tanlang yoki shu yerga tashlang
+                {d.chooseFilePrompt}
               </label>
               <p className="text-[10px] text-muted-foreground mt-1">
-                Format: 1C Client-Bank (*.txt) yoki Bank hisob-kitob koʻchirmasi (*.csv)
+                {d.importFormatsHint}
               </p>
               <input
                 id="bank-file-upload"
@@ -883,7 +885,7 @@ function TransactionsContent() {
               />
               {importFileName && (
                 <Badge variant="indigo" className="mt-2 text-xs font-mono">
-                  Tanlangan: {importFileName}
+                  {d.selectedFilePrefix} {importFileName}
                 </Badge>
               )}
             </div>
@@ -894,17 +896,17 @@ function TransactionsContent() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-foreground text-xs">
-                      Aniqlangan toʻlovlar: {importedList.length} ta
+                      {d.detectedCountLabel} {importedList.length}
                     </span>
                     <Badge variant="success" className="text-[10px]">
-                      {importedList.filter((i) => i.type === "income").length} kirim
+                      {importedList.filter((i) => i.type === "income").length} {d.incomeCountSuffix}
                     </Badge>
                     <Badge variant="destructive" className="text-[10px]">
-                      {importedList.filter((i) => i.type === "expense").length} chiqim
+                      {importedList.filter((i) => i.type === "expense").length} {d.expenseCountSuffix}
                     </Badge>
                   </div>
                   <span className="text-[11px] font-mono font-bold text-foreground">
-                    Jami: {importedList.reduce((acc, c) => acc + c.amount, 0).toLocaleString()} UZS
+                    {d.totalLabel} {importedList.reduce((acc, c) => acc + c.amount, 0).toLocaleString(intlLocale)} {t.common.currency}
                   </span>
                 </div>
 
@@ -912,12 +914,12 @@ function TransactionsContent() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Sana</TableHead>
-                        <TableHead>Turi</TableHead>
-                        <TableHead>Kontragent</TableHead>
-                        <TableHead>STIR</TableHead>
-                        <TableHead className="text-right">Summa</TableHead>
-                        <TableHead>Toʻlov maqsadi</TableHead>
+                        <TableHead>{d.impColDate}</TableHead>
+                        <TableHead>{d.impColType}</TableHead>
+                        <TableHead>{d.impColCounterparty}</TableHead>
+                        <TableHead>{d.impColStir}</TableHead>
+                        <TableHead className="text-right">{d.impColAmount}</TableHead>
+                        <TableHead>{d.impColPurpose}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -926,13 +928,13 @@ function TransactionsContent() {
                           <TableCell className="font-mono whitespace-nowrap">{item.date}</TableCell>
                           <TableCell>
                             <Badge variant={item.type === "income" ? "success" : "outline"} className="text-[9px]">
-                              {item.type === "income" ? "Kirim" : "Chiqim"}
+                              {item.type === "income" ? d.impIncomeBadge : d.impExpenseBadge}
                             </Badge>
                           </TableCell>
                           <TableCell className="font-medium max-w-[140px] truncate">{item.counterparty}</TableCell>
                           <TableCell className="font-mono text-muted-foreground">{item.counterpartyStir || "—"}</TableCell>
                           <TableCell className={`text-right font-mono font-bold ${item.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
-                            {item.amount.toLocaleString()}
+                            {item.amount.toLocaleString(intlLocale)}
                           </TableCell>
                           <TableCell className="text-muted-foreground max-w-[180px] truncate">{item.description}</TableCell>
                         </TableRow>
@@ -957,7 +959,7 @@ function TransactionsContent() {
               }}
               disabled={isImporting}
             >
-              Bekor qilish
+              {d.cancelBtn}
             </Button>
             <Button
               type="button"
@@ -966,7 +968,7 @@ function TransactionsContent() {
               onClick={handleConfirmImport}
               disabled={importedList.length === 0 || isImporting}
             >
-              {isImporting ? "Bazaga yozilmoqda..." : `Supabase bazasiga import qilish (${importedList.length})`}
+              {isImporting ? d.importingBtn : `${d.importConfirmBtn} (${importedList.length})`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -975,9 +977,15 @@ function TransactionsContent() {
   );
 }
 
+function TransactionsLoadingFallback() {
+  const { locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  return <div className="p-6 text-xs text-muted-foreground">{dict.commonLoading}</div>;
+}
+
 export default function TransactionsPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+    <Suspense fallback={<TransactionsLoadingFallback />}>
       <TransactionsContent />
     </Suspense>
   );

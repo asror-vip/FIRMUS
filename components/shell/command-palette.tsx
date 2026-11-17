@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
@@ -28,38 +29,47 @@ import {
 
 export function CommandPalette() {
   const { isSearchOpen, setIsSearchOpen, toggleAiDrawer } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
   const [query, setQuery] = useState("");
   const router = useRouter();
 
+  const cp = d.commandPalette;
+
   const navigationItems = FEATURES.fullAccountingErp
     ? [
-        { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
-        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
-        { name: "AI Hamkasb & Skaner", href: "/assistant", icon: Sparkles },
-        { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
-        { name: t.nav.transactions, href: "/transactions", icon: ArrowLeftRight },
-        { name: t.nav.accounting, href: "/accounting", icon: BookOpen },
-        { name: t.nav.tax, href: "/tax", icon: Percent },
-        { name: t.nav.finance, href: "/finance", icon: TrendingUp },
-        { name: "Obunalar", href: "/billing", icon: CreditCard },
-        { name: t.nav.settings, href: "/settings", icon: Settings },
+        { ...cp.erpItems.dashboard, href: "/", icon: LayoutDashboard },
+        { ...cp.erpItems.reconcile, href: "/reconcile", icon: Scale },
+        { ...cp.erpItems.assistant, href: "/assistant", icon: Sparkles },
+        { ...cp.erpItems.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
+        { ...cp.erpItems.transactions, href: "/transactions", icon: ArrowLeftRight },
+        { ...cp.erpItems.accounting, href: "/accounting", icon: BookOpen },
+        { ...cp.erpItems.tax, href: "/tax", icon: Percent },
+        { ...cp.erpItems.finance, href: "/finance", icon: TrendingUp },
+        { ...cp.erpItems.billing, href: "/billing", icon: CreditCard },
+        { ...cp.erpItems.settings, href: "/settings", icon: Settings },
       ]
     : [
-        { name: "Bosh sahifa", href: "/", icon: LayoutDashboard },
-        { name: "AI Chat", href: "/assistant", icon: Sparkles },
-        { name: "Bank ↔ 1C AI Sverka", href: "/reconcile", icon: Scale },
-        { name: "Faktura / Chek Skaner", href: "/assistant?tab=scan", icon: Camera },
-        { name: "Kalkulyator", href: "/assistant?tab=calc", icon: Calculator },
-        { name: "Shartnoma tahlili", href: "/assistant?tab=contract", icon: FileWarning },
-        { name: "Saqlangan tarix", href: "/assistant?tab=history", icon: History },
-        { name: "Obunalar", href: "/billing", icon: CreditCard },
-        { name: t.nav.settings, href: "/settings", icon: Settings },
+        { ...cp.soloItems.home, href: "/", icon: LayoutDashboard },
+        { ...cp.soloItems.aiChat, href: "/assistant", icon: Sparkles },
+        { ...cp.soloItems.reconcile, href: "/reconcile", icon: Scale },
+        { ...cp.soloItems.scanner, href: "/assistant?tab=scan", icon: Camera },
+        { ...cp.soloItems.calculator, href: "/assistant?tab=calc", icon: Calculator },
+        { ...cp.soloItems.contract, href: "/assistant?tab=contract", icon: FileWarning },
+        { ...cp.soloItems.history, href: "/assistant?tab=history", icon: History },
+        { ...cp.soloItems.billing, href: "/billing", icon: CreditCard },
+        { ...cp.soloItems.settings, href: "/settings", icon: Settings },
       ];
 
-  const filtered = navigationItems.filter((item) =>
-    item.name.toLowerCase().includes(query.toLowerCase())
-  );
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? navigationItems.filter(
+        (item) =>
+          item.name.toLowerCase().includes(q) ||
+          item.description.toLowerCase().includes(q) ||
+          item.keywords.some((kw) => kw.toLowerCase().includes(q))
+      )
+    : navigationItems;
 
   const handleSelect = (href: string) => {
     setIsSearchOpen(false);
@@ -111,10 +121,17 @@ export function CommandPalette() {
                   onClick={() => handleSelect(item.href)}
                   className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-accent cursor-pointer transition-colors"
                 >
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                     <Icon className="h-3.5 w-3.5" />
                   </div>
-                  <span>{item.name}</span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="truncate">{item.name}</span>
+                    {item.description && (
+                      <span className="text-[10px] text-muted-foreground font-normal truncate">
+                        {item.description}
+                      </span>
+                    )}
+                  </div>
                 </div>
               );
             })

@@ -48,6 +48,8 @@ import {
 import { sanitizeStringForAi } from "@/lib/utils/privacy";
 import { roundMoney } from "@/lib/utils/finance";
 import { supabase } from "@/lib/supabase/client";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 import {
   Upload,
   Sparkles,
@@ -85,6 +87,10 @@ function ReconcileContent() {
   const searchParams = useSearchParams();
   const batchIdParam = searchParams.get("batchId");
   const { currentEntity, subscription, setSubscriptionSnapshot } = useAppState();
+  const { locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  const d = dict.reconcile;
+  const intlLocale = getIntlLocale(locale);
   const bankInputRef = useRef<HTMLInputElement | null>(null);
   const oneCInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -164,7 +170,7 @@ function ReconcileContent() {
     try {
       const full = await fetchWorkBatchById(id);
       if (!full) {
-        toast.error("Saqlangan ish topilmadi");
+        toast.error(d.toasts.batchNotFound);
         return;
       }
       const loadedRows = Array.isArray(full.sanitizedPayload)
@@ -179,13 +185,13 @@ function ReconcileContent() {
       setActiveBatchId(full.id);
       setActiveTab("all");
       setAiModeNote(null);
-      toast.success(`«${full.title}» yuklandi`);
+      toast.success(d.toasts.batchLoaded.replace("{title}", full.title));
     } catch (err: any) {
-      toast.error("Yuklashda xatolik: " + err.message);
+      toast.error(d.toasts.batchLoadError.replace("{error}", err.message));
     } finally {
       setOpeningBatchId(null);
     }
-  }, []);
+  }, [d.toasts]);
 
   useEffect(() => {
     if (batchIdParam && currentEntity?.id) {
@@ -210,15 +216,16 @@ function ReconcileContent() {
 
   const applyParsedSource = (source: "bank" | "onec", parsed: ParsedBankTransaction[], label: string) => {
     if (parsed.length === 0) {
-      toast.error(
-        `«${label}» dan operatsiyalar oʻqilmadi. Client-Bank (.txt), 1C XML, CSV/TSV yoki Excel HTML jadval formatidan foydalaning.`
-      );
+      toast.error(d.toasts.noRowsParsed.replace("{label}", label));
       return false;
     }
 
     if (parsed.length > subscription.limits.reconcileMaxRows) {
       toast.error(
-        `Faylda ${parsed.length} ta yozuv bor. ${subscription.planName} tarifi limiti: max ${subscription.limits.reconcileMaxRows.toLocaleString("uz-UZ")} qator.`
+        d.toasts.rowLimitExceeded
+          .replace("{count}", String(parsed.length))
+          .replace("{plan}", subscription.planName)
+          .replace("{limit}", subscription.limits.reconcileMaxRows.toLocaleString(intlLocale))
       );
       return false;
     }
@@ -227,12 +234,12 @@ function ReconcileContent() {
       setBankFileName(label);
       setBankItems(parsed);
       runComparison(parsed, oneCItems);
-      toast.success(`Bank koʻchirmasidan ${parsed.length} ta operatsiya oʻqildi.`);
+      toast.success(d.toasts.bankRowsLoaded.replace("{count}", String(parsed.length)));
     } else {
       setOneCFileName(label);
       setOneCItems(parsed);
       runComparison(bankItems, parsed);
-      toast.success(`1C maʼlumotidan ${parsed.length} ta yozuv oʻqildi.`);
+      toast.success(d.toasts.oneCRowsLoaded.replace("{count}", String(parsed.length)));
     }
     return true;
   };
@@ -241,7 +248,11 @@ function ReconcileContent() {
     if (!file) return;
     if (file.size > subscription.limits.reconcileMaxFileBytes) {
       const maxMb = Math.round(subscription.limits.reconcileMaxFileBytes / (1024 * 1024));
-      toast.error(`Fayl hajmi ${subscription.planName} tarifi limiti (${maxMb} MB) dan oshmasligi kerak`);
+      toast.error(
+        d.toasts.fileSizeExceeded
+          .replace("{plan}", subscription.planName)
+          .replace("{maxMb}", String(maxMb))
+      );
       return;
     }
     try {
@@ -249,13 +260,13 @@ function ReconcileContent() {
       const parsed = await parseStatementFileBuffer(buffer, file.name, currentEntity?.tinStir || "");
       applyParsedSource(source, parsed, file.name);
     } catch (err: any) {
-      toast.error("Faylni oʻqishda xatolik: " + (err?.message || "Nomaʼlum xato"));
+      toast.error(d.toasts.fileReadError.replace("{error}", err?.message || d.unknownError));
     }
   };
 
   const handleApplyPaste = () => {
     if (!pasteTarget || !pasteText.trim()) {
-      toast.error("Avval Excel yoki Bank jadvalidan nusxalangan matnni joylashtiring");
+      toast.error(d.toasts.pasteEmpty);
       return;
     }
     const parsed = parseStatementFile(
@@ -263,7 +274,7 @@ function ReconcileContent() {
       pasteTarget === "onec" ? "pasted_1c.csv" : "pasted_bank.csv",
       currentEntity?.tinStir || ""
     );
-    const label = pasteTarget === "bank" ? "Bank (Ctrl+V jadval)" : "1C (Ctrl+V jadval)";
+    const label = pasteTarget === "bank" ? d.pasteBankLabel : d.pasteOneCLabel;
     if (applyParsedSource(pasteTarget, parsed, label)) {
       setPasteTarget(null);
       setPasteText("");
@@ -272,7 +283,7 @@ function ReconcileContent() {
 
   const handleLoadDbAs1C = async () => {
     if (!currentEntity?.id) {
-      toast.error("Avval korxona tanlang yoki tezkor qoʻshing");
+      toast.error(d.toasts.selectEntityFirst);
       return;
     }
     try {
@@ -287,12 +298,12 @@ function ReconcileContent() {
         accountCode: t.accountCode || (t.type === "income" ? "4010" : "6010"),
         accountName: t.accountName || "",
       }));
-      setOneCFileName("FIRMUS Bosh kitob / Tranzaksiyalar");
+      setOneCFileName(d.dbSourceName);
       setOneCItems(mapped);
       runComparison(bankItems, mapped);
-      toast.success(`Bazadan ${mapped.length} ta yozuv bilan solishtirildi.`);
+      toast.success(d.toasts.dbCompared.replace("{count}", String(mapped.length)));
     } catch (err: any) {
-      toast.error("Bazadan oʻqishda xatolik: " + err.message);
+      toast.error(d.toasts.dbReadError.replace("{error}", err.message));
     }
   };
 
@@ -312,7 +323,7 @@ function ReconcileContent() {
 
   const handleSaveBatchToHistory = async (markPosted = false): Promise<string | null> => {
     if (!currentEntity?.id) {
-      toast.error(FEATURES.multiCompanyMode ? "Saqlash uchun avval korxona qoʻshing" : "Shaxsiy hisob tayyorlanmoqda, biroz kuting");
+      toast.error(FEATURES.multiCompanyMode ? d.toasts.addEntityToSave : d.toasts.personalAccountPreparing);
       return null;
     }
     if (!summary || rows.length === 0) return null;
@@ -342,11 +353,11 @@ function ReconcileContent() {
       setActiveBatchId(created.id);
       await loadHistory();
       if (!markPosted) {
-        toast.success("Solishtirish tarixga saqlandi!");
+        toast.success(d.toasts.savedToHistory);
       }
       return created.id;
     } catch (err: any) {
-      if (!markPosted) toast.error("Saqlashda xatolik: " + err.message);
+      if (!markPosted) toast.error(d.toasts.saveError.replace("{error}", err.message));
       return null;
     } finally {
       setIsSavingBatch(false);
@@ -358,9 +369,9 @@ function ReconcileContent() {
       await deleteWorkBatch(batchId);
       if (activeBatchId === batchId) setActiveBatchId(null);
       await loadHistory();
-      toast.success("Tarixdan oʻchirildi");
+      toast.success(d.toasts.deletedFromHistory);
     } catch (err: any) {
-      toast.error("Oʻchirishda xatolik: " + err.message);
+      toast.error(d.toasts.deleteError.replace("{error}", err.message));
     }
   };
 
@@ -388,7 +399,7 @@ function ReconcileContent() {
   const handleAiVerify = async () => {
     const candidates = buildSafeAiReconcileInput(rows);
     if (candidates.length === 0) {
-      toast.info("Barcha operatsiyalar 100% mos! Tekshirishga muhtoj farq topilmadi.");
+      toast.info(d.toasts.allMatchedInfo);
       return;
     }
     setIsAiChecking(true);
@@ -403,7 +414,7 @@ function ReconcileContent() {
       });
       const data = await res.json();
       if (data?.usage) setSubscriptionSnapshot(data.usage);
-      if (!res.ok) throw new Error(data.error || "AI solishtirish xatosi");
+      if (!res.ok) throw new Error(data.error || d.toasts.aiErrorFallback);
 
       const map = new Map<string, any>((data.suggestions || []).map((s: any) => [s.id, s]));
       setRows((prev) =>
@@ -421,12 +432,12 @@ function ReconcileContent() {
       );
       setAiModeNote(
         data.mode === "gemini_reconcile"
-          ? "AI tomonidan tekshirildi"
-          : "Qatʼiy qoidalar bilan tekshirildi"
+          ? d.aiVerifiedNote
+          : d.rulesVerifiedNote
       );
-      toast.success("AI farqlarni tekshirdi va schyotlarni tasdiqladi!");
+      toast.success(d.toasts.aiVerifiedSuccess);
     } catch (err: any) {
-      toast.error("AI tahlilida xatolik: " + err.message);
+      toast.error(d.toasts.aiAnalyzeError.replace("{error}", err.message));
     } finally {
       setIsAiChecking(false);
     }
@@ -434,14 +445,14 @@ function ReconcileContent() {
 
   const getRowsForExport = () => {
     const selectedRows = rows.filter((r) => selectedIds.includes(r.id) && r.bankAmount > 0);
-    if (selectedRows.length > 0) return { targetRows: selectedRows, modeLabel: "tanlangan" };
+    if (selectedRows.length > 0) return { targetRows: selectedRows, modeLabel: d.modeSelected };
 
     const missingOnly = rows.filter((r) => r.status === "bank_only" && r.bankAmount > 0);
-    if (missingOnly.length > 0) return { targetRows: missingOnly, modeLabel: "1C da yoʻq" };
+    if (missingOnly.length > 0) return { targetRows: missingOnly, modeLabel: d.modeMissingIn1C };
 
     return {
       targetRows: rows.filter((r) => r.bankItem || r.oneCItem),
-      modeLabel: "barcha",
+      modeLabel: d.modeAll,
     };
   };
 
@@ -454,18 +465,18 @@ function ReconcileContent() {
       type: r.type,
       counterparty: sanitizeStringForAi(r.counterparty),
       counterpartyStir: r.counterpartyStir,
-      description: `${sanitizeStringForAi(r.bankItem?.description || r.oneCItem?.description || "Operatsiya")} [Schyot: ${r.suggestedAccountCode}${r.vatIncluded ? ", QQS 12%" : ""}]`,
+      description: `${sanitizeStringForAi(r.bankItem?.description || r.oneCItem?.description || d.defaultOperation)} [${d.accountTagPrefix}: ${r.suggestedAccountCode}${r.vatIncluded ? `, ${d.vatTag}` : ""}]`,
       accountCode: r.suggestedAccountCode,
       documentNumber: r.bankItem?.documentNumber || r.oneCItem?.documentNumber,
     }));
 
     if (itemsToExport.length === 0) {
-      toast.error("Eksport uchun maʼlumot yoʻq");
+      toast.error(d.toasts.noExportData);
       return;
     }
 
     const txt = generate1CClientBankText(itemsToExport, {
-      name: currentEntity?.name || "Kompaniya",
+      name: currentEntity?.name || d.defaultCompany,
       inn: currentEntity?.tinStir || "",
       account: currentEntity?.bankAccount || "",
       bank: currentEntity?.bankName || "",
@@ -477,13 +488,17 @@ function ReconcileContent() {
       `kl_to_1c_${new Date().toISOString().slice(0, 10)}.txt`,
       "text/plain;charset=utf-8"
     );
-    toast.success(`${itemsToExport.length} ta (${modeLabel}) operatsiya 1C (.txt) fayliga yuklandi!`);
+    toast.success(
+      d.toasts.exported1CTxt
+        .replace("{count}", String(itemsToExport.length))
+        .replace("{mode}", modeLabel)
+    );
   };
 
   const handleExport1CXml = () => {
     const { targetRows, modeLabel } = getRowsForExport();
     if (targetRows.length === 0) {
-      toast.error("XML eksport uchun maʼlumot yoʻq");
+      toast.error(d.toasts.noXmlExportData);
       return;
     }
 
@@ -504,7 +519,11 @@ function ReconcileContent() {
       `1c_enterprise_reconciled_${new Date().toISOString().slice(0, 10)}.xml`,
       "application/xml;charset=utf-8"
     );
-    toast.success(`${entries.length} ta (${modeLabel}) provodka 1C EnterpriseData XML formatida yuklandi!`);
+    toast.success(
+      d.toasts.exported1CXml
+        .replace("{count}", String(entries.length))
+        .replace("{mode}", modeLabel)
+    );
   };
 
   const handleDownloadCsv = () => {
@@ -515,17 +534,17 @@ function ReconcileContent() {
       `sverka_hisobot_${new Date().toISOString().slice(0, 10)}.csv`,
       "text/csv;charset=utf-8"
     );
-    toast.success("Excel/CSV Sverka dalolatnomasi yuklandi!");
+    toast.success(d.toasts.exportedCsv);
   };
 
   const handlePostSelectedToLedger = async () => {
     if (!currentEntity?.id) {
-      toast.error("Bosh kitobga yozish uchun yuqoridagi tugma orqali korxonani tezkor ulang");
+      toast.error(d.toasts.connectEntityToPost);
       return;
     }
     const chosen = rows.filter((r) => selectedIds.includes(r.id) && r.bankAmount > 0);
     if (chosen.length === 0) {
-      toast.error("Iltimos, Bosh kitobga oʻtkazish uchun qatorlarni belgilang");
+      toast.error(d.toasts.selectRowsToPost);
       return;
     }
 
@@ -565,9 +584,9 @@ function ReconcileContent() {
       }
 
       window.dispatchEvent(new CustomEvent("firmus:refresh-data", { detail: { entityId: currentEntity.id } }));
-      toast.success(`${successCount} ta tasdiqlangan operatsiya Bosh kitobga atomik tarzda yozildi!`);
+      toast.success(d.toasts.postedToLedger.replace("{count}", String(successCount)));
     } catch (err: any) {
-      toast.error("Bosh kitobga yozishda xatolik: " + err.message);
+      toast.error(d.toasts.postLedgerError.replace("{error}", err.message));
     } finally {
       setIsPostingLedger(false);
     }
@@ -615,7 +634,7 @@ function ReconcileContent() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Bank ↔ 1C Solishtirish
+            {d.title}
           </h1>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -628,13 +647,13 @@ function ReconcileContent() {
               onClick={() => historyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
             >
               <History className="h-3.5 w-3.5" />
-              Saqlangan tarix ({savedBatchesCount})
+              {d.savedHistoryBtn} ({savedBatchesCount})
             </Button>
           )}
           {rows.length > 0 && (
             <Button variant="ghost" size="sm" className="text-xs h-8 gap-1.5" onClick={handleReset}>
               <RotateCcw className="h-3.5 w-3.5" />
-              Tozalash
+              {d.resetBtn}
             </Button>
           )}
         </div>
@@ -646,9 +665,9 @@ function ReconcileContent() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="border-dashed">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">1. Bank koʻchirmasi</CardTitle>
+            <CardTitle className="text-sm font-semibold">{d.bankSectionTitle}</CardTitle>
             <CardDescription className="text-xs">
-              .xlsx, .txt, .csv, .xls
+              {d.bankFormatsHint}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 text-xs">
@@ -666,7 +685,7 @@ function ReconcileContent() {
               onClick={() => bankInputRef.current?.click()}
             >
               <Upload className="h-4 w-4 text-indigo-600" />
-              <span>{bankFileName || "Bank faylini tanlash (.xlsx, .txt, .csv, .xls)"}</span>
+              <span>{bankFileName || d.bankUploadPrompt}</span>
             </Button>
             <div className="flex items-center justify-between gap-2">
               <Button
@@ -680,11 +699,11 @@ function ReconcileContent() {
                 }}
               >
                 <ClipboardPaste className="h-3 w-3" />
-                Jadvaldan nusxa qoʻyish (Ctrl+V)
+                {d.pasteFromTableBtn}
               </Button>
               {bankItems.length > 0 && (
                 <Badge variant="outline" className="text-[10px]">
-                  {bankItems.length} ta operatsiya
+                  {bankItems.length} {d.operationsCountSuffix}
                 </Badge>
               )}
             </div>
@@ -693,9 +712,9 @@ function ReconcileContent() {
 
         <Card className="border-dashed">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">2. 1C fayli</CardTitle>
+            <CardTitle className="text-sm font-semibold">{d.oneCSectionTitle}</CardTitle>
             <CardDescription className="text-xs">
-              .xlsx, .xml, .txt, .csv
+              {d.oneCFormatsHint}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5 text-xs">
@@ -713,7 +732,7 @@ function ReconcileContent() {
               onClick={() => oneCInputRef.current?.click()}
             >
               <Upload className="h-4 w-4 text-emerald-600" />
-              <span>{oneCFileName || "1C faylini tanlash (.xlsx, .xml, .txt, .csv)"}</span>
+              <span>{oneCFileName || d.oneCUploadPrompt}</span>
             </Button>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-1">
@@ -728,7 +747,7 @@ function ReconcileContent() {
                   }}
                 >
                   <ClipboardPaste className="h-3 w-3" />
-                  Nusxa qoʻyish
+                  {d.pasteBtn}
                 </Button>
                 {FEATURES.fullAccountingErp && (
                   <Button
@@ -739,13 +758,13 @@ function ReconcileContent() {
                     onClick={handleLoadDbAs1C}
                   >
                     <Database className="h-3 w-3" />
-                    Saytdagi baza
+                    {d.siteDbBtn}
                   </Button>
                 )}
               </div>
               {oneCItems.length > 0 && (
                 <Badge variant="outline" className="text-[10px]">
-                  {oneCItems.length} ta yozuv
+                  {oneCItems.length} {d.recordsCountSuffix}
                 </Badge>
               )}
             </div>
@@ -761,7 +780,7 @@ function ReconcileContent() {
             <Card className="cursor-pointer hover:border-emerald-500/50" onClick={() => setActiveTab("matched")}>
               <CardContent className="pt-4 pb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] text-muted-foreground">100% Mos tushgan</p>
+                  <p className="text-[11px] text-muted-foreground">{d.kpiMatched}</p>
                   <p className="text-xl font-bold text-emerald-600">{summary.matchedCount}</p>
                 </div>
                 <CheckCircle2 className="h-6 w-6 text-emerald-500/70" />
@@ -770,7 +789,7 @@ function ReconcileContent() {
             <Card className="cursor-pointer hover:border-amber-500/50" onClick={() => setActiveTab("amount_mismatch")}>
               <CardContent className="pt-4 pb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] text-muted-foreground">Summa / Sana farqi</p>
+                  <p className="text-[11px] text-muted-foreground">{d.kpiMismatch}</p>
                   <p className="text-xl font-bold text-amber-600">{summary.mismatchCount}</p>
                 </div>
                 <AlertTriangle className="h-6 w-6 text-amber-500/70" />
@@ -779,7 +798,7 @@ function ReconcileContent() {
             <Card className="cursor-pointer hover:border-rose-500/50" onClick={() => setActiveTab("bank_only")}>
               <CardContent className="pt-4 pb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] text-muted-foreground">Bankda bor, 1C da yoʻq</p>
+                  <p className="text-[11px] text-muted-foreground">{d.kpiBankOnly}</p>
                   <p className="text-xl font-bold text-rose-600">{summary.bankOnlyCount}</p>
                 </div>
                 <XCircle className="h-6 w-6 text-rose-500/70" />
@@ -788,7 +807,7 @@ function ReconcileContent() {
             <Card className="cursor-pointer hover:border-indigo-500/50" onClick={() => setActiveTab("one_c_only")}>
               <CardContent className="pt-4 pb-3 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] text-muted-foreground">1C da bor, Bankda yoʻq</p>
+                  <p className="text-[11px] text-muted-foreground">{d.kpiOneCOnly}</p>
                   <p className="text-xl font-bold text-indigo-600">{summary.oneCOnlyCount}</p>
                 </div>
                 <AlertTriangle className="h-6 w-6 text-indigo-500/70" />
@@ -801,7 +820,7 @@ function ReconcileContent() {
             <Card className="bg-muted/20">
               <CardContent className="py-3 flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-[11px] text-muted-foreground">Jami Kirim (Bank vs 1C)</p>
+                  <p className="text-[11px] text-muted-foreground">{d.totalIncomeLabel}</p>
                   <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
                     <span className="text-emerald-600">
                       <Money amount={summary.bankTotalIncome} />
@@ -813,14 +832,16 @@ function ReconcileContent() {
                   </div>
                 </div>
                 <Badge variant={incomeDiff === 0 ? "success" : "warning"} className="font-mono text-[10px]">
-                  {incomeDiff === 0 ? "Kirim mos (0)" : `Farq: ${incomeDiff > 0 ? "+" : ""}${incomeDiff.toLocaleString("uz-UZ")}`}
+                  {incomeDiff === 0
+                    ? d.incomeMatchedZero
+                    : `${d.diffPrefix}: ${incomeDiff > 0 ? "+" : ""}${incomeDiff.toLocaleString(intlLocale)}`}
                 </Badge>
               </CardContent>
             </Card>
             <Card className="bg-muted/20">
               <CardContent className="py-3 flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-[11px] text-muted-foreground">Jami Chiqim (Bank vs 1C)</p>
+                  <p className="text-[11px] text-muted-foreground">{d.totalExpenseLabel}</p>
                   <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
                     <span className="text-rose-600">
                       <Money amount={summary.bankTotalExpense} />
@@ -832,7 +853,9 @@ function ReconcileContent() {
                   </div>
                 </div>
                 <Badge variant={expenseDiff === 0 ? "success" : "warning"} className="font-mono text-[10px]">
-                  {expenseDiff === 0 ? "Chiqim mos (0)" : `Farq: ${expenseDiff > 0 ? "+" : ""}${expenseDiff.toLocaleString("uz-UZ")}`}
+                  {expenseDiff === 0
+                    ? d.expenseMatchedZero
+                    : `${d.diffPrefix}: ${expenseDiff > 0 ? "+" : ""}${expenseDiff.toLocaleString(intlLocale)}`}
                 </Badge>
               </CardContent>
             </Card>
@@ -843,18 +866,18 @@ function ReconcileContent() {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="h-8 text-xs flex-wrap">
-                  <TabsTrigger value="all" className="text-xs px-2.5">Barchasi ({rows.length})</TabsTrigger>
-                  <TabsTrigger value="bank_only" className="text-xs px-2.5">1C da yoʻq ({summary.bankOnlyCount})</TabsTrigger>
-                  <TabsTrigger value="amount_mismatch" className="text-xs px-2.5">Farqlar ({summary.mismatchCount})</TabsTrigger>
-                  <TabsTrigger value="one_c_only" className="text-xs px-2.5">Bankda yoʻq ({summary.oneCOnlyCount})</TabsTrigger>
-                  <TabsTrigger value="matched" className="text-xs px-2.5">Mos ({summary.matchedCount})</TabsTrigger>
+                  <TabsTrigger value="all" className="text-xs px-2.5">{d.tabAll} ({rows.length})</TabsTrigger>
+                  <TabsTrigger value="bank_only" className="text-xs px-2.5">{d.tabBankOnly} ({summary.bankOnlyCount})</TabsTrigger>
+                  <TabsTrigger value="amount_mismatch" className="text-xs px-2.5">{d.tabMismatch} ({summary.mismatchCount})</TabsTrigger>
+                  <TabsTrigger value="one_c_only" className="text-xs px-2.5">{d.tabOneCOnly} ({summary.oneCOnlyCount})</TabsTrigger>
+                  <TabsTrigger value="matched" className="text-xs px-2.5">{d.tabMatched} ({summary.matchedCount})</TabsTrigger>
                 </TabsList>
               </Tabs>
 
               <div className="relative w-full lg:w-64">
                 <Search className="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
                 <Input
-                  placeholder="Kontragent, STIR, summa qidirish..."
+                  placeholder={d.searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-8 pl-8 text-xs"
@@ -870,19 +893,19 @@ function ReconcileContent() {
                 onClick={handleAiVerify}
               >
                 {isAiChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                AI bilan tekshirish
+                {d.aiVerifyBtn}
               </Button>
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleExport1CTxt}>
                 <Download className="h-3.5 w-3.5" />
-                1C ga yuklash (.txt)
+                {d.export1CTxtBtn}
               </Button>
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleExport1CXml}>
                 <FileCode className="h-3.5 w-3.5" />
-                1C Provodka (.xml)
+                {d.export1CXmlBtn}
               </Button>
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleDownloadCsv}>
                 <FileSpreadsheet className="h-3.5 w-3.5" />
-                CSV Hisobot
+                {d.exportCsvBtn}
               </Button>
               {currentEntity?.id && (
                 <Button
@@ -897,7 +920,7 @@ function ReconcileContent() {
                   ) : (
                     <BookmarkCheck className="h-3.5 w-3.5 text-emerald-600" />
                   )}
-                  {activeBatchId ? "Saqlangan" : "Tarixga saqlash"}
+                  {activeBatchId ? d.savedBtn : d.saveToHistoryBtn}
                 </Button>
               )}
               {FEATURES.fullAccountingErp && selectedIds.length > 0 && (
@@ -909,7 +932,7 @@ function ReconcileContent() {
                   onClick={handlePostSelectedToLedger}
                 >
                   {isPostingLedger ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  Bosh kitobga yozish ({selectedIds.length})
+                  {d.postToLedgerBtn} ({selectedIds.length})
                 </Button>
               )}
             </div>
@@ -930,7 +953,7 @@ function ReconcileContent() {
                   <TableRow>
                     <TableHead className="w-8">
                       <Checkbox
-                        aria-label="Barchasini belgilash"
+                        aria-label={d.selectAllAria}
                         checked={allVisibleSelected}
                         disabled={selectableFilteredIds.length === 0}
                         onCheckedChange={(checked) => {
@@ -942,21 +965,21 @@ function ReconcileContent() {
                         }}
                       />
                     </TableHead>
-                    <TableHead>Holat</TableHead>
-                    <TableHead>Sana</TableHead>
-                    <TableHead>Kontragent</TableHead>
-                    <TableHead className="text-right">Bank summasi</TableHead>
-                    <TableHead className="text-right">1C summasi</TableHead>
-                    <TableHead>Schyot</TableHead>
-                    <TableHead>QQS 12%</TableHead>
-                    <TableHead>AI Izoh va Tavsiya</TableHead>
+                    <TableHead>{d.colStatus}</TableHead>
+                    <TableHead>{d.colDate}</TableHead>
+                    <TableHead>{d.colCounterparty}</TableHead>
+                    <TableHead className="text-right">{d.colBankAmount}</TableHead>
+                    <TableHead className="text-right">{d.colOneCAmount}</TableHead>
+                    <TableHead>{d.colAccount}</TableHead>
+                    <TableHead>{d.colVat}</TableHead>
+                    <TableHead>{d.colAiNote}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center py-8 text-xs text-muted-foreground">
-                        Ushbu filtr boʻyicha yozuvlar topilmadi.
+                        {d.emptyFilteredRows}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -964,7 +987,7 @@ function ReconcileContent() {
                       <TableRow key={row.id} className="text-xs">
                         <TableCell>
                           <Checkbox
-                            aria-label={`${row.counterparty} tanlash`}
+                            aria-label={`${row.counterparty} ${d.selectRowAriaSuffix}`}
                             checked={selectedIds.includes(row.id)}
                             disabled={row.bankAmount <= 0}
                             onCheckedChange={(checked) => {
@@ -975,16 +998,16 @@ function ReconcileContent() {
                           />
                         </TableCell>
                         <TableCell>
-                          {row.status === "matched" && <Badge variant="success" className="text-[10px]">Mos</Badge>}
-                          {row.status === "amount_mismatch" && <Badge variant="warning" className="text-[10px]">Farq bor</Badge>}
-                          {row.status === "bank_only" && <Badge variant="destructive" className="text-[10px]">1C da yoʻq</Badge>}
-                          {row.status === "one_c_only" && <Badge variant="outline" className="text-[10px]">Bankda yoʻq</Badge>}
+                          {row.status === "matched" && <Badge variant="success" className="text-[10px]">{d.statusMatched}</Badge>}
+                          {row.status === "amount_mismatch" && <Badge variant="warning" className="text-[10px]">{d.statusMismatch}</Badge>}
+                          {row.status === "bank_only" && <Badge variant="destructive" className="text-[10px]">{d.statusBankOnly}</Badge>}
+                          {row.status === "one_c_only" && <Badge variant="outline" className="text-[10px]">{d.statusOneCOnly}</Badge>}
                         </TableCell>
                         <TableCell className="font-mono text-[11px] whitespace-nowrap">{row.date}</TableCell>
                         <TableCell className="font-medium min-w-[160px]">
                           <div>{row.counterparty}</div>
                           {row.counterpartyStir && (
-                            <div className="text-[10px] font-mono text-muted-foreground">STIR: {row.counterpartyStir}</div>
+                            <div className="text-[10px] font-mono text-muted-foreground">{d.stirPrefix}: {row.counterpartyStir}</div>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono whitespace-nowrap">
@@ -1001,7 +1024,7 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell>
                           <select
-                            aria-label={`${row.counterparty} schyoti`}
+                            aria-label={`${row.counterparty} ${d.accountSelectAriaSuffix}`}
                             value={row.suggestedAccountCode}
                             onChange={(e) => handleChangeRowAccount(row.id, e.target.value)}
                             className="h-7 rounded border border-input bg-background px-1.5 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
@@ -1022,9 +1045,9 @@ function ReconcileContent() {
                                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                                 : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
                             }`}
-                            title="12% QQS ajratishni yoqish / o'chirish"
+                            title={d.vatToggleTitle}
                           >
-                            {row.vatIncluded ? "QQS 12%" : "QQSsiz"}
+                            {row.vatIncluded ? d.vatOn : d.vatOff}
                           </button>
                         </TableCell>
                         <TableCell className="max-w-[280px] text-[11px] text-muted-foreground">
@@ -1042,7 +1065,7 @@ function ReconcileContent() {
                 page={rowsPage}
                 pageSize={ROWS_PAGE_SIZE}
                 totalCount={filteredRows.length}
-                itemLabel="qator"
+                itemLabel={d.rowItemLabel}
                 onPageChange={setRowsPage}
               />
             </CardContent>
@@ -1058,7 +1081,7 @@ function ReconcileContent() {
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-muted-foreground" />
               <CardTitle className="text-sm font-semibold">
-                Saqlangan ishlar tarixi ({savedBatchesCount})
+                {d.historyTitle} ({savedBatchesCount})
               </CardTitle>
             </div>
             {historyMonths.length > 0 && (
@@ -1073,7 +1096,7 @@ function ReconcileContent() {
                     setHistoryPage(1);
                   }}
                 >
-                  Barchasi
+                  {d.historyAllMonths}
                 </Button>
                 {historyMonths.map((m) => (
                     <Button
@@ -1097,23 +1120,23 @@ function ReconcileContent() {
             {isLoadingHistory ? (
               <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-                Tarix yuklanmoqda...
+                {d.historyLoading}
               </div>
             ) : savedBatches.length === 0 ? (
               <div className="py-6 text-center text-xs text-muted-foreground">
-                Saqlangan solishtirishlar yoʻq
+                {d.historyEmpty}
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Oy</TableHead>
-                    <TableHead>Fayllar</TableHead>
-                    <TableHead className="text-right">Qator</TableHead>
-                    <TableHead className="text-right">Bank Kirim</TableHead>
-                    <TableHead className="text-right">Bank Chiqim</TableHead>
-                    <TableHead>Holat</TableHead>
-                    <TableHead className="text-right">Amal</TableHead>
+                    <TableHead>{d.histColMonth}</TableHead>
+                    <TableHead>{d.histColFiles}</TableHead>
+                    <TableHead className="text-right">{d.histColRows}</TableHead>
+                    <TableHead className="text-right">{d.histColBankIncome}</TableHead>
+                    <TableHead className="text-right">{d.histColBankExpense}</TableHead>
+                    <TableHead>{d.histColStatus}</TableHead>
+                    <TableHead className="text-right">{d.histColAction}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1130,9 +1153,9 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell>
                           {b.status === "posted_to_ledger" ? (
-                            <Badge variant="success" className="text-[10px]">Bosh kitobda</Badge>
+                            <Badge variant="success" className="text-[10px]">{d.histStatusPosted}</Badge>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">Tekshirilgan</Badge>
+                            <Badge variant="outline" className="text-[10px]">{d.histStatusReviewed}</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
@@ -1150,14 +1173,14 @@ function ReconcileContent() {
                               ) : (
                                 <FolderOpen className="h-3 w-3" />
                               )}
-                              Ochish
+                              {d.histOpenBtn}
                             </Button>
                             <Button
                               type="button"
                               size="sm"
                               variant="ghost"
                               className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                              aria-label="Oʻchirish"
+                              aria-label={d.histDeleteAria}
                               onClick={() => handleDeleteBatch(b.id)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -1174,7 +1197,7 @@ function ReconcileContent() {
               pageSize={HISTORY_PAGE_SIZE}
               totalCount={savedBatchesCount}
               isLoading={isLoadingHistory}
-              itemLabel="ish"
+              itemLabel={d.historyItemLabel}
               onPageChange={setHistoryPage}
             />
           </CardContent>
@@ -1187,23 +1210,23 @@ function ReconcileContent() {
         <DialogContent className="sm:max-w-lg text-xs">
           <DialogHeader>
             <DialogTitle className="text-base">
-              {pasteTarget === "bank" ? "Bank koʻchirmasini joylashtirish" : "1C jadvalini joylashtirish"}
+              {pasteTarget === "bank" ? d.pasteBankTitle : d.pasteOneCTitle}
             </DialogTitle>
           </DialogHeader>
           <textarea
             rows={8}
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
-            placeholder="Jadval qatorlarini joylashtiring"
+            placeholder={d.pastePlaceholder}
             className="w-full rounded-md border border-input bg-background p-2.5 font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-ring"
           />
           <DialogFooter>
             <Button type="button" variant="ghost" size="sm" onClick={() => setPasteTarget(null)}>
-              Bekor qilish
+              {d.cancelBtn}
             </Button>
             <Button type="button" size="sm" onClick={handleApplyPaste} className="gap-1.5">
               <ClipboardPaste className="h-3.5 w-3.5" />
-              Oʻqish va solishtirish
+              {d.parseAndCompareBtn}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1212,9 +1235,15 @@ function ReconcileContent() {
   );
 }
 
+function ReconcileLoadingFallback() {
+  const { locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  return <div className="p-8 text-center text-xs text-muted-foreground">{dict.commonLoading}</div>;
+}
+
 export default function ReconcilePage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground">Yuklanmoqda...</div>}>
+    <Suspense fallback={<ReconcileLoadingFallback />}>
       <ReconcileContent />
     </Suspense>
   );

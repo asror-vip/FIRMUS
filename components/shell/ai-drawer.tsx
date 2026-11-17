@@ -5,6 +5,7 @@ import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { AI_MODELS } from "@/lib/config/plans";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict, getIntlLocale } from "@/lib/i18n/domains/shell-shared";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,7 +63,9 @@ export function AiDrawer() {
     subscription,
     setSubscriptionSnapshot,
   } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const intlLocale = getIntlLocale(locale);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const abortCtrlRef = useRef<AbortController | null>(null);
   const prevEntityIdRef = useRef<string | undefined>(currentEntity?.id);
@@ -153,11 +156,20 @@ export function AiDrawer() {
     setStopSignal((s) => s + 1);
   };
 
+  const mapImageError = (raw?: string): string => {
+    if (!raw || raw === AI_IMAGE_FORMAT_ERROR) return d.shared.chatImageInputBar.invalidFormatError;
+    if (raw.includes("25 MB")) return d.shared.chatImageInputBar.maxSizeError;
+    if (raw.includes("shikastlangan")) return d.shared.chatImageInputBar.corruptError;
+    if (raw.includes("oʻqib boʻlmadi")) return d.shared.chatImageInputBar.readError;
+    if (raw.includes("siqishda")) return d.shared.chatImageInputBar.compressError;
+    return raw;
+  };
+
   const handleDropFile = async (file?: File | null) => {
     setIsDraggingOver(false);
     if (!file) return;
     if (!isSupportedAiImageFile(file)) {
-      toast.error(AI_IMAGE_FORMAT_ERROR);
+      toast.error(d.shared.chatImageInputBar.invalidFormatError);
       return;
     }
     try {
@@ -167,7 +179,7 @@ export function AiDrawer() {
       });
       setAttachedImage(compressed);
     } catch (err: any) {
-      toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
+      toast.error(mapImageError(err?.message));
     }
   };
 
@@ -182,7 +194,7 @@ export function AiDrawer() {
     const imgToSend = options?.imgOverride !== undefined ? options.imgOverride : attachedImage;
     if ((!userText.trim() && !imgToSend) || isSending) return;
 
-    const nowStr = new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+    const nowStr = new Date().toLocaleTimeString(intlLocale, { hour: "2-digit", minute: "2-digit" });
     const baseList = options?.baseMessages ?? messages;
     const isRegen = Boolean(options?.baseMessages);
 
@@ -191,7 +203,7 @@ export function AiDrawer() {
       : {
           id: `m-u-${Date.now()}`,
           sender: "user",
-          text: userText.trim() || `📷 Rasm yuborildi: ${imgToSend?.fileName || "hujjat"}`,
+          text: userText.trim() || d.aiDrawer.imageSentLabel(imgToSend?.fileName || d.aiDrawer.defaultDocName),
           time: nowStr,
           imagePreviewUrl: imgToSend?.dataUrl,
         };
@@ -229,9 +241,9 @@ export function AiDrawer() {
           id: `m-a-${Date.now()}`,
           sender: "ai",
           text:
-            `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString("uz-UZ")} soʻm. ` +
-            (scan.provodkaExplanation || "Provodka tayyorlandi."),
-          time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
+            `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString(intlLocale)} ${t.common.currency}. ` +
+            (scan.provodkaExplanation || d.aiDrawer.entryPrepared),
+          time: new Date().toLocaleTimeString(intlLocale, { hour: "2-digit", minute: "2-digit" }),
           mode: scan.mode,
           modelUsed: scan.modelUsed,
           scanResult: scan,
@@ -261,14 +273,14 @@ export function AiDrawer() {
       const data = await res.json();
       if (data?.usage) setSubscriptionSnapshot(data.usage);
       if (!res.ok) {
-        throw new Error(data.error || "AI Copilot javob qaytarmadi");
+        throw new Error(data.error || d.aiDrawer.noReplyError);
       }
 
       const aiReply: ChatMessage = {
         id: `m-a-${Date.now()}`,
         sender: "ai",
         text: data.reply,
-        time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
+        time: new Date().toLocaleTimeString(intlLocale, { hour: "2-digit", minute: "2-digit" }),
         toolCalls: data.toolCalls,
         mode: data.mode,
         modelUsed: data.modelUsed,
@@ -281,14 +293,14 @@ export function AiDrawer() {
       await persistThread(completed);
     } catch (err: any) {
       if (err?.name === "AbortError") return;
-      toast.error("AI Copilot xatosi: " + err.message);
+      toast.error(d.aiDrawer.copilotErrorToast(err.message));
       setMessages((prev) => [
         ...prev,
         {
           id: `m-err-${Date.now()}`,
           sender: "ai",
-          text: `Xatolik yuz berdi: ${err.message}`,
-          time: new Date().toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }),
+          text: d.aiDrawer.errorMessage(err.message),
+          time: new Date().toLocaleTimeString(intlLocale, { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
     } finally {
@@ -309,7 +321,7 @@ export function AiDrawer() {
 
   const handlePostScanMessage = async (msg: ChatMessage, editedScan: ScannedDocResult) => {
     if (!currentEntity?.id) {
-      toast.error("Bosh kitobga yozish uchun avval korxona tanlang");
+      toast.error(d.aiDrawer.selectEntityFirstError);
       return;
     }
     try {
@@ -323,9 +335,9 @@ export function AiDrawer() {
       );
       setMessages(updated);
       await persistThread(updated);
-      toast.success("Faktura/chek provodkasi Bosh kitobga atomik tarzda yozildi!");
+      toast.success(d.aiDrawer.scanPostedToast);
     } catch (err: any) {
-      toast.error("Bosh kitobga yozishda xatolik: " + err.message);
+      toast.error(d.aiDrawer.scanPostErrorToast(err.message));
     }
   };
 
@@ -347,7 +359,7 @@ export function AiDrawer() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Amalni bajarishda xatolik");
+        throw new Error(data.error || d.aiDrawer.executeActionError);
       }
 
       window.dispatchEvent(
@@ -366,11 +378,11 @@ export function AiDrawer() {
       toast.success(
         data.message ||
           (decision === "approve"
-            ? "Amal Supabase bazasida muvaffaqiyatli tasdiqlandi!"
-            : "Amal rad etildi va bazada yangilandi.")
+            ? d.aiDrawer.actionApprovedToast
+            : d.aiDrawer.actionRejectedToast)
       );
     } catch (err: any) {
-      toast.error("Amalni bajarishda xatolik: " + err.message);
+      toast.error(d.aiDrawer.executeErrorToast(err.message));
     } finally {
       setExecutingMsgId(null);
     }
@@ -409,7 +421,7 @@ export function AiDrawer() {
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
               <span className="truncate">
                 {FEATURES.multiCompanyMode
-                  ? currentEntity?.tradeName || currentEntity?.name || "Shaxsiy"
+                  ? currentEntity?.tradeName || currentEntity?.name || d.aiDrawer.personalLabel
                   : AI_MODELS[subscription.preferredModel].label}
               </span>
             </span>
@@ -422,8 +434,8 @@ export function AiDrawer() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            title="Yangi chat"
-            aria-label="Yangi chat"
+            title={d.aiDrawer.tooltips.newChat}
+            aria-label={d.aiDrawer.tooltips.newChat}
             onClick={handleNewChat}
           >
             <SquarePen className="h-4 w-4" />
@@ -433,8 +445,8 @@ export function AiDrawer() {
             variant={isHistoryView ? "secondary" : "ghost"}
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            title="Chatlar tarixi"
-            aria-label="Chatlar tarixi"
+            title={d.aiDrawer.tooltips.chatHistory}
+            aria-label={d.aiDrawer.tooltips.chatHistory}
             onClick={() => setIsHistoryView((v) => !v)}
           >
             <History className="h-4 w-4" />
@@ -444,6 +456,8 @@ export function AiDrawer() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title={t.common.close}
+            aria-label={t.common.close}
             onClick={() => setIsAiDrawerOpen(false)}
           >
             <X className="h-4 w-4" />
@@ -488,7 +502,7 @@ export function AiDrawer() {
                       {msg.imagePreviewUrl && (
                         <img
                           src={msg.imagePreviewUrl}
-                          alt="Yuborilgan chek"
+                          alt={d.aiDrawer.sentReceiptAlt}
                           className="mb-2 max-h-40 rounded-lg border border-white/20 object-contain"
                         />
                       )}
@@ -542,9 +556,9 @@ export function AiDrawer() {
                                 className="text-[9px] px-1.5 py-0 h-4 shrink-0"
                               >
                                 {msg.actionStatus === "approved"
-                                  ? "Tasdiqlandi"
+                                  ? d.aiDrawer.statusApproved
                                   : msg.actionStatus === "rejected"
-                                  ? "Rad etildi"
+                                  ? d.aiDrawer.statusRejected
                                   : t.common.pending}
                               </Badge>
                             </div>
@@ -577,8 +591,8 @@ export function AiDrawer() {
                                     </span>
                                     <span className="shrink-0 font-semibold">
                                       {line.debit_amount > 0
-                                        ? `Dt ${line.debit_amount.toLocaleString("uz-UZ")}`
-                                        : `Kt ${line.credit_amount.toLocaleString("uz-UZ")}`}
+                                        ? `${d.aiDrawer.dtPrefix} ${line.debit_amount.toLocaleString(intlLocale)}`
+                                        : `${d.aiDrawer.ktPrefix} ${line.credit_amount.toLocaleString(intlLocale)}`}
                                     </span>
                                   </div>
                                 ))}
@@ -645,7 +659,7 @@ export function AiDrawer() {
               maxCompressedBytes={subscription.limits.imageMaxBytes}
               onStop={handleStop}
               compact
-              placeholder="Xabar yozing..."
+              placeholder={d.aiDrawer.inputPlaceholder}
               onSubmit={() => sendMessageText(input)}
             />
           </div>

@@ -4,9 +4,11 @@ import React from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
 export function Footer() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
 
   return (
     <footer className="mt-auto shrink-0 border-t border-border bg-card/30 px-4 sm:px-6 lg:px-8 min-h-14 sm:h-14 flex items-center py-2.5 sm:py-0 text-[11px] text-muted-foreground">
@@ -23,13 +25,13 @@ export function Footer() {
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <Link href="/privacy" className="hover:text-foreground transition-colors">
-            Maxfiylik
+            {d.footer.privacy}
           </Link>
           <Link href="/terms" className="hover:text-foreground transition-colors">
-            Oferta
+            {d.footer.terms}
           </Link>
           <Link href="/billing" className="hover:text-foreground transition-colors">
-            Obunalar
+            {d.footer.billing}
           </Link>
           <Link href="/settings" className="hover:text-foreground transition-colors">
             {t.footer.settings}

@@ -5,12 +5,17 @@ import {
   resolveEffectiveSubscription,
   updateSubscriptionPreferredModel,
 } from "@/lib/ai/subscription-guard";
+import { getRequestLocale } from "@/lib/i18n/server-locale";
+import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
 
 const patchSubscriptionSchema = z.object({
   preferredModel: z.enum(["gemini-3.8-flash", "gemini-4-hydrogen"]),
 });
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -18,7 +23,7 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const snapshot = await resolveEffectiveSubscription(user.id);
@@ -26,13 +31,16 @@ export async function GET() {
   } catch (err: any) {
     console.error("GET /api/subscription error:", err);
     return NextResponse.json(
-      { error: err?.message || "Obuna maʼlumotini olishda xatolik" },
+      { error: err?.message ? localizeServerError(err.message, locale) : msg.subscriptionFetchError },
       { status: 500 }
     );
   }
 }
 
 export async function PATCH(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -40,14 +48,14 @@ export async function PATCH(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const body = await req.json();
     const parsed = patchSubscriptionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Notoʻgʻri model tanlandi" },
+        { error: msg.invalidModel },
         { status: 400 }
       );
     }
@@ -58,8 +66,11 @@ export async function PATCH(req: NextRequest) {
     );
     return NextResponse.json(updated);
   } catch (err: any) {
-    const msg = err?.message || "Modelni yangilab boʻlmadi";
-    const status = msg.includes("mavjud emas") ? 403 : 400;
-    return NextResponse.json({ error: msg }, { status });
+    const rawMsg = err?.message || "";
+    const status = rawMsg.includes("mavjud emas") ? 403 : 400;
+    return NextResponse.json(
+      { error: rawMsg ? localizeServerError(rawMsg, locale) : msg.modelSwitchFailed },
+      { status }
+    );
   }
 }

@@ -1,10 +1,14 @@
+"use client";
+
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
 interface KpiCardProps {
-  title: string;
-  value: string | number;
+  title?: string;
+  value?: string | number;
   subtitle?: string;
   badge?: React.ReactNode;
   icon?: React.ReactNode;
@@ -26,6 +30,10 @@ export function KpiCard({
   onClick,
   className,
 }: KpiCardProps) {
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const kc = d.shared.kpiCard;
+
   return (
     <Card
       onClick={onClick}
@@ -38,14 +46,14 @@ export function KpiCard({
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-medium text-muted-foreground tracking-tight">
-            {title}
+            {title || kc.defaultTitle}
           </span>
           {icon && <div className="text-muted-foreground">{icon}</div>}
         </div>
 
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-2xl font-bold tracking-tight text-foreground font-mono">
-            {value}
+            {value !== undefined && value !== null && value !== "" ? value : kc.noData}
           </span>
           {badge}
         </div>

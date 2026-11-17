@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { BusinessEntity, UserRole, Workspace } from "@/lib/types/accounting";
 import { supabase } from "@/lib/supabase/client";
 import { FEATURES } from "@/lib/config/features";
+import { getLocaleFromBrowserCookie } from "@/lib/i18n/server-locale";
 import {
   DEFAULT_STARTER_SNAPSHOT,
   type AiModelId,
@@ -103,10 +104,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(data?.error || "Modelni almashtirib boʻlmadi");
+      const fallbackError =
+        language === "ru"
+          ? "Не удалось переключить модель"
+          : language === "en"
+          ? "Failed to switch AI model"
+          : "Modelni almashtirib boʻlmadi";
+      throw new Error(data?.error || fallbackError);
     }
     setSubscription(data as SubscriptionSnapshot);
-  }, []);
+  }, [language]);
 
   const syncRoleForWorkspace = useCallback(async (authUser: any, wsId: string) => {
     if (!authUser || !wsId) return;
@@ -292,13 +299,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     };
   }, [loadWorkspaceAndEntities]);
 
-  // 2. Load persisted language from localStorage safely
+  // 2. Load persisted language from localStorage or browser cookie safely
   useEffect(() => {
     try {
       const savedLang = localStorage.getItem("firmus_lang") || localStorage.getItem("auvrio_lang");
-      if (savedLang === "uz" || savedLang === "ru" || savedLang === "en") {
-        setLanguageState(savedLang);
-      }
+      const cookieLang = getLocaleFromBrowserCookie();
+      const resolvedLang: "uz" | "ru" | "en" =
+        savedLang === "uz" || savedLang === "ru" || savedLang === "en"
+          ? savedLang
+          : cookieLang;
+
+      setLanguageState(resolvedLang);
+      localStorage.setItem("firmus_lang", resolvedLang);
+      document.cookie = `firmus_lang=${resolvedLang}; path=/; max-age=31536000; SameSite=Lax`;
+      document.documentElement.lang = resolvedLang;
     } catch {}
   }, []);
 
@@ -306,6 +320,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setLanguageState(lang);
     try {
       localStorage.setItem("firmus_lang", lang);
+      document.cookie = `firmus_lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
+      document.documentElement.lang = lang;
     } catch {}
   };
 

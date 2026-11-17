@@ -4,6 +4,8 @@ import React, { useRef, useEffect } from "react";
 import { Paperclip, ArrowUp, Square, X, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 import {
   AI_IMAGE_FORMAT_ERROR,
   compressImageForAi,
@@ -36,11 +38,16 @@ export function ChatImageInputBar({
   isStreaming = false,
   onSubmit,
   onStop,
-  placeholder = "Xabar yozing...",
+  placeholder,
   compact = false,
   maxDimension,
   maxCompressedBytes,
 }: ChatImageInputBarProps) {
+  const { locale } = useTranslation();
+  const d = getShellSharedDict(locale);
+  const cib = d.shared.chatImageInputBar;
+  const resolvedPlaceholder = placeholder ?? cib.placeholder;
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -51,10 +58,19 @@ export function ChatImageInputBar({
     el.style.height = `${Math.min(el.scrollHeight, compact ? 100 : 140)}px`;
   }, [value, compact]);
 
+  const mapImageError = (raw?: string): string => {
+    if (!raw || raw === AI_IMAGE_FORMAT_ERROR) return cib.invalidFormatError;
+    if (raw.includes("25 MB")) return cib.maxSizeError;
+    if (raw.includes("shikastlangan")) return cib.corruptError;
+    if (raw.includes("oʻqib boʻlmadi")) return cib.readError;
+    if (raw.includes("siqishda")) return cib.compressError;
+    return raw;
+  };
+
   const handleImageCandidate = async (file?: File | null) => {
     if (!file) return;
     if (!isSupportedAiImageFile(file)) {
-      toast.error(AI_IMAGE_FORMAT_ERROR);
+      toast.error(cib.invalidFormatError);
       return;
     }
     try {
@@ -64,7 +80,7 @@ export function ChatImageInputBar({
       });
       onAttachImage(compressed);
     } catch (err: any) {
-      toast.error(err?.message || AI_IMAGE_FORMAT_ERROR);
+      toast.error(mapImageError(err?.message));
     }
   };
 
@@ -75,7 +91,7 @@ export function ChatImageInputBar({
       await handleImageCandidate(res.file);
     } else if (res.kind === "invalid_file") {
       e.preventDefault();
-      toast.error(AI_IMAGE_FORMAT_ERROR);
+      toast.error(cib.invalidFormatError);
     }
   };
 
@@ -110,7 +126,7 @@ export function ChatImageInputBar({
         <div className="mb-2 inline-flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/5 pl-1.5 pr-2 py-1 text-xs animate-in fade-in zoom-in-95 duration-150">
           <img
             src={attachedImage.dataUrl}
-            alt="Biriktirilgan rasm"
+            alt={cib.attachedImageAlt}
             className="h-9 w-9 rounded-lg object-cover border border-border shrink-0"
           />
           <div className="min-w-0 max-w-[190px]">
@@ -125,7 +141,7 @@ export function ChatImageInputBar({
           <button
             type="button"
             className="ml-1 flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            aria-label="Rasmni olib tashlash"
+            aria-label={cib.removeImageLabel}
             onClick={() => onAttachImage(null)}
           >
             <X className="h-3 w-3" />
@@ -149,8 +165,8 @@ export function ChatImageInputBar({
         <button
           type="button"
           disabled={isSending}
-          title="Rasm biriktirish (PNG, JPG, WEBP)"
-          aria-label="Rasm biriktirish"
+          title={cib.attachTooltip}
+          aria-label={cib.attachAriaLabel}
           onClick={() => fileInputRef.current?.click()}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40"
         >
@@ -164,7 +180,7 @@ export function ChatImageInputBar({
           onChange={(e) => onChange(e.target.value)}
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           disabled={isSending}
           className="flex-1 resize-none bg-transparent py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-60 leading-relaxed max-h-[140px]"
         />
@@ -172,8 +188,8 @@ export function ChatImageInputBar({
         <button
           type="submit"
           disabled={isBusy ? !onStop : !canSend}
-          aria-label={isBusy ? "Toʻxtatish" : "Yuborish"}
-          title={isBusy ? "Toʻxtatish" : "Yuborish"}
+          aria-label={isBusy ? cib.stopLabel : cib.sendLabel}
+          title={isBusy ? cib.stopLabel : cib.sendLabel}
           className={cn(
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-150",
             isBusy

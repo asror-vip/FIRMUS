@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { FEATURES } from "@/lib/config/features";
+import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
+import { LanguageToggle } from "@/components/shared/language-toggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +16,9 @@ import { Mail, Lock, ArrowRight, Loader2, Building2, User } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { locale } = useTranslation();
+  const d = getAuthLegalDict(locale).register;
+
   const [workspaceAlias, setWorkspaceAlias] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,23 +27,23 @@ export default function RegisterPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error("Iltimos, elektron pochta va parolni kiriting");
+      toast.error(d.missingFieldsToast);
       return;
     }
 
     if (password.length < 8) {
-      toast.error("Parol kamida 8 ta belgidan iborat boʻlishi kerak");
+      toast.error(d.passwordMinToast);
       return;
     }
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
           data: {
-            full_name: workspaceAlias.trim() || "Bosh buxgalter",
+            full_name: workspaceAlias.trim() || d.defaultAccountantName,
             role: "accountant",
           },
         },
@@ -45,12 +51,18 @@ export default function RegisterPage() {
 
       if (error) throw error;
 
-      toast.success("Hisob yaratildi! Xush kelibsiz.");
+      if (!data.session) {
+        toast.success(d.checkEmailToast);
+        router.push("/login");
+        return;
+      }
+
+      toast.success(d.registerSuccessToast);
       router.push("/");
       router.refresh();
     } catch (err: any) {
       console.error("Register error:", err);
-      toast.error(err.message || "Roʻyxatdan oʻtishda xatolik yuz berdi");
+      toast.error(err.message || d.registerErrorToast);
     } finally {
       setIsLoading(false);
     }
@@ -73,13 +85,17 @@ export default function RegisterPage() {
       if (error) throw error;
     } catch (err: any) {
       console.error("Google sign up error:", err);
-      toast.error(err.message || "Google orqali roʻyxatdan oʻtishda xatolik yuz berdi");
+      toast.error(err.message || d.googleErrorToast);
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4">
+    <div className="relative min-h-screen bg-background flex flex-col justify-center items-center p-4">
+      <div className="absolute top-4 right-4">
+        <LanguageToggle />
+      </div>
+
       <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-2">
           <div className="relative inline-flex items-center justify-center mb-1">
@@ -91,11 +107,9 @@ export default function RegisterPage() {
             />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-            Roʻyxatdan oʻtish
+            {d.title}
           </h1>
-          <p className="text-xs text-muted-foreground">
-            Google yoki email orqali
-          </p>
+          <p className="text-xs text-muted-foreground">{d.subtitle}</p>
         </div>
 
         <Card className="shadow-lg border-border">
@@ -125,7 +139,7 @@ export default function RegisterPage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              Google orqali roʻyxatdan oʻtish
+              {d.googleBtn}
             </Button>
 
             <div className="relative my-2.5">
@@ -133,7 +147,7 @@ export default function RegisterPage() {
                 <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-[10px] uppercase">
-                <span className="bg-card px-2 text-muted-foreground">yoki elektron pochta bilan</span>
+                <span className="bg-card px-2 text-muted-foreground">{d.orEmail}</span>
               </div>
             </div>
 
@@ -141,9 +155,9 @@ export default function RegisterPage() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="font-semibold text-foreground">
-                    {FEATURES.multiCompanyMode ? "Kompaniya / Taxallus:" : "Ismingiz:"}
+                    {FEATURES.multiCompanyMode ? d.companyAliasLabel : d.fullNameLabel}
                   </label>
-                  <span className="text-[10px] text-muted-foreground">ixtiyoriy</span>
+                  <span className="text-[10px] text-muted-foreground">{d.optionalHint}</span>
                 </div>
                 <div className="relative">
                   {FEATURES.multiCompanyMode ? (
@@ -154,7 +168,9 @@ export default function RegisterPage() {
                   <Input
                     value={workspaceAlias}
                     onChange={(e) => setWorkspaceAlias(e.target.value)}
-                    placeholder={FEATURES.multiCompanyMode ? "Kompaniya nomi" : "Ism familiya"}
+                    placeholder={
+                      FEATURES.multiCompanyMode ? d.companyAliasPlaceholder : d.fullNamePlaceholder
+                    }
                     className="pl-8 text-xs h-9"
                   />
                 </div>
@@ -162,7 +178,7 @@ export default function RegisterPage() {
 
               <div>
                 <label className="font-semibold text-foreground block mb-1">
-                  Elektron pochta manzili:
+                  {d.emailLabel}
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -170,7 +186,7 @@ export default function RegisterPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     type="email"
-                    placeholder="Email"
+                    placeholder={d.emailPlaceholder}
                     className="pl-8 text-xs h-9"
                     required
                   />
@@ -179,7 +195,7 @@ export default function RegisterPage() {
 
               <div>
                 <label className="font-semibold text-foreground block mb-1">
-                  Parol oʻylab toping:
+                  {d.passwordLabel}
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -187,7 +203,7 @@ export default function RegisterPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     type="password"
-                    placeholder="Kamida 8 ta belgi"
+                    placeholder={d.passwordHint}
                     className="pl-8 text-xs h-9"
                     required
                   />
@@ -202,11 +218,11 @@ export default function RegisterPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                    Yaratilmoqda...
+                    {d.loadingBtn}
                   </>
                 ) : (
                   <>
-                    Roʻyxatdan oʻtish <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    {d.submitBtn} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                   </>
                 )}
               </Button>
@@ -215,18 +231,22 @@ export default function RegisterPage() {
         </Card>
 
         <p className="text-center text-xs text-muted-foreground">
-          Profilingiz bormi?{" "}
+          {d.hasAccount}{" "}
           <Link href="/login" className="text-primary font-semibold hover:underline">
-            Tizimga kirish
+            {d.loginLink}
           </Link>
         </p>
 
         <p className="text-center text-[10px] text-muted-foreground/80">
-          Roʻyxatdan oʻtish orqali{" "}
-          <Link href="/privacy" className="underline">Maxfiylik siyosati</Link>
-          {" va "}
-          <Link href="/terms" className="underline">Ommaviy oferta</Link>
-          {" shartlariga rozilik bildirasiz."}
+          {d.agreePrefix}{" "}
+          <Link href="/privacy" className="underline">
+            {d.privacyLink}
+          </Link>{" "}
+          {d.andWord}{" "}
+          <Link href="/terms" className="underline">
+            {d.termsLink}
+          </Link>
+          {d.agreeSuffix ? (d.agreeSuffix === "." ? d.agreeSuffix : ` ${d.agreeSuffix}`) : ""}
         </p>
       </div>
     </div>

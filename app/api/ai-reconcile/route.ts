@@ -7,6 +7,8 @@ import {
   refundConsumedAiCredits,
   resolveEffectiveSubscription,
 } from "@/lib/ai/subscription-guard";
+import { getRequestLocale } from "@/lib/i18n/server-locale";
+import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
 
 const ALLOWED_RECONCILE_ACCOUNTS = new Set([
   "4010",
@@ -67,6 +69,9 @@ const requestSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -74,14 +79,15 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const body = await req.json();
     const parsed = requestSchema.safeParse(body);
     if (!parsed.success) {
+      const issueMsg = parsed.error.issues[0]?.message;
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Notoʻgʻri solishtirish soʻrovi" },
+        { error: issueMsg ? localizeServerError(issueMsg, locale) : msg.invalidReconcileRequest },
         { status: 400 }
       );
     }
@@ -101,7 +107,7 @@ export async function POST(req: NextRequest) {
       if (!authz.ok) {
         return NextResponse.json(
           {
-            error: authz.error,
+            error: localizeServerError(authz.error, locale),
             upgradeRequired: Boolean(authz.upgradeRequired),
             usage: authz.snapshot,
           },
@@ -111,8 +117,9 @@ export async function POST(req: NextRequest) {
 
       const prompt = [
         "Siz O'zbekiston buxgalteriyasi (21-son BHMS) bo'yicha Bank ko'chirmasi va 1C fayli o'rtasidagi farqlarni tahlil qiluvchi AI yordamchisiz.",
+        msg.aiLanguageInstruction(locale),
         "Har bir element uchun faqat quyidagi JSON massivini qaytaring:",
-        '[{"id":"...","accountCode":"4010|4310|6010|6310|6410|6520|6710|9420","explanation":"1 ta aniq o\'zbekcha buxgalteriya tavsiyasi"}]',
+        `[{"id":"...","accountCode":"4010|4310|6010|6310|6410|6520|6710|9420","explanation":"1 ta aniq buxgalteriya tavsiyasi (${locale})"}]`,
         "Qoidalar:",
         "- Bank komissiyasi/RKO -> 9420; Soliq/QQS/GNK -> 6410; Ijtimoiy soliq/INPS -> 6520; Ish haqi -> 6710; Xaridordan bo'nak -> 6310; Yetkazib beruvchiga bo'nak -> 4310; Xaridor -> 4010; Yetkazib beruvchi -> 6010.",
         "- Raqamlarni to'qimang, berilgan diffAmount/bankAmount/oneCAmount ga tayaning.",
@@ -156,7 +163,7 @@ export async function POST(req: NextRequest) {
                 return {
                   id: s.id,
                   accountCode: code,
-                  accountName: ACCOUNT_NAMES[code] || code,
+                  accountName: msg.reconcileAccountNames[code] || ACCOUNT_NAMES[code] || code,
                   explanation: String(s.explanation || "").slice(0, 260),
                   aiVerified: true,
                 };
@@ -192,16 +199,19 @@ export async function POST(req: NextRequest) {
         const code = ALLOWED_RECONCILE_ACCOUNTS.has(item.currentAccountCode)
           ? item.currentAccountCode
           : "9420";
+        const accountName = msg.reconcileAccountNames[code] || ACCOUNT_NAMES[code] || code;
         return {
           id: item.id,
           accountCode: code,
-          accountName: ACCOUNT_NAMES[code] || code,
-          explanation:
-            item.status === "amount_mismatch"
-              ? `Bank (${item.bankAmount.toLocaleString("uz-UZ")}) va 1C (${item.oneCAmount.toLocaleString("uz-UZ")}) oʻrtasidagi ${Math.abs(item.diffAmount).toLocaleString("uz-UZ")} soʻm farqni tekshiring.`
-              : item.status === "bank_only"
-              ? `1C bazasida topilmadi. «${ACCOUNT_NAMES[code] || code}» (${code}) schyotiga kiritish tavsiya etiladi.`
-              : `1C da mavjud, lekin yuklangan bank koʻchirmasida koʻrinmadi (sana yoki dublikatni tekshiring).`,
+          accountName,
+          explanation: msg.reconcileFallbackExplanation({
+            status: item.status,
+            bankAmount: item.bankAmount,
+            oneCAmount: item.oneCAmount,
+            diffAmount: item.diffAmount,
+            accountCode: code,
+            accountName,
+          }),
           aiVerified: true,
         };
       }),
@@ -209,7 +219,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("AI Reconcile API error:", err);
     return NextResponse.json(
-      { error: err?.message || "AI solishtirish xatoligi" },
+      { error: err?.message ? localizeServerError(err.message, locale) : msg.reconcileError },
       { status: 500 }
     );
   }

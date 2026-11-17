@@ -3,8 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { agentExecuteRequestSchema } from "@/lib/ai/agent-types";
 import { isMutatingRole, resolveUserEntityRole } from "@/lib/ai/firmus-agent";
+import { getRequestLocale } from "@/lib/i18n/server-locale";
+import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
 
 export async function POST(req: NextRequest) {
+  const locale = getRequestLocale(req);
+  const msg = getApiMessages(locale);
+
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -12,14 +17,15 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Autentifikatsiya talab qilinadi" }, { status: 401 });
+      return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
     const body = await req.json();
     const parsed = agentExecuteRequestSchema.safeParse(body);
     if (!parsed.success) {
+      const issueMsg = parsed.error.issues[0]?.message;
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || "Notoʻgʻri amal maʻlumotlari" },
+        { error: issueMsg ? localizeServerError(issueMsg, locale) : msg.invalidActionData },
         { status: 400 }
       );
     }
@@ -33,7 +39,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!entity) {
-      return NextResponse.json({ error: "Korxona topilmadi yoki ruxsat yoʻq" }, { status: 403 });
+      return NextResponse.json({ error: msg.entityNotFoundOrForbidden }, { status: 403 });
     }
 
     const userRole = await resolveUserEntityRole(
@@ -45,7 +51,7 @@ export async function POST(req: NextRequest) {
     );
     if (!isMutatingRole(userRole)) {
       return NextResponse.json(
-        { error: `Sizning rolingiz (${userRole}) moliyaviy amallarni bajarish huquqiga ega emas` },
+        { error: msg.roleInsufficient(userRole) },
         { status: 403 }
       );
     }
@@ -85,7 +91,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           ok: true,
           decision: "rejected",
-          message: "Taklif rad etildi va audit jurnaliga yozildi.",
+          message: msg.proposalRejected,
         });
       }
 
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest) {
 
         for (const l of proposal.payload.lines) {
           if (!coaMap.has(l.account_code)) {
-            throw new Error(`Schyot kodi "${l.account_code}" korxona schyotlar rejasida mavjud emas`);
+            throw new Error(msg.accountCodeMissing(l.account_code));
           }
         }
 
@@ -153,7 +159,7 @@ export async function POST(req: NextRequest) {
           .eq("id", proposal.targetId)
           .eq("business_entity_id", entity.id)
           .single();
-        if (txFetchErr || !tx) throw txFetchErr || new Error("Tranzaksiya topilmadi");
+        if (txFetchErr || !tx) throw txFetchErr || new Error(msg.transactionNotFound);
 
         const { error: updErr } = await supabase
           .from("transactions")
@@ -196,7 +202,7 @@ export async function POST(req: NextRequest) {
             end_date: proposal.payload.end_date,
             status: "active",
             auto_renewal: false,
-            description: proposal.payload.description || "AI Agent orqali qo'shildi",
+            description: proposal.payload.description || msg.contractAddedByAi,
           })
           .select("id, number")
           .single();
@@ -272,7 +278,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         decision: "approved",
         result: executionResult,
-        message: "Amal server tomonida tekshirildi, Supabase bazasiga yozildi va audit jurnaliga qayd etildi!",
+        message: msg.actionAppliedAudit,
       });
     } catch (execErr: any) {
       await supabase.from("ai_action_logs").insert({
@@ -284,17 +290,17 @@ export async function POST(req: NextRequest) {
         payload: proposal,
         model_used: modelUsed,
         decision: "failed",
-        error_message: execErr?.message || "Noma'lum xatolik",
+        error_message: execErr?.message || msg.unknownError,
       });
       return NextResponse.json(
-        { error: execErr?.message || "Amalni bajarishda xatolik" },
+        { error: execErr?.message ? localizeServerError(execErr.message, locale) : msg.actionExecuteError },
         { status: 400 }
       );
     }
   } catch (err: any) {
     console.error("AI Execute error:", err);
     return NextResponse.json(
-      { error: err?.message || "Server xatosi" },
+      { error: err?.message ? localizeServerError(err.message, locale) : msg.systemError },
       { status: 500 }
     );
   }

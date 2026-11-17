@@ -28,10 +28,14 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { JournalEntry } from "@/lib/types/accounting";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 
 export default function AccountingPage() {
   const { currentEntity, currentRole } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const dict = getReconcileErpDict(locale);
+  const d = dict.erpExtra.accounting;
+  const intlLocale = getIntlLocale(locale);
   const [subTab, setSubTab] = useState("coa");
   const [coaSearch, setCoaSearch] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
@@ -53,8 +57,12 @@ export default function AccountingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingCoa, setIsSubmittingCoa] = useState(false);
   const [isReversing, setIsReversing] = useState(false);
-  const [reversalReason, setReversalReason] = useState("Notoʻgʻri summa kiritilgan");
+  const [reversalReason, setReversalReason] = useState("");
   const [isReversalDialogOpen, setIsReversalDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setReversalReason(d.defaultReversalReason);
+  }, [d.defaultReversalReason]);
 
   // Period Closing (Zakritiye mesyatsa) modal state
   const [isClosePeriodOpen, setIsClosePeriodOpen] = useState(false);
@@ -102,11 +110,11 @@ export default function AccountingPage() {
       setTotalJournalCount(count);
     } catch (err) {
       console.error("Error loading journal entries:", err);
-      toast.error("Provodkalarni bazadan yuklab boʻlmadi");
+      toast.error(d.toasts.loadEntriesError);
     } finally {
       setIsLoadingEntries(false);
     }
-  }, [currentEntity?.id, currentPage, pageSize]);
+  }, [currentEntity?.id, currentPage, pageSize, d.toasts.loadEntriesError]);
 
   useEffect(() => {
     setSelectedEntry(null);
@@ -199,7 +207,7 @@ export default function AccountingPage() {
   const isTbBalanced = Math.abs(tbTotalDebit - tbTotalCredit) < 0.01;
 
   const handleExport = () => {
-    const headers = ["Provodka №", "Sana", "Tavsif", "Manba", "Debet", "Kredit", "Holat", "Muallif"];
+    const headers = d.csvHeaders;
     const rows = journalEntries.map((je) => [
       je.entryNumber,
       je.date,
@@ -218,7 +226,7 @@ export default function AccountingPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Buxgalteriya provodkalari CSV formatida yuklab olindi");
+    toast.success(d.toasts.csvExported);
   };
 
   const handleExport1CXml = () => {
@@ -232,7 +240,7 @@ export default function AccountingPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast.success("1C:Buxgalteriya EnterpriseData XML fayli muvaffaqiyatli yuklab olindi!");
+    toast.success(d.toasts.xmlExported);
   };
 
   const handleCreateEntry = async (e: React.FormEvent) => {
@@ -254,10 +262,10 @@ export default function AccountingPage() {
     try {
       const debitAcc =
         chartOfAccounts.find((a) => a.code === parsed.data.debitAccountCode)?.name ||
-        "Debet schyoti";
+        d.fallbackDebitAcc;
       const creditAcc =
         chartOfAccounts.find((a) => a.code === parsed.data.creditAccountCode)?.name ||
-        "Kredit schyoti";
+        d.fallbackCreditAcc;
 
       // Atomic PostgreSQL RPC
       await createJournalEntryRecord({
@@ -275,7 +283,7 @@ export default function AccountingPage() {
 
       await loadJournalEntries();
       setLedgerVersion((v) => v + 1);
-      toast.success("Buxgalteriya provodkasi atomar tranzaksiya bilan Ledgerga saqlandi!");
+      toast.success(d.toasts.entrySaved);
       setIsAddOpen(false);
       setNewEntry({
         entryNumber: `JE-${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
@@ -287,7 +295,7 @@ export default function AccountingPage() {
       });
     } catch (err: any) {
       console.error("Create entry error:", err);
-      toast.error("Provodka saqlashda xatolik: " + (err.message || "Balans xatosi"));
+      toast.error(d.toasts.entrySaveError.replace("{error}", err.message || d.balanceErrorFallback));
     } finally {
       setIsSubmitting(false);
     }
@@ -296,11 +304,11 @@ export default function AccountingPage() {
   const handleCreateCoa = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{4,8}$/.test(newCoa.code.trim())) {
-      toast.error("Schyot kodi 4–8 xonali raqam boʻlishi shart");
+      toast.error(d.toasts.coaCodeInvalid);
       return;
     }
     if (newCoa.name.trim().length < 3) {
-      toast.error("Schyot nomini kamida 3 ta belgi bilan kiriting");
+      toast.error(d.toasts.coaNameTooShort);
       return;
     }
 
@@ -313,11 +321,15 @@ export default function AccountingPage() {
         type: newCoa.type,
       });
       await loadAccounts();
-      toast.success(`«${newCoa.code} — ${newCoa.name}» schyoti rejaga qoʻshildi!`);
+      toast.success(
+        d.toasts.coaAdded
+          .replace("{code}", newCoa.code)
+          .replace("{name}", newCoa.name)
+      );
       setIsAddCoaOpen(false);
       setNewCoa({ code: "", name: "", type: "asset" });
     } catch (err: any) {
-      toast.error("Schyot qoʻshishda xatolik: " + err.message);
+      toast.error(d.toasts.coaAddError.replace("{error}", err.message));
     } finally {
       setIsSubmittingCoa(false);
     }
@@ -326,13 +338,17 @@ export default function AccountingPage() {
   const handleReverseEntry = async () => {
     if (!selectedEntry) return;
     if (!reversalReason || reversalReason.trim().length < 3) {
-      toast.error("Storno qilish sababini kamida 3 ta belgi bilan kiriting");
+      toast.error(d.toasts.stornoReasonTooShort);
       return;
     }
     setIsReversing(true);
     try {
       const res = await reverseJournalEntryRecord(selectedEntry.id, reversalReason);
-      toast.success(`«${selectedEntry.entryNumber}» provodkasi storno qilindi (Reversal yozuvi yaratildi: ${res.reversal_entry_number})`);
+      toast.success(
+        d.toasts.stornoSuccess
+          .replace("{entryNumber}", selectedEntry.entryNumber)
+          .replace("{reversal}", res.reversal_entry_number)
+      );
       setIsReversalDialogOpen(false);
       setSelectedEntry(null);
 
@@ -340,7 +356,7 @@ export default function AccountingPage() {
       setLedgerVersion((v) => v + 1);
     } catch (err: any) {
       console.error("Reversal error:", err);
-      toast.error("Storno qilishda xatolik: " + err.message);
+      toast.error(d.toasts.stornoError.replace("{error}", err.message));
     } finally {
       setIsReversing(false);
     }
@@ -349,7 +365,7 @@ export default function AccountingPage() {
   const handleClosePeriod = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!closePeriodDates.fromDate || !closePeriodDates.toDate) {
-      toast.error("Boshlanish va tugash sanalarini tanlang");
+      toast.error(d.toasts.selectPeriodDates);
       return;
     }
     setIsClosingPeriod(true);
@@ -361,17 +377,24 @@ export default function AccountingPage() {
         closingDate: closePeriodDates.toDate,
       });
       if (res?.idempotent) {
-        toast.info(`Ushbu davr (${closePeriodDates.fromDate} — ${closePeriodDates.toDate}) allaqachon yopilgan (${res.entry_number}).`);
+        toast.info(
+          d.toasts.periodAlreadyClosed
+            .replace("{from}", closePeriodDates.fromDate)
+            .replace("{to}", closePeriodDates.toDate)
+            .replace("{entry}", res.entry_number)
+        );
       } else {
         toast.success(
-          `Davr muvaffaqiyatli yopildi (${res.entry_number})! Moliyaviy natija (9910 → 8710): ${Number(res.net_profit || 0).toLocaleString()} UZS.`
+          d.toasts.periodClosedSuccess
+            .replace("{entry}", res.entry_number)
+            .replace("{profit}", Number(res.net_profit || 0).toLocaleString(intlLocale))
         );
       }
       setIsClosePeriodOpen(false);
       await loadJournalEntries();
       setLedgerVersion((v) => v + 1);
     } catch (err: any) {
-      toast.error("Davrni yopishda xatolik: " + err.message);
+      toast.error(d.toasts.periodCloseError.replace("{error}", err.message));
     } finally {
       setIsClosingPeriod(false);
     }
@@ -398,10 +421,10 @@ export default function AccountingPage() {
             size="sm"
             className="text-xs h-8 gap-1.5"
             onClick={handleExport1CXml}
-            title="1C:Korxona EnterpriseData XML formatida yuklab olish"
+            title={d.export1CXmlTitle}
           >
             <FileCode className="h-3.5 w-3.5 text-amber-600" />
-            1C ga eksport (XML)
+            {d.export1CXmlBtn}
           </Button>
 
           <Button
@@ -422,7 +445,7 @@ export default function AccountingPage() {
                 onClick={() => setIsClosePeriodOpen(true)}
               >
                 <Lock className="h-3.5 w-3.5" />
-                Davrni yopish
+                {d.closePeriodBtn}
               </Button>
               <Button
                 size="sm"
@@ -471,7 +494,7 @@ export default function AccountingPage() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted-foreground">
-                {filteredCoa.length} / {chartOfAccounts.length} schyot
+                {filteredCoa.length} / {chartOfAccounts.length} {d.coaCountSuffix}
               </span>
               {currentRole !== "viewer" && currentRole !== "auditor" && (
                 <Button
@@ -481,7 +504,7 @@ export default function AccountingPage() {
                   onClick={() => setIsAddCoaOpen(true)}
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Yangi schyot / subschyot
+                  {d.newCoaBtn}
                 </Button>
               )}
             </div>
@@ -493,8 +516,8 @@ export default function AccountingPage() {
                 <TableRow>
                   <TableHead className="w-24">{t.pages.accounting.code}</TableHead>
                   <TableHead>{t.pages.accounting.name}</TableHead>
-                  <TableHead>Kategoriya</TableHead>
-                  <TableHead>Turi</TableHead>
+                  <TableHead>{d.colCategory}</TableHead>
+                  <TableHead>{d.colType}</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.balance} ({t.common.currency})</TableHead>
                 </TableRow>
               </TableHeader>
@@ -502,7 +525,7 @@ export default function AccountingPage() {
                 {filteredCoa.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-6 text-xs text-muted-foreground">
-                      Schyotlar rejasi topilmadi.
+                      {d.emptyCoa}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -528,7 +551,11 @@ export default function AccountingPage() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-[10px] capitalize">
-                            {acc.type === "active" ? "Aktiv" : acc.type === "passive" ? "Passiv" : "Aktiv-Passiv"}
+                            {acc.type === "active"
+                              ? d.typeActive
+                              : acc.type === "passive"
+                              ? d.typePassive
+                              : d.typeActivePassive}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-mono">
@@ -544,7 +571,7 @@ export default function AccountingPage() {
               page={coaPage}
               pageSize={pageSize}
               totalCount={filteredCoa.length}
-              itemLabel="schyot"
+              itemLabel={d.coaItemLabel}
               onPageChange={setCoaPage}
             />
           </div>
@@ -563,16 +590,14 @@ export default function AccountingPage() {
                   <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
                   <TableHead>{t.common.status}</TableHead>
-                  <TableHead>User</TableHead>
+                  <TableHead>{d.colUser}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {journalEntries.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
-                      {isLoadingEntries
-                        ? "Provodkalar Supabase bazasidan yuklanmoqda..."
-                        : "Ushbu korxona boʻyicha buxgalteriya provodkalari topilmadi."}
+                      {isLoadingEntries ? d.loadingEntries : d.emptyEntries}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -617,7 +642,7 @@ export default function AccountingPage() {
             {/* Server-side Pagination Bar */}
             <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
               <span>
-                Jami: <strong className="text-foreground">{totalJournalCount}</strong> ta provodka (Sahifa {currentPage} / {totalPages})
+                {d.totalEntriesPrefix} <strong className="text-foreground">{totalJournalCount}</strong> {d.entriesWord} ({d.pageWord} {currentPage} / {totalPages})
               </span>
               <div className="flex items-center gap-1.5">
                 <Button
@@ -627,7 +652,7 @@ export default function AccountingPage() {
                   disabled={currentPage <= 1 || isLoadingEntries}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 >
-                  Oldingi
+                  {d.prevBtn}
                 </Button>
                 <Button
                   variant="outline"
@@ -636,7 +661,7 @@ export default function AccountingPage() {
                   disabled={currentPage >= totalPages || isLoadingEntries}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 >
-                  Keyingi
+                  {d.nextBtn}
                 </Button>
               </div>
             </div>
@@ -666,7 +691,7 @@ export default function AccountingPage() {
                       className="h-7 text-xs text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950 gap-1.5"
                     >
                       <RotateCcw className="h-3 w-3" />
-                      Storno qilish (Reversal)
+                      {d.stornoBtn}
                     </Button>
                   )}
                   <Button
@@ -723,12 +748,12 @@ export default function AccountingPage() {
             <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-medium">
               <CheckCircle2 className="h-4 w-4" />
               <span>
-                {isTbBalanced ? "Balans qonuni toʻliq taʼminlangan: Debet = Kredit" : "Diqqat: Debet va Kredit farqi mavjud"}
+                {isTbBalanced ? d.tbBalanced : d.tbUnbalanced}
               </span>
             </div>
             <div className="flex items-center gap-4 font-mono font-bold">
-              <span>{t.pages.accounting.debit}: {new Intl.NumberFormat("uz-UZ").format(tbTotalDebit)} {t.common.currency}</span>
-              <span>{t.pages.accounting.credit}: {new Intl.NumberFormat("uz-UZ").format(tbTotalCredit)} {t.common.currency}</span>
+              <span>{t.pages.accounting.debit}: {new Intl.NumberFormat(intlLocale).format(tbTotalDebit)} {t.common.currency}</span>
+              <span>{t.pages.accounting.credit}: {new Intl.NumberFormat(intlLocale).format(tbTotalCredit)} {t.common.currency}</span>
             </div>
           </div>
 
@@ -738,10 +763,10 @@ export default function AccountingPage() {
                 <TableRow>
                   <TableHead className="w-20">{t.pages.accounting.code}</TableHead>
                   <TableHead>{t.pages.accounting.name}</TableHead>
-                  <TableHead className="text-right">Boshlangʻich saldo</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.debit} (Aylanma)</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.credit} (Aylanma)</TableHead>
-                  <TableHead className="text-right">Yakuniy saldo</TableHead>
+                  <TableHead className="text-right">{d.colOpeningBalance}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.debit} {d.turnoverSuffix}</TableHead>
+                  <TableHead className="text-right">{t.pages.accounting.credit} {d.turnoverSuffix}</TableHead>
+                  <TableHead className="text-right">{d.colClosingBalance}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -781,7 +806,7 @@ export default function AccountingPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-xs">
-                      Hozircha hisob-kitoblar maʼlumoti yuklanmadi yoki provodkalar yoʻq.
+                      {d.emptyTrialBalance}
                     </TableCell>
                   </TableRow>
                 )}
@@ -812,12 +837,12 @@ export default function AccountingPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t.common.date}</TableHead>
-                  <TableHead>Hujjat raqami</TableHead>
+                  <TableHead>{d.colDocNumber}</TableHead>
                   <TableHead>{t.common.description}</TableHead>
-                  <TableHead>Korr. schyot</TableHead>
+                  <TableHead>{d.colCorrAccount}</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
                   <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
-                  <TableHead className="text-right">Joriy qoldiq (Running Balance)</TableHead>
+                  <TableHead className="text-right">{d.colRunningBalance}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -844,7 +869,7 @@ export default function AccountingPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-xs">
-                      Tanlangan {selectedLedgerAccount} schyoti boʻyicha hozircha operatsiyalar mavjud emas.
+                      {d.emptyLedgerForAccount.replace("{account}", selectedLedgerAccount)}
                     </TableCell>
                   </TableRow>
                 )}
@@ -854,7 +879,7 @@ export default function AccountingPage() {
               page={glPage}
               pageSize={pageSize}
               totalCount={generalLedgerData.length}
-              itemLabel="harakat"
+              itemLabel={d.glItemLabel}
               onPageChange={setGlPage}
             />
           </div>
@@ -866,17 +891,17 @@ export default function AccountingPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground">
-              Yangi buxgalteriya provodkasini kiritish
+              {d.addEntryTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Ikkiyoqlama yozuv (Double-Entry Ledger) boʻyicha atomar tranzaksiya bilan saqlash.
+              {d.addEntryDesc}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateEntry} className="space-y-3 pt-2 text-xs">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Hujjat raqami *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.docNumberLabel}</Label>
                 <Input
                   value={newEntry.entryNumber}
                   onChange={(e) => setNewEntry({ ...newEntry, entryNumber: e.target.value })}
@@ -885,7 +910,7 @@ export default function AccountingPage() {
                 />
               </div>
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Sana *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.dateLabel}</Label>
                 <Input
                   type="date"
                   value={newEntry.date}
@@ -897,9 +922,9 @@ export default function AccountingPage() {
             </div>
 
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Iqtisodiy mazmuni / Maqsad *</Label>
+              <Label className="text-[11px] font-medium text-foreground">{d.purposeLabel}</Label>
               <Input
-                placeholder="Tavsif"
+                placeholder={d.purposePlaceholder}
                 value={newEntry.description}
                 onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -909,7 +934,7 @@ export default function AccountingPage() {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Debet schyoti (Dt) *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.debitAccountLabel}</Label>
                 <select
                   value={newEntry.debitAccountCode}
                   onChange={(e) => setNewEntry({ ...newEntry, debitAccountCode: e.target.value })}
@@ -923,7 +948,7 @@ export default function AccountingPage() {
                 </select>
               </div>
               <div>
-                <Label className="text-[11px] font-medium text-foreground">Kredit schyoti (Kt) *</Label>
+                <Label className="text-[11px] font-medium text-foreground">{d.creditAccountLabel}</Label>
                 <select
                   value={newEntry.creditAccountCode}
                   onChange={(e) => setNewEntry({ ...newEntry, creditAccountCode: e.target.value })}
@@ -939,10 +964,10 @@ export default function AccountingPage() {
             </div>
 
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Summa (UZS) *</Label>
+              <Label className="text-[11px] font-medium text-foreground">{d.amountLabel}</Label>
               <Input
                 type="number"
-                placeholder="Summa"
+                placeholder={d.amountPlaceholder}
                 value={newEntry.amount}
                 onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value })}
                 className="h-8 text-xs font-mono mt-1"
@@ -967,7 +992,7 @@ export default function AccountingPage() {
                 className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Saqlanmoqda..." : "Provodkani saqlash"}
+                {isSubmitting ? d.savingBtn : d.saveEntryBtn}
               </Button>
             </DialogFooter>
           </form>
@@ -980,20 +1005,20 @@ export default function AccountingPage() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2 text-rose-600 dark:text-rose-400">
               <AlertTriangle className="h-4 w-4" />
-              Provodkani Storno qilish
+              {d.stornoTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Tasdiqlangan provodka oʻchirib yuborilmaydi. Uning oʻrniga teskari (storno) provodka yaratilib, joriy provodka holati «reversed» deb belgilanadi.
+              {d.stornoDesc}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 pt-2 text-xs">
             <div>
-              <Label className="text-[11px] font-medium text-foreground">Storno qilish sababi *</Label>
+              <Label className="text-[11px] font-medium text-foreground">{d.stornoReasonLabel}</Label>
               <Input
                 value={reversalReason}
                 onChange={(e) => setReversalReason(e.target.value)}
-                placeholder="Storno sababi"
+                placeholder={d.stornoReasonPlaceholder}
                 className="h-8 text-xs mt-1"
                 required
               />
@@ -1008,7 +1033,7 @@ export default function AccountingPage() {
                 onClick={() => setIsReversalDialogOpen(false)}
                 disabled={isReversing}
               >
-                Bekor qilish
+                {d.cancelBtn}
               </Button>
               <Button
                 type="button"
@@ -1017,7 +1042,7 @@ export default function AccountingPage() {
                 onClick={handleReverseEntry}
                 disabled={isReversing}
               >
-                {isReversing ? "Storno qilinmoqda..." : "Storno yozuvini yaratish"}
+                {isReversing ? d.stornoWorkingBtn : d.stornoSubmitBtn}
               </Button>
             </DialogFooter>
           </div>
@@ -1029,17 +1054,17 @@ export default function AccountingPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground">
-              Yangi schyot / subschyot qoʻshish
+              {d.addCoaTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Korxona uchun individual schyot / subschyot qoʻshish.
+              {d.addCoaDesc}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateCoa} className="space-y-3 pt-2 text-xs">
             <div>
-              <Label className="text-[11px] font-medium">Schyot kodi *</Label>
+              <Label className="text-[11px] font-medium">{d.coaCodeLabel}</Label>
               <Input
-                placeholder="Schyot kodi"
+                placeholder={d.coaCodePlaceholder}
                 value={newCoa.code}
                 onChange={(e) => setNewCoa({ ...newCoa, code: e.target.value })}
                 className="h-8 text-xs font-mono mt-1"
@@ -1047,9 +1072,9 @@ export default function AccountingPage() {
               />
             </div>
             <div>
-              <Label className="text-[11px] font-medium">Schyot nomi *</Label>
+              <Label className="text-[11px] font-medium">{d.coaNameLabel}</Label>
               <Input
-                placeholder="Schyot nomi"
+                placeholder={d.coaNamePlaceholder}
                 value={newCoa.name}
                 onChange={(e) => setNewCoa({ ...newCoa, name: e.target.value })}
                 className="h-8 text-xs mt-1"
@@ -1057,17 +1082,17 @@ export default function AccountingPage() {
               />
             </div>
             <div>
-              <Label className="text-[11px] font-medium">Schyot turi (BHMS)</Label>
+              <Label className="text-[11px] font-medium">{d.coaTypeLabel}</Label>
               <select
                 value={newCoa.type}
                 onChange={(e) => setNewCoa({ ...newCoa, type: e.target.value as any })}
                 className="w-full h-8 text-xs mt-1 rounded-md border border-input bg-background px-2"
               >
-                <option value="asset">Aktiv (Asset)</option>
-                <option value="liability">Majburiyat (Liability)</option>
-                <option value="equity">Xususiy kapital (Equity)</option>
-                <option value="revenue">Daromad (Revenue)</option>
-                <option value="expense">Xarajat (Expense)</option>
+                <option value="asset">{d.coaOptAsset}</option>
+                <option value="liability">{d.coaOptLiability}</option>
+                <option value="equity">{d.coaOptEquity}</option>
+                <option value="revenue">{d.coaOptRevenue}</option>
+                <option value="expense">{d.coaOptExpense}</option>
               </select>
             </div>
             <DialogFooter className="pt-2 gap-2">
@@ -1087,7 +1112,7 @@ export default function AccountingPage() {
                 className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
                 disabled={isSubmittingCoa}
               >
-                {isSubmittingCoa ? "Qoʻshilmoqda..." : "Schyotni saqlash"}
+                {isSubmittingCoa ? d.addingBtn : d.saveCoaBtn}
               </Button>
             </DialogFooter>
           </form>
@@ -1100,16 +1125,16 @@ export default function AccountingPage() {
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
               <Lock className="h-4 w-4 text-amber-600" />
-              Davrni yopish (Oy yopish)
+              {d.closePeriodTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Tanlangan davr uchun barcha daromad (9010) va xarajat (9110–9430) schyotlarini 9910 orqali 8710 (Taqsimlanmagan foyda/zarar) ga yopish.
+              {d.closePeriodDesc}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleClosePeriod} className="space-y-3 pt-2 text-xs">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <Label className="text-[11px] font-medium">Boshlanish sanasi *</Label>
+                <Label className="text-[11px] font-medium">{d.fromDateLabel}</Label>
                 <Input
                   type="date"
                   value={closePeriodDates.fromDate}
@@ -1119,7 +1144,7 @@ export default function AccountingPage() {
                 />
               </div>
               <div>
-                <Label className="text-[11px] font-medium">Tugash sanasi *</Label>
+                <Label className="text-[11px] font-medium">{d.toDateLabel}</Label>
                 <Input
                   type="date"
                   value={closePeriodDates.toDate}
@@ -1146,7 +1171,7 @@ export default function AccountingPage() {
                 className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
                 disabled={isClosingPeriod}
               >
-                {isClosingPeriod ? "Yopilmoqda..." : "Davrni yopish (9910 → 8710)"}
+                {isClosingPeriod ? d.closingBtn : d.closePeriodSubmitBtn}
               </Button>
             </DialogFooter>
           </form>

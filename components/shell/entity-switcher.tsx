@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { useTranslation } from "@/lib/i18n/useTranslation";
+import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,8 @@ import { Badge } from "@/components/ui/badge";
 export function EntitySwitcher() {
   const router = useRouter();
   const { entities, currentEntity, setCurrentEntityId } = useAppState();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const d = getShellSharedDict(locale);
 
   return (
     <DropdownMenu>
@@ -36,7 +38,7 @@ export function EntitySwitcher() {
             </div>
             <div className="flex flex-col text-left truncate leading-tight">
               <span className="truncate font-semibold text-foreground">
-                {currentEntity?.tradeName || currentEntity?.name || "Korxona tanlanmagan"}
+                {currentEntity?.tradeName || currentEntity?.name || d.entitySwitcher.noEntitySelected}
               </span>
               <span className="text-[10px] text-muted-foreground font-mono">
                 {t.entity.tin}: {currentEntity?.tinStir || "—"}
@@ -58,7 +60,7 @@ export function EntitySwitcher() {
             key={ent.id}
             onClick={() => {
               setCurrentEntityId(ent.id);
-              toast.success(`${t.entity.title}: ${ent.name}`);
+              toast.success(d.entitySwitcher.switchedToast(ent.name));
             }}
             className="flex items-center justify-between text-xs py-2 cursor-pointer"
           >
@@ -70,10 +72,10 @@ export function EntitySwitcher() {
                 </span>
                 <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
                   {ent.taxRegime === "vat_profit_tax"
-                    ? "QQS + Foyda"
+                    ? d.entitySwitcher.taxRegimes.vat_profit_tax
                     : ent.taxRegime === "turnover_tax"
-                    ? "Aylanma 4%"
-                    : "Qatʼiy soliq"}
+                    ? d.entitySwitcher.taxRegimes.turnover_tax
+                    : d.entitySwitcher.taxRegimes.fixed_tax}
                 </Badge>
               </div>
             </div>
