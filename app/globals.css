@@ -42,40 +42,40 @@
   }
 
   .dark {
-    /* Datara-inspired Deep Obsidian Canvas */
-    --background: 228 32% 4.5%; /* #07080C True Deep Black */
-    --foreground: 210 40% 98%; /* #F8FAFC Crisp White */
+    /* Reference Dashboard Deep Violet-Charcoal Palette */
+    --background: 256 30% 6.5%; /* #0D0B14 Deep Dark Violet-Charcoal */
+    --foreground: 210 40% 98%; /* #F8FAFC Pure Crisp White */
 
-    --card: 226 24% 8%; /* #0D0F16 Surface */
+    --card: 253 25% 10.5%; /* #151322 Elevated Violet Panel */
     --card-foreground: 210 40% 98%;
 
-    --popover: 226 24% 8%;
+    --popover: 253 25% 10.5%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 243 75% 62%; /* Electric Indigo */
-    --primary-foreground: 210 40% 98%;
+    --primary: 263 80% 65%; /* #8B5CF6 / #9061F9 Vibrant Neon Violet */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 225 20% 12%; /* #151822 */
+    --secondary: 252 24% 14.5%; /* #1E1A2F */
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 225 20% 11%; /* #131620 */
-    --muted-foreground: 215 14% 56%; /* #858C99 Refined Slate */
+    --muted: 252 20% 13%; /* #1A1726 */
+    --muted-foreground: 248 13% 65%; /* #9D9AB4 Soft Lavender-Slate */
 
-    --accent: 225 20% 12%;
+    --accent: 252 24% 15%; /* #201C31 */
     --accent-foreground: 210 40% 98%;
 
-    --destructive: 347 77% 50%;
+    --destructive: 347 77% 55%;
     --destructive-foreground: 210 40% 98%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 48 96% 12%;
 
-    --success: 160 84% 39%; /* #10B981 Emerald */
-    --success-foreground: 210 40% 98%;
+    --success: 263 80% 65%; /* Harmonized Violet-glow */
+    --success-foreground: 0 0% 100%;
 
-    --border: 220 20% 15%; /* #1A1E29 Ultra-fine 1px */
-    --input: 220 20% 15%;
-    --ring: 243 75% 62%;
+    --border: 252 20% 18%; /* #26213A Subtle Violet Tinted Border */
+    --input: 252 20% 18%;
+    --ring: 263 80% 65%;
   }
 }
 
@@ -84,7 +84,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-indigo-500 selection:text-white;
+    @apply bg-background text-foreground antialiased selection:bg-violet-600 selection:text-white;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
@@ -128,7 +128,7 @@
   background: linear-gradient(
     90deg,
     hsl(var(--muted)) 0%,
-    rgba(99, 102, 241, 0.22) 50%,
+    rgba(139, 92, 246, 0.25) 50%,
     hsl(var(--muted)) 100%
   );
   background-size: 200% 100%;

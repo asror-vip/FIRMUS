@@ -138,42 +138,42 @@ function SoloToolsHome() {
       desc: solo.tools.aiChatDesc,
       href: "/assistant",
       icon: Sparkles,
-      color: "text-indigo-400 bg-indigo-500/10 border-indigo-500/20",
+      color: "text-violet-400 bg-violet-500/10 border-violet-500/25",
     },
     {
       title: solo.tools.reconcileTitle,
       desc: solo.tools.reconcileDesc,
       href: "/reconcile",
       icon: Scale,
-      color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+      color: "text-violet-300 bg-violet-500/10 border-violet-500/25",
     },
     {
       title: solo.tools.scanTitle,
       desc: solo.tools.scanDesc,
       href: "/assistant?tab=scan",
       icon: Camera,
-      color: "text-sky-400 bg-sky-500/10 border-sky-500/20",
+      color: "text-purple-400 bg-purple-500/10 border-purple-500/25",
     },
     {
       title: solo.tools.calcTitle,
       desc: solo.tools.calcDesc,
       href: "/assistant?tab=calc",
       icon: Calculator,
-      color: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+      color: "text-violet-400 bg-violet-500/10 border-violet-500/25",
     },
     {
       title: solo.tools.contractTitle,
       desc: solo.tools.contractDesc,
       href: "/assistant?tab=contract",
       icon: FileWarning,
-      color: "text-rose-400 bg-rose-500/10 border-rose-500/20",
+      color: "text-purple-300 bg-purple-500/10 border-purple-500/25",
     },
     {
       title: solo.tools.historyTitle,
       desc: solo.tools.historyDesc,
       href: "/assistant?tab=history",
       icon: History,
-      color: "text-slate-400 bg-muted/40 border-border/60",
+      color: "text-violet-300 bg-violet-500/5 border-violet-500/20",
     },
   ];
 
@@ -203,7 +203,7 @@ function SoloToolsHome() {
           <Button
             size="sm"
             onClick={toggleAiDrawer}
-            className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-none"
+            className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_12px_rgba(139,92,246,0.25)]"
           >
             <Sparkles className="h-3.5 w-3.5" />
             {solo.firmusAiBtn}
@@ -222,13 +222,13 @@ function SoloToolsHome() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {solo.kpi.monthlyWorksTitle}
             </span>
-            <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {isLoading ? "…" : String(usage.monthlyBatches)}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <FileStack className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <FileStack className="h-3.5 w-3.5 text-violet-400 shrink-0" />
             <span className="truncate">{solo.kpi.monthlyWorksSub}</span>
           </div>
         </button>
@@ -242,13 +242,13 @@ function SoloToolsHome() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {solo.kpi.aiChatsTitle}
             </span>
-            <span className="h-2 w-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-purple-300 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {isLoading ? "…" : String(usage.aiThreadsCount)}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <MessageSquare className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <MessageSquare className="h-3.5 w-3.5 text-purple-300 shrink-0" />
             <span className="truncate">{solo.kpi.aiChatsSub}</span>
           </div>
         </button>
@@ -262,13 +262,13 @@ function SoloToolsHome() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {solo.kpi.totalWorksTitle}
             </span>
-            <span className="h-2 w-2 rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-violet-400/80 shadow-[0_0_8px_rgba(139,92,246,0.4)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {isLoading ? "…" : String(totalBatches)}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <CheckCircle2 className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-violet-300 shrink-0" />
             <span className="truncate">{solo.kpi.totalWorksSub}</span>
           </div>
         </button>
@@ -282,13 +282,13 @@ function SoloToolsHome() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {solo.kpi.currentPlanTitle}
             </span>
-            <span className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground truncate">
             {planName}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <CreditCard className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <CreditCard className="h-3.5 w-3.5 text-violet-400 shrink-0" />
             <span className="truncate">
               {subscription.trialAvailable ? solo.kpi.trialAvailableSub : solo.kpi.managePlanSub}
             </span>

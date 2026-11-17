@@ -92,7 +92,7 @@ export function QuickEntityBanner() {
     <>
       <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
         <div className="flex items-center gap-2 text-muted-foreground">
-          <Building2 className="h-4 w-4 text-indigo-600 shrink-0" />
+          <Building2 className="h-4 w-4 text-violet-500 shrink-0" />
           <span>{qb.bannerTitle}</span>
         </div>
         <Button

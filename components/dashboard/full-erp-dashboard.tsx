@@ -54,23 +54,23 @@ function computeVatNetPayable(tb: any[]): number {
 
 function StatusDot({ status }: { status: string }) {
   const norm = String(status || "").toLowerCase();
-  let dotClass = "bg-slate-400";
+  let dotClass = "bg-muted-foreground/60";
   let label = status;
 
   if (["success", "posted", "paid", "resolved"].includes(norm)) {
-    dotClass = "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]";
+    dotClass = "bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]";
     label = norm === "posted" ? "Provodka" : "Yechilgan";
   } else if (["pending", "in_review", "syncing"].includes(norm)) {
-    dotClass = "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]";
+    dotClass = "bg-purple-300 shadow-[0_0_6px_rgba(192,132,252,0.4)]";
     label = "Kutilmoqda";
   } else if (["critical", "high", "failed", "rejected"].includes(norm)) {
-    dotClass = "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]";
+    dotClass = "bg-rose-400/90 shadow-[0_0_6px_rgba(244,63,94,0.35)]";
     label = norm === "critical" ? "Kritik" : "Xatolik";
   } else if (["medium", "warning"].includes(norm)) {
-    dotClass = "bg-amber-400";
+    dotClass = "bg-violet-300/80";
     label = "Oʻrta";
   } else if (["low", "info"].includes(norm)) {
-    dotClass = "bg-sky-400";
+    dotClass = "bg-indigo-300/80";
     label = "Past";
   }
 
@@ -79,6 +79,58 @@ function StatusDot({ status }: { status: string }) {
       <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
       <span>{label}</span>
     </span>
+  );
+}
+
+function CircularGauge({
+  percent,
+  label,
+  color = "#8B5CF6",
+  trackColor = "rgba(139,92,246,0.15)",
+}: {
+  percent: number;
+  label: string;
+  color?: string;
+  trackColor?: string;
+}) {
+  const radius = 22;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset =
+    circumference - (Math.min(100, Math.max(0, percent)) / 100) * circumference;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative h-14 w-14 flex items-center justify-center">
+        <svg className="h-14 w-14 -rotate-90" viewBox="0 0 54 54">
+          <circle
+            cx="27"
+            cy="27"
+            r={radius}
+            fill="transparent"
+            stroke={trackColor}
+            strokeWidth="4"
+          />
+          <circle
+            cx="27"
+            cy="27"
+            r={radius}
+            fill="transparent"
+            stroke={color}
+            strokeWidth="4"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className="transition-all duration-700 ease-out"
+          />
+        </svg>
+        <span className="absolute font-mono text-[11px] font-bold text-foreground">
+          {percent}%
+        </span>
+      </div>
+      <span className="text-[10px] text-muted-foreground font-medium mt-1 truncate max-w-[80px] text-center">
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -238,7 +290,7 @@ export function FullErpDashboard() {
             variant="outline"
             size="sm"
             onClick={() => router.push("/reconcile")}
-            className="text-xs h-8 gap-1.5 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            className="text-xs h-8 gap-1.5 border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10 text-violet-600 dark:text-violet-300"
           >
             <Scale className="h-3.5 w-3.5" />
             {erp.reconcileHeaderBtn}
@@ -246,7 +298,7 @@ export function FullErpDashboard() {
           <Button
             size="sm"
             onClick={toggleAiDrawer}
-            className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-none"
+            className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_rgba(139,92,246,0.25)]"
           >
             <Sparkles className="h-3.5 w-3.5" />
             {t.aiDrawer.title}
@@ -268,13 +320,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {t.dashboard.kpiAutomated}
             </span>
-            <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {automatedRate}%
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-violet-400 shrink-0" />
             <span className="truncate">
               {erp.postedOperationsSub
                 .replace("{posted}", String(postedCount))
@@ -293,13 +345,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {t.dashboard.kpiApprovals}
             </span>
-            <span className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-purple-300 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {totalPendingCount}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <Clock className="h-3.5 w-3.5 text-purple-300 shrink-0" />
             <span className="truncate">{t.dashboard.kpiApprovalsSub}</span>
           </div>
         </button>
@@ -314,13 +366,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {t.dashboard.kpiExceptions}
             </span>
-            <span className="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-violet-400/80 shadow-[0_0_8px_rgba(139,92,246,0.4)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {openExceptionsCount}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <ShieldAlert className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+            <ShieldAlert className="h-3.5 w-3.5 text-violet-300 shrink-0" />
             <span className="truncate">{t.dashboard.kpiExceptionsSub}</span>
           </div>
         </button>
@@ -335,13 +387,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {erp.netVatTitle}
             </span>
-            <span className="h-2 w-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground truncate">
             {formatUzsByLocale(Math.round(vatNetPayable), locale)}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <Scale className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <Scale className="h-3.5 w-3.5 text-violet-400 shrink-0" />
             <span className="truncate">{erp.netVatSub}</span>
           </div>
         </button>
@@ -355,11 +407,11 @@ export function FullErpDashboard() {
           className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center shrink-0">
               <Scale className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-foreground group-hover:text-emerald-500 transition-colors truncate">
+              <div className="text-xs font-semibold text-foreground group-hover:text-violet-300 transition-colors truncate">
                 {erp.quickCards.reconcileTitle}
               </div>
               <div className="text-[10px] text-muted-foreground truncate">
@@ -376,11 +428,11 @@ export function FullErpDashboard() {
           className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
               <Camera className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-foreground group-hover:text-indigo-500 transition-colors truncate">
+              <div className="text-xs font-semibold text-foreground group-hover:text-purple-300 transition-colors truncate">
                 {erp.quickCards.scanTitle}
               </div>
               <div className="text-[10px] text-muted-foreground truncate">
@@ -397,11 +449,11 @@ export function FullErpDashboard() {
           className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center shrink-0">
               <Calculator className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-foreground group-hover:text-amber-500 transition-colors truncate">
+              <div className="text-xs font-semibold text-foreground group-hover:text-violet-300 transition-colors truncate">
                 {erp.quickCards.calcTitle}
               </div>
               <div className="text-[10px] text-muted-foreground truncate">
@@ -429,11 +481,11 @@ export function FullErpDashboard() {
             </div>
             <div className="flex items-center gap-3 text-[11px]">
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.6)]" />
                 <span className="text-muted-foreground">{t.common.income}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
                 <span className="text-muted-foreground">{t.common.expense}</span>
               </div>
             </div>
@@ -445,8 +497,8 @@ export function FullErpDashboard() {
                 <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6366F1" stopOpacity={0.25} />
@@ -470,14 +522,14 @@ export function FullErpDashboard() {
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="rounded-lg border border-border/80 bg-background/95 backdrop-blur-md p-2.5 shadow-xl text-xs space-y-1">
+                          <div className="rounded-lg border border-violet-500/30 bg-[#151322]/95 backdrop-blur-md p-2.5 shadow-xl text-xs space-y-1">
                             <p className="font-mono text-muted-foreground text-[10px]">
                               {payload[0].payload.date}
                             </p>
-                            <p className="text-emerald-500 font-mono font-medium">
+                            <p className="text-violet-400 font-mono font-medium">
                               {t.common.income}: {Number(payload[0].value || 0).toLocaleString(intlLocale)} {t.common.currency}
                             </p>
-                            <p className="text-indigo-400 font-mono font-medium">
+                            <p className="text-indigo-300 font-mono font-medium">
                               {t.common.expense}: {Number(payload[1].value || 0).toLocaleString(intlLocale)} {t.common.currency}
                             </p>
                           </div>
@@ -489,8 +541,10 @@ export function FullErpDashboard() {
                   <Area
                     type="monotone"
                     dataKey="income"
-                    stroke="#10B981"
-                    strokeWidth={1.75}
+                    stroke="#8B5CF6"
+                    strokeWidth={2.2}
+                    dot={{ r: 3.5, stroke: "#8B5CF6", strokeWidth: 2, fill: "#0D0B14" }}
+                    activeDot={{ r: 5, stroke: "#A78BFA", strokeWidth: 2, fill: "#8B5CF6" }}
                     fillOpacity={1}
                     fill="url(#colorIncome)"
                   />
@@ -498,7 +552,8 @@ export function FullErpDashboard() {
                     type="monotone"
                     dataKey="expense"
                     stroke="#6366F1"
-                    strokeWidth={1.75}
+                    strokeWidth={1.8}
+                    strokeDasharray="3 3"
                     fillOpacity={1}
                     fill="url(#colorExpense)"
                   />
@@ -512,7 +567,7 @@ export function FullErpDashboard() {
           </div>
         </div>
 
-        {/* Right 1/3: Quick Accountant Workflows (Seamless List, No Nested Boxes) */}
+        {/* Right 1/3: Quick Accountant Workflows & Radial Gauges */}
         <div className="p-5 flex flex-col justify-between">
           <div className="pb-3 border-b border-border/40">
             <div className="text-xs font-semibold tracking-wider uppercase text-muted-foreground/80 flex items-center gap-1.5">
@@ -531,7 +586,7 @@ export function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
               <div className="min-w-0">
-                <div className="text-xs font-medium text-foreground group-hover:text-emerald-500 transition-colors">
+                <div className="text-xs font-medium text-foreground group-hover:text-violet-400 transition-colors">
                   {erp.workflows.reconcileTitle}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.reconcileSub}</div>
@@ -545,7 +600,7 @@ export function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
               <div className="min-w-0">
-                <div className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                <div className="text-xs font-medium text-foreground group-hover:text-violet-400 transition-colors">
                   {erp.workflows.trialBalanceTitle}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.trialBalanceSub}</div>
@@ -559,7 +614,7 @@ export function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
               <div className="min-w-0">
-                <div className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                <div className="text-xs font-medium text-foreground group-hover:text-violet-400 transition-colors">
                   {erp.workflows.taxFinanceTitle}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.taxFinanceSub}</div>
@@ -573,13 +628,29 @@ export function FullErpDashboard() {
               className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
               <div className="min-w-0">
-                <div className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                <div className="text-xs font-medium text-foreground group-hover:text-violet-400 transition-colors">
                   {erp.workflows.entitySettingsTitle}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.entitySettingsSub}</div>
               </div>
               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
             </button>
+          </div>
+
+          {/* Reference Radial Circular Health Gauges */}
+          <div className="pt-3 pb-1 border-t border-border/40 grid grid-cols-2 gap-2 items-center justify-center">
+            <CircularGauge
+              percent={Math.round(Number(automatedRate))}
+              label="Avtomatika"
+              color="#8B5CF6"
+              trackColor="rgba(139,92,246,0.15)"
+            />
+            <CircularGauge
+              percent={openExceptionsCount === 0 ? 100 : Math.max(30, 100 - openExceptionsCount * 10)}
+              label="Audit Salomatlik"
+              color="#A78BFA"
+              trackColor="rgba(167,139,250,0.15)"
+            />
           </div>
 
           <div className="pt-2 border-t border-border/30 text-[11px] text-muted-foreground/70 flex items-center justify-between">
@@ -597,7 +668,7 @@ export function FullErpDashboard() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-foreground">{t.dashboard.pendingApprovalsTitle}</span>
               {totalPendingCount > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 font-medium">
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30 font-medium">
                   {totalPendingCount}
                 </span>
               )}
@@ -636,7 +707,7 @@ export function FullErpDashboard() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 px-2 text-xs hover:bg-muted/60"
+                          className="h-7 px-2 text-xs hover:bg-violet-500/10 hover:text-violet-300"
                           onClick={() => router.push(`/transactions?id=${tx.id}`)}
                         >
                           {t.common.details}
@@ -662,7 +733,7 @@ export function FullErpDashboard() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-foreground">{t.dashboard.recentExceptionsTitle}</span>
               {openExceptionsCount > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20 font-medium">
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30 font-medium">
                   {openExceptionsCount}
                 </span>
               )}
@@ -724,14 +795,14 @@ export function FullErpDashboard() {
       </div>
 
       {/* 6. Bottom Datara Glass Strip (AI Recommendation) */}
-      <div className="rounded-xl border border-primary/20 bg-primary/[0.03] backdrop-blur-sm p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="rounded-xl border border-violet-500/25 bg-violet-600/[0.04] backdrop-blur-sm p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary mt-0.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-400 mt-0.5">
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-primary uppercase tracking-wider font-mono">
+              <span className="text-[11px] font-bold text-violet-400 uppercase tracking-wider font-mono">
                 {t.dashboard.aiRecommendationTitle}
               </span>
             </div>
@@ -753,7 +824,7 @@ export function FullErpDashboard() {
           <Button
             size="sm"
             onClick={toggleAiDrawer}
-            className="text-xs h-7 px-3 bg-primary hover:bg-primary/90 text-primary-foreground shadow-none"
+            className="text-xs h-7 px-3 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_12px_rgba(139,92,246,0.3)]"
           >
             {t.common.view}
           </Button>

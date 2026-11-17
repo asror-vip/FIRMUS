@@ -116,9 +116,9 @@ export function Topbar() {
         <Button
           onClick={toggleAiDrawer}
           size="sm"
-          className="h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm px-2.5 text-xs transition-colors"
+          className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-medium shadow-[0_0_12px_rgba(139,92,246,0.25)] px-2.5 text-xs transition-colors"
         >
-          <Sparkles className="h-3.5 w-3.5 text-indigo-100" />
+          <Sparkles className="h-3.5 w-3.5 text-violet-100" />
           <span className="hidden sm:inline">FIRMUS AI</span>
         </Button>
 
@@ -174,7 +174,7 @@ export function Topbar() {
               className="relative h-8 w-8 rounded-full p-0 ring-1 ring-border"
             >
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-indigo-600 text-white font-semibold text-xs">
+                <AvatarFallback className="bg-violet-600 text-white font-semibold text-xs">
                   {initials}
                 </AvatarFallback>
               </Avatar>

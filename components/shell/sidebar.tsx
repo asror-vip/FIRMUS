@@ -78,16 +78,16 @@ function SidebarNavigation({
                 href={item.href}
                 title={isCollapsed ? item.name : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors relative group",
+                  "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all relative group",
                   isActive
-                    ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    ? "bg-gradient-to-r from-violet-600/25 via-violet-700/15 to-violet-900/10 border border-violet-500/30 text-violet-900 dark:text-violet-100 font-semibold shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                    : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 )}
               >
                 <Icon
                   className={cn(
                     "h-4 w-4 shrink-0 transition-transform group-hover:scale-105",
-                    isActive ? "text-primary-foreground" : "text-muted-foreground"
+                    isActive ? "text-violet-600 dark:text-violet-300" : "text-muted-foreground"
                   )}
                 />
 
@@ -232,8 +232,8 @@ export function Sidebar() {
 
       {/* AI Quick Trigger Box (when expanded) */}
       {!isCollapsed && (
-        <div className="p-3 mx-2.5 mb-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 text-xs">
-          <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold mb-1">
+        <div className="p-3 mx-2.5 mb-2 rounded-xl border border-violet-500/25 bg-violet-500/[0.06] text-xs">
+          <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-semibold mb-1">
             <Sparkles className="h-3.5 w-3.5" />
             <span>{d.sidebar.aiAgentTitle}</span>
           </div>
@@ -242,7 +242,7 @@ export function Sidebar() {
           </p>
           <button
             onClick={toggleAiDrawer}
-            className="w-full text-center text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 py-1 rounded-md transition-colors"
+            className="w-full text-center text-[11px] font-semibold text-white bg-violet-600 hover:bg-violet-500 py-1 rounded-md shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-colors"
           >
             {t.sidebarFooter.copilotButton}
           </button>
@@ -254,8 +254,8 @@ export function Sidebar() {
         {!isCollapsed ? (
           <div className="h-full px-3 flex flex-col justify-center gap-0.5">
             <div className="flex items-center justify-between text-[11px]">
-              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.6)] animate-pulse" />
                 <span className="truncate">{t.sidebarFooter.syncStatus}</span>
               </div>
               <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
@@ -269,7 +269,7 @@ export function Sidebar() {
         ) : (
           <div className="h-full px-3 flex items-center justify-center">
             <div
-              className="h-2 w-2 rounded-full bg-emerald-500"
+              className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.6)]"
               title={d.sidebar.activeBadge}
             />
           </div>
