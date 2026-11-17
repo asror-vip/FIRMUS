@@ -3,11 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KpiCard } from "@/components/shared/kpi-card";
 import { QuickEntityBanner } from "@/components/shared/quick-entity-banner";
-import { StatusPill } from "@/components/shared/status-pill";
 import { Money } from "@/components/shared/money";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -33,6 +30,9 @@ import {
   Camera,
   Calculator,
   History,
+  ArrowUpRight,
+  Layers,
+  ChevronRight,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -50,6 +50,36 @@ function computeVatNetPayable(tb: any[]): number {
   const vatOut = Number(row6410?.period_credit || 0);
   const vatIn = Number(row4410?.period_debit || 0);
   return Math.max(0, vatOut - vatIn);
+}
+
+function StatusDot({ status }: { status: string }) {
+  const norm = String(status || "").toLowerCase();
+  let dotClass = "bg-slate-400";
+  let label = status;
+
+  if (["success", "posted", "paid", "resolved"].includes(norm)) {
+    dotClass = "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]";
+    label = norm === "posted" ? "Provodka" : "Yechilgan";
+  } else if (["pending", "in_review", "syncing"].includes(norm)) {
+    dotClass = "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]";
+    label = "Kutilmoqda";
+  } else if (["critical", "high", "failed", "rejected"].includes(norm)) {
+    dotClass = "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]";
+    label = norm === "critical" ? "Kritik" : "Xatolik";
+  } else if (["medium", "warning"].includes(norm)) {
+    dotClass = "bg-amber-400";
+    label = "Oʻrta";
+  } else if (["low", "info"].includes(norm)) {
+    dotClass = "bg-sky-400";
+    label = "Past";
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+      <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+      <span>{label}</span>
+    </span>
+  );
 }
 
 export function FullErpDashboard() {
@@ -175,21 +205,21 @@ export function FullErpDashboard() {
   }, [transactions]);
 
   return (
-    <div className="space-y-6">
-      {/* Page Title & Context Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
+    <div className="space-y-5 pb-6">
+      {/* 1. Page Header (Sleek Datara Bar) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-sans">
               {t.dashboard.title}
             </h1>
             {(currentEntity?.tradeName || currentEntity?.name) && (
-              <span className="text-xs bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md border border-border/60 bg-muted/30 text-muted-foreground font-medium">
                 {currentEntity?.tradeName || currentEntity?.name}
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground">
             {t.dashboard.subtitle}
           </p>
         </div>
@@ -199,16 +229,16 @@ export function FullErpDashboard() {
             variant="outline"
             size="sm"
             onClick={() => router.push("/assistant?tab=history")}
-            className="text-xs h-8 gap-1.5"
+            className="text-xs h-8 gap-1.5 border-border/60 hover:bg-muted/40 transition-colors"
           >
-            <History className="h-3.5 w-3.5" />
+            <History className="h-3.5 w-3.5 text-muted-foreground" />
             {erp.savedHistoryBtn}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => router.push("/reconcile")}
-            className="text-xs h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+            className="text-xs h-8 gap-1.5 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
           >
             <Scale className="h-3.5 w-3.5" />
             {erp.reconcileHeaderBtn}
@@ -216,7 +246,7 @@ export function FullErpDashboard() {
           <Button
             size="sm"
             onClick={toggleAiDrawer}
-            className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-none"
           >
             <Sparkles className="h-3.5 w-3.5" />
             {t.aiDrawer.title}
@@ -226,306 +256,387 @@ export function FullErpDashboard() {
 
       <QuickEntityBanner />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card className="border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60 transition-colors">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                <Scale className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span>{erp.quickCards.reconcileTitle}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                {erp.quickCards.reconcileDesc}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => router.push("/reconcile")}
-              className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shrink-0"
-            >
-              {erp.quickCards.reconcileCta} <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-indigo-500/30 bg-indigo-500/5 hover:border-indigo-500/60 transition-colors">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                <Camera className="h-4 w-4 text-indigo-600 shrink-0" />
-                <span>{erp.quickCards.scanTitle}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                {erp.quickCards.scanDesc}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => router.push("/assistant?tab=scan")}
-              className="text-xs h-8 gap-1 border-indigo-500/40 shrink-0"
-            >
-              {erp.quickCards.scanCta} <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border hover:border-primary/50 transition-colors">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                <Calculator className="h-4 w-4 text-primary shrink-0" />
-                <span>{erp.quickCards.calcTitle}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                {erp.quickCards.calcDesc}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => router.push("/assistant?tab=calc")}
-              className="text-xs h-8 gap-1 shrink-0"
-            >
-              {erp.quickCards.calcCta} <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Row 1: 4 Real Live KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title={t.dashboard.kpiAutomated}
-          value={`${automatedRate}%`}
-          subtitle={erp.postedOperationsSub
-            .replace("{posted}", String(postedCount))
-            .replace("{total}", String(txCounts.total))}
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+      {/* 2. Datara Unified Metric Ribbon (Seamless continuous stats, ZERO separate box wrappers) */}
+      <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm divide-y sm:divide-y-0 sm:divide-x divide-border/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 overflow-hidden">
+        {/* KPI 1: Automated Rate */}
+        <button
+          type="button"
           onClick={() => router.push("/accounting")}
-        />
+          className="p-5 text-left hover:bg-muted/30 transition-colors group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+              {t.dashboard.kpiAutomated}
+            </span>
+            <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+            {automatedRate}%
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <span className="truncate">
+              {erp.postedOperationsSub
+                .replace("{posted}", String(postedCount))
+                .replace("{total}", String(txCounts.total))}
+            </span>
+          </div>
+        </button>
 
-        <KpiCard
-          title={t.dashboard.kpiApprovals}
-          value={String(totalPendingCount)}
-          subtitle={t.dashboard.kpiApprovalsSub}
-          badge={<StatusPill status="pending" label={String(totalPendingCount)} />}
-          icon={<Clock className="h-4 w-4 text-amber-500" />}
+        {/* KPI 2: Approvals */}
+        <button
+          type="button"
           onClick={() => router.push("/transactions?tab=pending")}
-        />
+          className="p-5 text-left hover:bg-muted/30 transition-colors group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+              {t.dashboard.kpiApprovals}
+            </span>
+            <span className="h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+            {totalPendingCount}
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+            <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <span className="truncate">{t.dashboard.kpiApprovalsSub}</span>
+          </div>
+        </button>
 
-        <KpiCard
-          title={t.dashboard.kpiExceptions}
-          value={String(openExceptionsCount)}
-          subtitle={t.dashboard.kpiExceptionsSub}
-          badge={<StatusPill status="exception" label={String(openExceptionsCount)} />}
-          icon={<ShieldAlert className="h-4 w-4 text-rose-500" />}
+        {/* KPI 3: Exceptions */}
+        <button
+          type="button"
           onClick={() => router.push("/ai-auditor")}
-        />
+          className="p-5 text-left hover:bg-muted/30 transition-colors group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+              {t.dashboard.kpiExceptions}
+            </span>
+            <span className="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+            {openExceptionsCount}
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+            <ShieldAlert className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+            <span className="truncate">{t.dashboard.kpiExceptionsSub}</span>
+          </div>
+        </button>
 
-        <KpiCard
-          title={erp.netVatTitle}
-          value={formatUzsByLocale(Math.round(vatNetPayable), locale)}
-          subtitle={erp.netVatSub}
-          icon={<Scale className="h-4 w-4 text-emerald-500" />}
+        {/* KPI 4: Net VAT */}
+        <button
+          type="button"
           onClick={() => router.push("/tax")}
-        />
+          className="p-5 text-left hover:bg-muted/30 transition-colors group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between text-muted-foreground mb-3">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+              {erp.netVatTitle}
+            </span>
+            <span className="h-2 w-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground truncate">
+            {formatUzsByLocale(Math.round(vatNetPayable), locale)}
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+            <Scale className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+            <span className="truncate">{erp.netVatSub}</span>
+          </div>
+        </button>
       </div>
 
-      {/* Row 2: Charts & Integrations Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div>
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-indigo-500" />
-                {t.dashboard.cashflowTitle}
-              </CardTitle>
-              <CardDescription>{t.dashboard.cashflowSubtitle}</CardDescription>
+      {/* 3. Fast Actions Segmented Bar (Replacing bulky cards) */}
+      <div className="rounded-xl border border-border/50 bg-card/25 backdrop-blur-sm divide-y md:divide-y-0 md:divide-x divide-border/50 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => router.push("/reconcile")}
+          className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center shrink-0">
+              <Scale className="h-4 w-4" />
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <div className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-foreground group-hover:text-emerald-500 transition-colors truncate">
+                {erp.quickCards.reconcileTitle}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {erp.quickCards.reconcileDesc}
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/assistant?tab=scan")}
+          className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 flex items-center justify-center shrink-0">
+              <Camera className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-foreground group-hover:text-indigo-500 transition-colors truncate">
+                {erp.quickCards.scanTitle}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {erp.quickCards.scanDesc}
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/assistant?tab=calc")}
+          className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+              <Calculator className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-foreground group-hover:text-amber-500 transition-colors truncate">
+                {erp.quickCards.calcTitle}
+              </div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {erp.quickCards.calcDesc}
+              </div>
+            </div>
+          </div>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
+        </button>
+      </div>
+
+      {/* 4. Row 2: Unified Analytics & Workflow Panel (2-in-1 Container) */}
+      <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-border/50 overflow-hidden">
+        {/* Left 2/3: Pure Minimalist Cashflow AreaChart */}
+        <div className="lg:col-span-2 p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-3">
+            <div className="space-y-0.5">
+              <div className="text-sm font-semibold tracking-tight text-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                {t.dashboard.cashflowTitle}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {t.dashboard.cashflowSubtitle}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <span className="text-muted-foreground">{t.common.income}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
                 <span className="text-muted-foreground">{t.common.expense}</span>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="pt-2">
-            <div className="h-[250px] w-full">
-              {cashFlowData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                      tickFormatter={(val) => `${(val / 1000000).toFixed(0)}m`}
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="rounded-lg border border-border bg-card p-2 shadow-md text-xs">
-                              <p className="font-semibold text-foreground mb-1">
-                                {payload[0].payload.date}
-                              </p>
-                              <p className="text-emerald-600 dark:text-emerald-400">
-                                {t.common.income}: {Number(payload[0].value || 0).toLocaleString(intlLocale)} {t.common.currency}
-                              </p>
-                              <p className="text-indigo-600 dark:text-indigo-400">
-                                {t.common.expense}: {Number(payload[1].value || 0).toLocaleString(intlLocale)} {t.common.currency}
-                              </p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="income"
-                      stroke="#10B981"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorIncome)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="expense"
-                      stroke="#4F46E5"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorExpense)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                  {erp.emptyCashflow}
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Right 1/3: Quick Accountant Workflows */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">{erp.quickWorkflowsTitle}</CardTitle>
-            <CardDescription>{erp.quickWorkflowsSubtitle}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2.5 pt-0 text-xs">
+          <div className="h-[250px] w-full pt-2">
+            {cashFlowData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                    tickFormatter={(val) => `${(val / 1000000).toFixed(0)}m`}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="rounded-lg border border-border/80 bg-background/95 backdrop-blur-md p-2.5 shadow-xl text-xs space-y-1">
+                            <p className="font-mono text-muted-foreground text-[10px]">
+                              {payload[0].payload.date}
+                            </p>
+                            <p className="text-emerald-500 font-mono font-medium">
+                              {t.common.income}: {Number(payload[0].value || 0).toLocaleString(intlLocale)} {t.common.currency}
+                            </p>
+                            <p className="text-indigo-400 font-mono font-medium">
+                              {t.common.expense}: {Number(payload[1].value || 0).toLocaleString(intlLocale)} {t.common.currency}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="income"
+                    stroke="#10B981"
+                    strokeWidth={1.75}
+                    fillOpacity={1}
+                    fill="url(#colorIncome)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="expense"
+                    stroke="#6366F1"
+                    strokeWidth={1.75}
+                    fillOpacity={1}
+                    fill="url(#colorExpense)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground font-mono">
+                {erp.emptyCashflow}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right 1/3: Quick Accountant Workflows (Seamless List, No Nested Boxes) */}
+        <div className="p-5 flex flex-col justify-between">
+          <div className="pb-3 border-b border-border/40">
+            <div className="text-xs font-semibold tracking-wider uppercase text-muted-foreground/80 flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5" />
+              {erp.quickWorkflowsTitle}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {erp.quickWorkflowsSubtitle}
+            </p>
+          </div>
+
+          <div className="space-y-1 py-2">
             <button
               type="button"
               onClick={() => router.push("/reconcile")}
-              className="w-full text-left p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors flex items-center justify-between"
+              className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="font-semibold text-foreground">{erp.workflows.reconcileTitle}</div>
-                <div className="text-[10px] text-muted-foreground">{erp.workflows.reconcileSub}</div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground group-hover:text-emerald-500 transition-colors">
+                  {erp.workflows.reconcileTitle}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.reconcileSub}</div>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 text-emerald-600" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
             </button>
+
             <button
               type="button"
               onClick={() => router.push("/accounting")}
-              className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+              className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="font-semibold text-foreground">{erp.workflows.trialBalanceTitle}</div>
-                <div className="text-[10px] text-muted-foreground">{erp.workflows.trialBalanceSub}</div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                  {erp.workflows.trialBalanceTitle}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.trialBalanceSub}</div>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
             </button>
+
             <button
               type="button"
               onClick={() => router.push("/tax")}
-              className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+              className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="font-semibold text-foreground">{erp.workflows.taxFinanceTitle}</div>
-                <div className="text-[10px] text-muted-foreground">{erp.workflows.taxFinanceSub}</div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                  {erp.workflows.taxFinanceTitle}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.taxFinanceSub}</div>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
             </button>
+
             <button
               type="button"
               onClick={() => router.push("/settings")}
-              className="w-full text-left p-2.5 rounded-lg border border-border/70 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between"
+              className="w-full text-left p-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="font-semibold text-foreground">{erp.workflows.entitySettingsTitle}</div>
-                <div className="text-[10px] text-muted-foreground">{erp.workflows.entitySettingsSub}</div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-foreground group-hover:text-primary transition-colors">
+                  {erp.workflows.entitySettingsTitle}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">{erp.workflows.entitySettingsSub}</div>
               </div>
-              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-foreground transition-all shrink-0" />
             </button>
-          </CardContent>
-        </Card>
+          </div>
+
+          <div className="pt-2 border-t border-border/30 text-[11px] text-muted-foreground/70 flex items-center justify-between">
+            <span>21-BHMS / Soliq kodeksi</span>
+            <span className="font-mono text-[10px]">v2.6</span>
+          </div>
+        </div>
       </div>
 
-      {/* Row 3: Pending Approvals & Recent Exceptions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <div>
-              <CardTitle className="text-sm font-semibold">{t.dashboard.pendingApprovalsTitle}</CardTitle>
-              <CardDescription>{t.dashboard.kpiApprovalsSub}</CardDescription>
+      {/* 5. Row 3: Approvals & Exceptions (Edge-to-Edge Data Tables, No Box Bloat) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Approvals Table */}
+        <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden flex flex-col justify-between">
+          <div className="p-4 pb-3 flex items-center justify-between border-b border-border/40">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{t.dashboard.pendingApprovalsTitle}</span>
+              {totalPendingCount > 0 && (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 font-medium">
+                  {totalPendingCount}
+                </span>
+              )}
             </div>
             <Link
               href="/transactions?tab=pending"
-              className="text-xs text-primary hover:underline flex items-center gap-0.5"
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
             >
-              {t.common.details} <ArrowRight className="h-3 w-3" />
+              {t.common.details} <ArrowUpRight className="h-3 w-3" />
             </Link>
-          </CardHeader>
-          <CardContent className="p-0">
+          </div>
+
+          <div className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>{t.common.date}</TableHead>
-                  <TableHead>{t.common.counterparty}</TableHead>
-                  <TableHead className="text-right">{t.common.amount}</TableHead>
-                  <TableHead className="text-right">{t.common.actions}</TableHead>
+                <TableRow className="border-border/40 hover:bg-transparent">
+                  <TableHead className="text-[11px] font-medium text-muted-foreground uppercase">{t.common.date}</TableHead>
+                  <TableHead className="text-[11px] font-medium text-muted-foreground uppercase">{t.common.counterparty}</TableHead>
+                  <TableHead className="text-right text-[11px] font-medium text-muted-foreground uppercase">{t.common.amount}</TableHead>
+                  <TableHead className="text-right text-[11px] font-medium text-muted-foreground uppercase">{t.common.actions}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pendingApprovals.length > 0 ? (
                   pendingApprovals.map((tx) => (
-                    <TableRow key={tx.id}>
-                      <TableCell className="text-[11px] text-muted-foreground">{tx.date}</TableCell>
-                      <TableCell className="max-w-[180px]">
-                        <div className="font-medium text-foreground truncate">{tx.counterparty}</div>
+                    <TableRow key={tx.id} className="border-border/30 hover:bg-muted/30 transition-colors">
+                      <TableCell className="text-[11px] font-mono text-muted-foreground py-3">{tx.date}</TableCell>
+                      <TableCell className="max-w-[180px] py-3">
+                        <div className="font-medium text-xs text-foreground truncate">{tx.counterparty}</div>
                         <div className="text-[10px] text-muted-foreground truncate">{tx.description}</div>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right font-mono py-3">
                         <Money amount={tx.amount} type={tx.type} />
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right py-3">
                         <Button
                           size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs hover:bg-muted/60"
                           onClick={() => router.push(`/transactions?id=${tx.id}`)}
                         >
                           {t.common.details}
@@ -535,37 +646,43 @@ export function FullErpDashboard() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-6 text-xs text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-xs text-muted-foreground font-mono">
                       {erp.emptyPendingApprovals}
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <div>
-              <CardTitle className="text-sm font-semibold">{t.dashboard.recentExceptionsTitle}</CardTitle>
-              <CardDescription>{t.pages.aiAuditor.subtitle}</CardDescription>
+        {/* Exceptions Table */}
+        <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden flex flex-col justify-between">
+          <div className="p-4 pb-3 flex items-center justify-between border-b border-border/40">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{t.dashboard.recentExceptionsTitle}</span>
+              {openExceptionsCount > 0 && (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20 font-medium">
+                  {openExceptionsCount}
+                </span>
+              )}
             </div>
             <Link
               href="/ai-auditor"
-              className="text-xs text-primary hover:underline flex items-center gap-0.5"
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
             >
-              {t.nav.aiAuditor} <ArrowRight className="h-3 w-3" />
+              {t.nav.aiAuditor} <ArrowUpRight className="h-3 w-3" />
             </Link>
-          </CardHeader>
-          <CardContent className="p-0">
+          </div>
+
+          <div className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>{t.common.status}</TableHead>
-                  <TableHead>{t.common.description}</TableHead>
-                  <TableHead className="text-right">{t.common.amount}</TableHead>
-                  <TableHead className="text-right">{t.common.status}</TableHead>
+                <TableRow className="border-border/40 hover:bg-transparent">
+                  <TableHead className="text-[11px] font-medium text-muted-foreground uppercase">{t.common.status}</TableHead>
+                  <TableHead className="text-[11px] font-medium text-muted-foreground uppercase">{t.common.description}</TableHead>
+                  <TableHead className="text-right text-[11px] font-medium text-muted-foreground uppercase">{t.common.amount}</TableHead>
+                  <TableHead className="text-right text-[11px] font-medium text-muted-foreground uppercase">{t.common.status}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -573,58 +690,60 @@ export function FullErpDashboard() {
                   recentExceptions.map((exc) => (
                     <TableRow
                       key={exc.id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      className="cursor-pointer border-border/30 hover:bg-muted/30 transition-colors"
                       onClick={() => router.push(`/ai-auditor?id=${exc.id}`)}
                     >
-                      <TableCell>
-                        <StatusPill status={exc.severity} />
+                      <TableCell className="py-3">
+                        <StatusDot status={exc.severity} />
                       </TableCell>
-                      <TableCell className="max-w-[200px]">
-                        <div className="font-medium text-foreground truncate">{exc.title}</div>
+                      <TableCell className="max-w-[200px] py-3">
+                        <div className="font-medium text-xs text-foreground truncate">{exc.title}</div>
                         <div className="text-[10px] text-muted-foreground truncate">
                           {exc.counterparty || exc.evidence?.sourceSystem}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right font-mono py-3">
                         {exc.amount ? <Money amount={exc.amount} /> : "—"}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <StatusPill status={exc.status} />
+                      <TableCell className="text-right py-3">
+                        <StatusDot status={exc.status} />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-6 text-xs text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-xs text-muted-foreground font-mono">
                       {erp.emptyExceptions}
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      {/* Bottom Strip: Live Ledger AI Recommendation Callout */}
-      <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* 6. Bottom Datara Glass Strip (AI Recommendation) */}
+      <div className="rounded-xl border border-primary/20 bg-primary/[0.03] backdrop-blur-sm p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm mt-0.5">
-            <Sparkles className="h-5 w-5" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary mt-0.5">
+            <Sparkles className="h-4 w-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+              <span className="text-[11px] font-bold text-primary uppercase tracking-wider font-mono">
                 {t.dashboard.aiRecommendationTitle}
               </span>
             </div>
-            <p className="text-xs text-foreground mt-0.5 leading-relaxed max-w-3xl">
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed max-w-3xl">
               {erp.aiVatCalloutPrefix.replace("{entity}", currentEntity?.name || "")}
-              <strong>
+              <strong className="text-foreground font-mono mx-1">
                 {new Intl.NumberFormat(intlLocale).format(Math.round(vatNetPayable))} {t.common.currency}
               </strong>
               {erp.aiVatCalloutMid}
-              <strong>{erp.aiVatCalloutCountSuffix.replace("{count}", String(openExceptionsCount))}</strong>
+              <strong className="text-foreground font-mono mx-1">
+                {erp.aiVatCalloutCountSuffix.replace("{count}", String(openExceptionsCount))}
+              </strong>
               {erp.aiVatCalloutEnd}
             </p>
           </div>
@@ -634,7 +753,7 @@ export function FullErpDashboard() {
           <Button
             size="sm"
             onClick={toggleAiDrawer}
-            className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="text-xs h-7 px-3 bg-primary hover:bg-primary/90 text-primary-foreground shadow-none"
           >
             {t.common.view}
           </Button>

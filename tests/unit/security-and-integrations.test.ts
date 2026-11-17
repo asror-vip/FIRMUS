@@ -190,8 +190,8 @@ describe("Security & 1C Integrations Suite", () => {
           description: "Bank kirim provodkasi",
           totalDebit: 500_000,
           lines: [
-            { code: "5110", debit: 500_000, credit: 0 },
-            { code: "4010", debit: 0, credit: 500_000 },
+            { accountCode: "5110", accountName: "Hisob-kitob schoti", debit: 500_000, credit: 0 },
+            { accountCode: "4010", accountName: "Xaridorlar", debit: 0, credit: 500_000 },
           ],
         },
       ]);

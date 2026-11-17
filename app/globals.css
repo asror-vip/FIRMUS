@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 40 10% 98%; /* #FAFAF9 */
+    --background: 0 0% 98.5%; /* #FAFAFA Clean Canvas */
     --foreground: 222 47% 11%; /* slate-900 */
 
     --card: 0 0% 100%;
@@ -16,13 +16,13 @@
     --primary: 243 75% 59%; /* #4F46E5 Deep Indigo */
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 96.1%;
+    --secondary: 210 20% 95%;
     --secondary-foreground: 222 47% 11.2%;
 
-    --muted: 210 40% 96.1%;
+    --muted: 210 20% 95%;
     --muted-foreground: 215 16% 47%; /* slate-500 */
 
-    --accent: 210 40% 96.1%;
+    --accent: 210 20% 95%;
     --accent-foreground: 222 47% 11.2%;
 
     --destructive: 347 77% 50%; /* #E11D48 Rose */
@@ -34,33 +34,34 @@
     --success: 160 84% 39%; /* #10B981 Emerald */
     --success-foreground: 210 40% 98%;
 
-    --border: 214 32% 91%; /* slate-200 */
-    --input: 214 32% 91%;
+    --border: 214 20% 90%; /* #E2E5E9 */
+    --input: 214 20% 90%;
     --ring: 243 75% 59%;
 
     --radius: 0.75rem; /* 12px */
   }
 
   .dark {
-    --background: 224 41% 7%; /* #0B0F1A Deep Slate */
-    --foreground: 210 40% 98%;
+    /* Datara-inspired Deep Obsidian Canvas */
+    --background: 228 32% 4.5%; /* #07080C True Deep Black */
+    --foreground: 210 40% 98%; /* #F8FAFC Crisp White */
 
-    --card: 222 47% 11%;
+    --card: 226 24% 8%; /* #0D0F16 Surface */
     --card-foreground: 210 40% 98%;
 
-    --popover: 222 47% 11%;
+    --popover: 226 24% 8%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 243 75% 62%;
+    --primary: 243 75% 62%; /* Electric Indigo */
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 217 33% 17%;
+    --secondary: 225 20% 12%; /* #151822 */
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 225 20% 11%; /* #131620 */
+    --muted-foreground: 215 14% 56%; /* #858C99 Refined Slate */
 
-    --accent: 217 33% 17%;
+    --accent: 225 20% 12%;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 347 77% 50%;
@@ -69,11 +70,11 @@
     --warning: 38 92% 50%;
     --warning-foreground: 48 96% 12%;
 
-    --success: 160 84% 39%;
+    --success: 160 84% 39%; /* #10B981 Emerald */
     --success-foreground: 210 40% 98%;
 
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
+    --border: 220 20% 15%; /* #1A1E29 Ultra-fine 1px */
+    --input: 220 20% 15%;
     --ring: 243 75% 62%;
   }
 }
