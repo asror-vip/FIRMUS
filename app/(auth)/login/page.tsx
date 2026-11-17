@@ -8,7 +8,6 @@ import { sanitizeInternalRedirect } from "@/lib/utils/redirect";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
 import { LanguageToggle } from "@/components/shared/language-toggle";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -104,15 +103,14 @@ function LoginForm() {
           <p className="text-xs text-muted-foreground">{d.subtitle}</p>
         </div>
 
-        <Card className="shadow-lg border-border">
-          <CardContent className="pt-6 space-y-4 text-xs">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isLoading}
-              onClick={handleGoogleLogin}
-              className="w-full text-xs h-10 gap-2.5 font-semibold border-indigo-500/40 bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors"
-            >
+        <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-6 space-y-4 text-xs">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLoading}
+            onClick={handleGoogleLogin}
+            className="w-full text-xs h-10 gap-2.5 font-semibold border-border/70 hover:border-violet-500/40 bg-muted/20 hover:bg-violet-500/5 transition-colors"
+          >
               <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
@@ -186,7 +184,7 @@ function LoginForm() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-semibold"
+                className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 font-semibold shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all"
               >
                 {isLoading ? (
                   <>
@@ -200,8 +198,7 @@ function LoginForm() {
                 )}
               </Button>
             </form>
-          </CardContent>
-        </Card>
+        </div>
 
         <p className="text-center text-xs text-muted-foreground">
           {d.noAccount}{" "}

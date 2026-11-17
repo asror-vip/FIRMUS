@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   ResponsiveContainer,
   BarChart,
@@ -41,28 +40,36 @@ export function CashflowChart({
   intlLocale,
 }: CashflowChartProps) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-        <CardDescription>{subtitle}</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-2">
+    <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+      <div className="p-4 pb-3 border-b border-border/50">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+      </div>
+      <div className="p-4 pt-3">
         <div className="h-[280px] w-full">
           {cashFlowData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={cashFlowData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.4)" />
+                <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                   tickFormatter={(val) => `${(val / 1000000).toFixed(0)}m`}
                 />
-                <Tooltip formatter={(val: any) => [`${Number(val).toLocaleString(intlLocale)} ${currencyLabel}`]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    borderColor: "hsl(var(--border) / 0.6)",
+                    borderRadius: "0.75rem",
+                    fontSize: "11px",
+                  }}
+                  formatter={(val: any) => [`${Number(val).toLocaleString(intlLocale)} ${currencyLabel}`]}
+                />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
-                <Bar dataKey="income" name={incomeLabel} fill="#10B981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name={expenseLabel} fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="income" name={incomeLabel} fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name={expenseLabel} fill="#A78BFA" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -71,8 +78,8 @@ export function CashflowChart({
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 

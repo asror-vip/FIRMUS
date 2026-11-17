@@ -17,7 +17,6 @@ import { getBillingHomeDict, getIntlLocale } from "@/lib/i18n/domains/billing-ho
 import { fetchWorkspaceUsageSummary } from "@/lib/services/supabase-service";
 import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { getClientDeviceHash } from "@/lib/utils/device-fingerprint";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -174,7 +173,7 @@ function UsageProgressBar({ used, max }: { used: number; max: number | null }) {
       <div
         className={cn(
           "h-full rounded-full transition-all duration-300",
-          isNearLimit ? "bg-amber-500" : "bg-indigo-600"
+          isNearLimit ? "bg-amber-500" : "bg-gradient-to-r from-violet-600 to-violet-400"
         )}
         style={{ width: `${Math.max(4, pct)}%` }}
       />
@@ -888,16 +887,16 @@ function BillingContent() {
         </div>
       </div>
 
-      {/* Active Subscription Summary (No raw developer telemetry) */}
-      <Card>
-        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Active Subscription Summary */}
+      <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+        <div className="p-5 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <CardTitle className="text-sm font-semibold">
+              <h3 className="text-sm font-semibold text-foreground">
                 {FEATURES.multiCompanyMode
                   ? currentWorkspace?.name || b.summary.workspaceFallback
                   : b.summary.personalAccount}
-              </CardTitle>
+              </h3>
               <Badge variant="indigo" className="text-[10px]">
                 {currentLocalizedPlanName}
               </Badge>
@@ -912,16 +911,16 @@ function BillingContent() {
                 </Badge>
               )}
             </div>
-            <CardDescription className="text-xs">
+            <p className="text-xs text-muted-foreground">
               {b.summary.modelHintSubtitle}
-            </CardDescription>
+            </p>
           </div>
 
           {subscription.trialAvailable && (
             <Button
               type="button"
               size="sm"
-              className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+              className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] shrink-0"
               disabled={isActivatingTrial}
               onClick={handleActivateTrial}
             >
@@ -933,14 +932,14 @@ function BillingContent() {
               {b.summary.trialBtn}
             </Button>
           )}
-        </CardHeader>
+        </div>
 
-        <CardContent>
+        <div className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+            <div className="rounded-xl border border-border/50 bg-card/40 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>{b.summary.monthlyAiActivity}</span>
-                <Activity className="h-3.5 w-3.5 text-indigo-500" />
+                <Activity className="h-3.5 w-3.5 text-violet-400" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
                 {b.summary.usedPercent.replace("{pct}", String(aiUsagePercent))}
@@ -956,10 +955,10 @@ function BillingContent() {
               />
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+            <div className="rounded-xl border border-border/50 bg-card/40 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>{b.summary.activeAiModel}</span>
-                <Cpu className="h-3.5 w-3.5 text-emerald-500" />
+                <Cpu className="h-3.5 w-3.5 text-violet-400" />
               </div>
               <div className="mt-1.5 font-semibold text-sm text-foreground">
                 {activeAiModelMeta.label}
@@ -971,10 +970,10 @@ function BillingContent() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-muted/20 p-3.5">
+            <div className="rounded-xl border border-border/50 bg-card/40 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>{b.summary.savedWorks}</span>
-                <FileStack className="h-3.5 w-3.5 text-sky-500" />
+                <FileStack className="h-3.5 w-3.5 text-violet-400" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
                 {isLoadingUsage
@@ -988,32 +987,32 @@ function BillingContent() {
               </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Return Polling / Pending Order Banner */}
       {isPollingReturn ? (
         <div
           role="status"
           aria-live="polite"
-          className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 px-4 py-3 flex items-center gap-2.5 text-xs text-indigo-950 dark:text-indigo-100"
+          className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 flex items-center gap-2.5 text-xs text-violet-200"
         >
-          <Loader2 className="h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <Loader2 className="h-4 w-4 animate-spin text-violet-400 shrink-0" />
           <span className="font-medium">{b.returnPolling.checkingMsg}</span>
         </div>
       ) : pendingOrder ? (
-        <div className="rounded-xl border border-amber-200/90 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start sm:items-center gap-2.5 min-w-0">
             {pendingOrder.paymentMethod === "bank_transfer_didox" ? (
-              <Receipt className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+              <Receipt className="h-4 w-4 text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
             ) : (
-              <Clock className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+              <Clock className="h-4 w-4 text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
             )}
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-amber-950 dark:text-amber-100">
+              <div className="text-xs font-semibold text-amber-300">
                 {b.pendingBanner.title}
               </div>
-              <p className="text-[11px] text-amber-900/90 dark:text-amber-200/90 truncate">
+              <p className="text-[11px] text-amber-200/80 truncate">
                 {pendingOrder.paymentMethod === "bank_transfer_didox"
                   ? b.pendingBanner.bankSubtitle
                       .replace(
@@ -1043,7 +1042,7 @@ function BillingContent() {
             <Button
               type="button"
               size="sm"
-              className="h-7 px-2.5 text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+              className="h-7 px-2.5 text-[11px] bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1"
               disabled={isCheckingPendingOrder || isCancellingPendingOrder}
               onClick={() => handleReopenPendingOrder(pendingOrder)}
             >
@@ -1054,7 +1053,7 @@ function BillingContent() {
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 px-2.5 text-[11px] gap-1"
+              className="h-7 px-2.5 text-[11px] gap-1 border-border/60 hover:bg-muted/30"
               disabled={isCheckingPendingOrder || isCancellingPendingOrder}
               onClick={() => handleCheckPendingOrder(pendingOrder)}
             >
@@ -1105,21 +1104,21 @@ function BillingContent() {
           }
 
           return (
-            <Card
+            <div
               key={plan.id}
               className={cn(
-                "flex flex-col justify-between transition-all",
+                "flex flex-col justify-between transition-all rounded-xl border bg-card/30 backdrop-blur-sm overflow-hidden",
                 isCurrent
-                  ? "border-indigo-600 ring-1 ring-indigo-600 shadow-sm"
-                  : "hover:border-slate-300 dark:hover:border-slate-700"
+                  ? "border-violet-500 ring-1 ring-violet-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                  : "border-border/50 hover:border-violet-500/30"
               )}
             >
               <div>
-                <CardHeader className="pb-3">
+                <div className="p-5 pb-3">
                   <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-base font-bold text-foreground">
+                    <h3 className="text-base font-bold text-foreground">
                       {plan.name}
-                    </CardTitle>
+                    </h3>
                     {isCurrent ? (
                       <Badge variant="success" className="text-[10px]">
                         {subscription.isTrialActive ? b.cards.currentTrial : b.cards.currentPlan}
@@ -1131,9 +1130,9 @@ function BillingContent() {
                       </Badge>
                     ) : null}
                   </div>
-                  <CardDescription className="text-xs min-h-[32px]">
+                  <p className="text-xs text-muted-foreground mt-1 min-h-[32px]">
                     {plan.subtitle}
-                  </CardDescription>
+                  </p>
 
                   <div className="pt-2">
                     <div className="flex items-baseline gap-1.5 flex-wrap">
@@ -1155,26 +1154,26 @@ function BillingContent() {
                       </p>
                     )}
                   </div>
-                </CardHeader>
+                </div>
 
-                <CardContent className="pt-0">
+                <div className="px-5 pt-0 pb-4">
                   <ul className="space-y-2.5 text-xs">
                     {featuresList.map((feat, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-foreground/90">
-                        <Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                        <Check className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
                         <span>{feat}</span>
                       </li>
                     ))}
                   </ul>
-                </CardContent>
+                </div>
               </div>
 
-              <div className="p-6 pt-3 space-y-2">
+              <div className="p-5 pt-3 space-y-2 border-t border-border/40">
                 {showTrialBtn && (
                   <Button
                     type="button"
                     size="sm"
-                    className="w-full h-9 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                     disabled={isActivatingTrial}
                     onClick={handleActivateTrial}
                   >
@@ -1190,7 +1189,10 @@ function BillingContent() {
                 <Button
                   type="button"
                   variant={isCurrent || showTrialBtn || isIncludedInHigherTier ? "outline" : "default"}
-                  className="w-full h-9 text-xs gap-1.5"
+                  className={cn(
+                    "w-full h-9 text-xs gap-1.5",
+                    !isCurrent && !showTrialBtn && !isIncludedInHigherTier && "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                  )}
                   onClick={() => {
                     setSelectedPlanForInfo(plan);
                     setCheckoutOrder(null);
@@ -1198,14 +1200,14 @@ function BillingContent() {
                   }}
                 >
                   {isCurrent || isIncludedInHigherTier ? (
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                   ) : (
                     <CreditCard className="h-3.5 w-3.5" />
                   )}
                   {buttonLabel}
                 </Button>
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>
@@ -1342,10 +1344,9 @@ function BillingContent() {
               <DialogFooter className="pt-2 border-t border-border print:hidden">
                 <Button
                   type="button"
-                  variant="success"
                   size="sm"
                   disabled={isConfirmingOrder || isCheckingOut}
-                  className="w-full h-9 text-xs gap-1.5"
+                  className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                   onClick={() =>
                     handleConfirmOrder(checkoutOrder.order?.orderId || checkoutOrder.orderId)
                   }
@@ -1412,7 +1413,7 @@ function BillingContent() {
                   type="button"
                   size="sm"
                   disabled={isConfirmingOrder || isCheckingOut}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
                   onClick={() =>
                     handleConfirmOrder(checkoutOrder.order?.orderId || checkoutOrder.orderId)
                   }
@@ -1478,8 +1479,8 @@ function BillingContent() {
               </div>
 
               {subscription.planId === "pro_plus" && activePlanSpec.id === "professional" && (
-                <div className="rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/20 p-3 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
-                  <Sparkles className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3 text-[11px] text-violet-200 flex items-start gap-2">
+                  <Sparkles className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
                   <span>
                     {b.dialogs.activePaid.proPlusIncludedNotePrefix}
                     <strong>{getLocalizedPlanSpec("pro_plus", locale).name}</strong>
@@ -1502,7 +1503,7 @@ function BillingContent() {
                 <Button
                   type="button"
                   size="sm"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                  className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
                   onClick={() => {
                     setSelectedPlanForInfo(getLocalizedPlanSpec("pro_plus", locale));
                     setCheckoutOrder(null);
@@ -1532,8 +1533,8 @@ function BillingContent() {
             </DialogHeader>
 
             {showUpgradeValueNote && (
-              <div className="rounded-lg border border-indigo-200/80 dark:border-indigo-900/60 bg-indigo-50/60 dark:bg-indigo-950/25 px-3 py-2 text-[11px] text-indigo-900 dark:text-indigo-200 flex items-start gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+              <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-[11px] text-violet-200 flex items-start gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-violet-400 shrink-0 mt-0.5" />
                 <span>{b.upgradeValueNote}</span>
               </div>
             )}
@@ -1545,19 +1546,19 @@ function BillingContent() {
                 className={cn(
                   "cursor-pointer rounded-xl border p-3 transition-all text-xs flex items-center justify-between",
                   paymentMethod === "payme"
-                    ? "border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 ring-1 ring-indigo-600"
-                    : "border-border hover:border-slate-300 dark:hover:border-slate-700 bg-muted/20"
+                    ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50"
+                    : "border-border/50 hover:border-violet-500/30 bg-card/40"
                 )}
               >
                 <div className="flex items-center gap-2.5">
-                  <CreditCard className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <CreditCard className="h-4 w-4 text-emerald-400 shrink-0" />
                   <div>
                     <span className="font-semibold text-foreground block">{b.dialogs.checkout.paymeTitle}</span>
                     <span className="text-[11px] text-muted-foreground">{b.dialogs.checkout.paymeSubtitle}</span>
                   </div>
                 </div>
                 {paymentMethod === "payme" && (
-                  <Check className="h-4 w-4 text-indigo-600 shrink-0" />
+                  <Check className="h-4 w-4 text-violet-400 shrink-0" />
                 )}
               </div>
 
@@ -1567,19 +1568,19 @@ function BillingContent() {
                 className={cn(
                   "cursor-pointer rounded-xl border p-3 transition-all text-xs flex items-center justify-between",
                   paymentMethod === "click"
-                    ? "border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 ring-1 ring-indigo-600"
-                    : "border-border hover:border-slate-300 dark:hover:border-slate-700 bg-muted/20"
+                    ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50"
+                    : "border-border/50 hover:border-violet-500/30 bg-card/40"
                 )}
               >
                 <div className="flex items-center gap-2.5">
-                  <QrCode className="h-4 w-4 text-sky-600 shrink-0" />
+                  <QrCode className="h-4 w-4 text-sky-400 shrink-0" />
                   <div>
                     <span className="font-semibold text-foreground block">{b.dialogs.checkout.clickTitle}</span>
                     <span className="text-[11px] text-muted-foreground">{b.dialogs.checkout.clickSubtitle}</span>
                   </div>
                 </div>
                 {paymentMethod === "click" && (
-                  <Check className="h-4 w-4 text-indigo-600 shrink-0" />
+                  <Check className="h-4 w-4 text-violet-400 shrink-0" />
                 )}
               </div>
 
@@ -1589,13 +1590,13 @@ function BillingContent() {
                 className={cn(
                   "cursor-pointer rounded-xl border p-3 transition-all text-xs space-y-2.5",
                   paymentMethod === "bank_transfer_didox"
-                    ? "border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 ring-1 ring-indigo-600"
-                    : "border-border hover:border-slate-300 dark:hover:border-slate-700 bg-muted/20"
+                    ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50"
+                    : "border-border/50 hover:border-violet-500/30 bg-card/40"
                 )}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <Building2 className="h-4 w-4 text-indigo-600 shrink-0" />
+                    <Building2 className="h-4 w-4 text-violet-400 shrink-0" />
                     <div>
                       <span className="font-semibold text-foreground block">{b.dialogs.checkout.bankTitle}</span>
                       <span className="text-[11px] text-muted-foreground">
@@ -1604,7 +1605,7 @@ function BillingContent() {
                     </div>
                   </div>
                   {paymentMethod === "bank_transfer_didox" && (
-                    <Check className="h-4 w-4 text-indigo-600 shrink-0" />
+                    <Check className="h-4 w-4 text-violet-400 shrink-0" />
                   )}
                 </div>
 
@@ -1650,7 +1651,7 @@ function BillingContent() {
                 type="button"
                 size="sm"
                 disabled={isCheckingOut || isConfirmingOrder}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
                 onClick={handleInitiateCheckout}
               >
                 {isCheckingOut ? (

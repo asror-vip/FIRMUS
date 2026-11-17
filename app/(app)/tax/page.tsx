@@ -14,7 +14,6 @@ import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { useAppState } from "@/lib/context/app-state";
 import { sanitizeCsvField, downloadCsvBlob } from "@/lib/utils/csv";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusPill } from "@/components/shared/status-pill";
@@ -303,7 +302,7 @@ export default function TaxPage() {
           {!isReadOnly && (
             <Button
               size="sm"
-              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
               onClick={() => setIsCalcModalOpen(true)}
             >
               <Calculator className="h-3.5 w-3.5" />
@@ -313,9 +312,9 @@ export default function TaxPage() {
         </div>
       </div>
 
-      {/* Row 1: Tax Types Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+      {/* Row 1: Tax Types Segmented Ribbon */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border/40 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+        <div className="p-4 transition-all hover:bg-card/40">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">{d.vatCardTitle}</span>
             <Badge variant="indigo" className="text-[10px] px-1 py-0 h-4">
@@ -330,9 +329,9 @@ export default function TaxPage() {
               .replace("{out}", vatOutput6410.toLocaleString(intlLocale))
               .replace("{in}", vatInput4410.toLocaleString(intlLocale))}
           </p>
-        </Card>
+        </div>
 
-        <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+        <div className="p-4 transition-all hover:bg-card/40">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">{d.jshdsCardTitle}</span>
             <Badge
@@ -366,9 +365,9 @@ export default function TaxPage() {
               ? d.ledger6410Note
               : d.noReportForPeriod}
           </p>
-        </Card>
+        </div>
 
-        <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+        <div className="p-4 transition-all hover:bg-card/40">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">{d.socialCardTitle}</span>
             <Badge
@@ -402,9 +401,9 @@ export default function TaxPage() {
               ? d.ledger6520Note
               : d.noReportForPeriod}
           </p>
-        </Card>
+        </div>
 
-        <Card className="p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+        <div className="p-4 transition-all hover:bg-card/40">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-foreground">
               {profitOrTurnoverRec?.type || d.profitFallbackTitle}
@@ -422,25 +421,25 @@ export default function TaxPage() {
           <p className="text-[10px] text-muted-foreground mt-1">
             {profitOrTurnoverRec ? `${d.periodPrefix} ${profitOrTurnoverRec.period}` : d.quarterlyReportNote}
           </p>
-        </Card>
+        </div>
       </div>
 
       {/* Row 2: Tax Deadlines Calendar View */}
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+      <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+        <div className="p-4 pb-3 flex flex-row items-center justify-between border-b border-border/50">
           <div>
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-indigo-500" />
+            <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+              <Calendar className="h-4 w-4 text-violet-400" />
               {t.pages.tax.calendarTitle}
-            </CardTitle>
-            <CardDescription>
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
               {d.calendarDesc}
-            </CardDescription>
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-0">
+        </div>
+        <div className="p-4 pt-3">
           {deadlines.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border/50 p-6 text-center text-xs text-muted-foreground">
               {isLoading ? d.loadingCalendar : d.emptyCalendar}
             </div>
           ) : (
@@ -450,10 +449,10 @@ export default function TaxPage() {
                   key={dl.id}
                   className={`p-3 rounded-xl border transition-all ${
                     dl.status === "urgent"
-                      ? "border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10"
+                      ? "border-amber-500/40 bg-amber-500/10"
                       : dl.status === "completed"
-                      ? "border-emerald-500/30 bg-emerald-500/5"
-                      : "border-border bg-card"
+                      ? "border-violet-500/30 bg-violet-500/10"
+                      : "border-border/40 bg-card/40"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
@@ -484,34 +483,34 @@ export default function TaxPage() {
               totalCount={totalDeadlinesCount}
               isLoading={isLoading}
               itemLabel={d.deadlineItemLabel}
-              className="mt-3 rounded-lg border border-border"
+              className="mt-3 rounded-lg border border-border/50 bg-card/30"
               onPageChange={setDeadlinesPage}
             />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Row 3: Tax Records Table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">
+      <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+        <div className="p-4 border-b border-border/50">
+          <h3 className="text-sm font-semibold text-foreground">
             {t.nav.tax}
-          </CardTitle>
-          <CardDescription>
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
             {t.pages.tax.subtitle}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
+          </p>
+        </div>
+        <div className="p-0">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>{t.pages.accounting.name}</TableHead>
-                <TableHead>{t.common.period}</TableHead>
-                <TableHead className="text-right">{d.colCalculated}</TableHead>
-                <TableHead className="text-right">{d.colPaid}</TableHead>
-                <TableHead>{t.common.date}</TableHead>
-                <TableHead>{t.common.status}</TableHead>
-                <TableHead className="text-right">{t.common.details}</TableHead>
+              <TableRow className="border-border/40 hover:bg-transparent">
+                <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.name}</TableHead>
+                <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.period}</TableHead>
+                <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.colCalculated}</TableHead>
+                <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.colPaid}</TableHead>
+                <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.date}</TableHead>
+                <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.status}</TableHead>
+                <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.common.details}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -523,7 +522,7 @@ export default function TaxPage() {
                 </TableRow>
               ) : (
                 taxRecords.map((rec) => (
-                <TableRow key={rec.id}>
+                <TableRow key={rec.id} className="border-border/30 hover:bg-muted/30">
                   <TableCell className="font-semibold text-xs text-foreground">
                     {rec.type}
                   </TableCell>
@@ -533,7 +532,7 @@ export default function TaxPage() {
                   <TableCell className="text-right font-mono font-medium text-foreground">
                     <Money amount={rec.calculatedAmount} />
                   </TableCell>
-                  <TableCell className="text-right font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                  <TableCell className="text-right font-mono font-medium text-emerald-500 dark:text-emerald-400">
                     <Money amount={rec.paidAmount} />
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
@@ -546,7 +545,7 @@ export default function TaxPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs px-2.5"
+                      className="h-7 text-xs px-2.5 border-border/60 hover:bg-muted/30"
                       onClick={() => setSelectedTax(rec)}
                     >
                       {t.common.details}
@@ -565,8 +564,8 @@ export default function TaxPage() {
             itemLabel={d.taxItemLabel}
             onPageChange={setTaxPage}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Selected Tax Declaration Details & Payment Modal */}
       <Dialog open={!!selectedTax} onOpenChange={(open) => !open && setSelectedTax(null)}>
@@ -618,7 +617,7 @@ export default function TaxPage() {
                 size="sm"
                 disabled={isSubmitting}
                 onClick={() => handlePayTax(selectedTax)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+                className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] text-xs gap-1.5"
               >
                 <CreditCard className="h-3.5 w-3.5" />
                 {isSubmitting ? d.payingBtn : d.payTaxBtn}
@@ -639,18 +638,18 @@ export default function TaxPage() {
           </DialogHeader>
 
           <div className="space-y-3 py-3 text-xs">
-            <div className="p-3.5 rounded-lg border border-indigo-500/30 bg-indigo-500/5 space-y-2">
+            <div className="p-3.5 rounded-lg border border-violet-500/30 bg-violet-500/10 space-y-2">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{d.vatOutputLabel}</span>
                 <span className="font-mono font-semibold"><Money amount={vatOutput6410} /></span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{d.vatInputLabel}</span>
-                <span className="font-mono font-semibold text-emerald-600">-<Money amount={vatInput4410} /></span>
+                <span className="font-mono font-semibold text-emerald-400">-<Money amount={vatInput4410} /></span>
               </div>
               <div className="pt-2 border-t border-border flex justify-between font-mono font-bold text-foreground text-sm">
                 <span>{d.vatNetLabel}</span>
-                <span className="text-primary"><Money amount={netVatPayable} /></span>
+                <span className="text-violet-400"><Money amount={netVatPayable} /></span>
               </div>
             </div>
           </div>
@@ -661,7 +660,7 @@ export default function TaxPage() {
             </Button>
             <Button
               disabled={isSubmitting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+              className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] text-xs"
               onClick={handleConfirmVatCalculation}
             >
               {isSubmitting ? d.savingBtn : t.pages.tax.confirmCalculation}

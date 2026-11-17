@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { fetchTrialBalance, fetchRecentTransactions } from "@/lib/services/supabase-service";
 import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { useAppState } from "@/lib/context/app-state";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -235,26 +234,26 @@ export default function FinancePage() {
         </TabsList>
 
         <TabsContent value="pnl" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 border-b border-border/50 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-semibold">{t.pages.finance.pnlReportTitle}</CardTitle>
-                <CardDescription>{t.pages.finance.pnlReportSubtitle}</CardDescription>
+                <h3 className="text-sm font-semibold text-foreground">{t.pages.finance.pnlReportTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.pages.finance.pnlReportSubtitle}</p>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
+            </div>
+            <div className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.common.name}</TableHead>
-                    <TableHead className="w-20 text-center">{t.pages.accounting.code}</TableHead>
-                    <TableHead className="text-right">{t.common.period}</TableHead>
-                    <TableHead className="text-right">{t.common.previous}</TableHead>
+                  <TableRow className="border-border/40 hover:bg-transparent">
+                    <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.name}</TableHead>
+                    <TableHead className="w-20 text-center text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.code}</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.common.period}</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.common.previous}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pnlStatement.map((row, idx) => (
-                    <TableRow key={idx} className={row.isHeader ? "bg-muted/40 font-bold" : "hover:bg-muted/30"}>
+                    <TableRow key={idx} className={row.isHeader ? "bg-muted/40 font-bold border-border/40" : "border-border/30 hover:bg-muted/30"}>
                       <TableCell className={`text-xs ${row.isHeader ? "font-bold text-foreground" : "text-foreground"}`}>
                         {row.category}
                       </TableCell>
@@ -271,25 +270,25 @@ export default function FinancePage() {
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="balance" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 border-b border-border/50 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-semibold">{t.pages.finance.balanceReportTitle}</CardTitle>
-                <CardDescription>{t.pages.finance.balanceReportSubtitle}</CardDescription>
+                <h3 className="text-sm font-semibold text-foreground">{t.pages.finance.balanceReportTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.pages.finance.balanceReportSubtitle}</p>
               </div>
-            </CardHeader>
-            <CardContent className="p-0">
+            </div>
+            <div className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.common.name}</TableHead>
-                    <TableHead className="w-20 text-center">{t.pages.accounting.code}</TableHead>
-                    <TableHead className="text-right">{t.pages.accounting.balance}</TableHead>
+                  <TableRow className="border-border/40 hover:bg-transparent">
+                    <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.name}</TableHead>
+                    <TableHead className="w-20 text-center text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.code}</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.balance}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -298,16 +297,16 @@ export default function FinancePage() {
                       key={idx}
                       className={
                         row.isSectionHeader
-                          ? "bg-indigo-500/10 dark:bg-indigo-500/20 font-bold"
+                          ? "bg-violet-500/10 dark:bg-violet-500/15 font-bold border-border/40"
                           : row.isHeader
-                          ? "bg-muted/40 font-semibold"
-                          : "hover:bg-muted/30"
+                          ? "bg-muted/40 font-semibold border-border/40"
+                          : "border-border/30 hover:bg-muted/30"
                       }
                     >
                       <TableCell
                         className={`text-xs ${
                           row.isSectionHeader
-                            ? "text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider"
+                            ? "text-violet-400 font-bold uppercase tracking-wider"
                             : row.isHeader
                             ? "font-semibold text-foreground"
                             : "text-foreground"
@@ -325,8 +324,8 @@ export default function FinancePage() {
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="cashflow" className="space-y-4 mt-4">

@@ -482,7 +482,7 @@ export default function AccountingPage() {
             onClick={handleExport1CXml}
             title={d.export1CXmlTitle}
           >
-            <FileCode className="h-3.5 w-3.5 text-amber-600" />
+            <FileCode className="h-3.5 w-3.5 text-violet-400" />
             {d.export1CXmlBtn}
           </Button>
 
@@ -508,7 +508,7 @@ export default function AccountingPage() {
               </Button>
               <Button
                 size="sm"
-                className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                 onClick={() => {
                   setNewEntry((prev) => ({
                     ...prev,
@@ -576,15 +576,15 @@ export default function AccountingPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-24">{t.pages.accounting.code}</TableHead>
-                  <TableHead>{t.pages.accounting.name}</TableHead>
-                  <TableHead>{d.colCategory}</TableHead>
-                  <TableHead>{d.colType}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.balance} ({t.common.currency})</TableHead>
+                <TableRow className="border-border/40 hover:bg-transparent">
+                  <TableHead className="w-24 text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.code}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.name}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.colCategory}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.colType}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.balance} ({t.common.currency})</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -605,8 +605,8 @@ export default function AccountingPage() {
                         : Number(tbRow.closing_credit || 0)
                       : 0;
                     return (
-                      <TableRow key={acc.id} className="hover:bg-muted/50">
-                        <TableCell className="font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400">
+                      <TableRow key={acc.id} className="border-border/30 hover:bg-muted/30">
+                        <TableCell className="font-mono font-bold text-xs text-violet-400">
                           {acc.code}
                         </TableCell>
                         <TableCell className="font-medium text-foreground">
@@ -645,18 +645,18 @@ export default function AccountingPage() {
 
         {/* 2. Journal Entries Tab */}
         <TabsContent value="journal" className="space-y-3 mt-4">
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-32">№</TableHead>
-                  <TableHead className="w-24">{t.common.date}</TableHead>
-                  <TableHead>{t.common.description}</TableHead>
-                  <TableHead>{t.common.source}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
-                  <TableHead>{t.common.status}</TableHead>
-                  <TableHead>{d.colUser}</TableHead>
+                <TableRow className="border-border/40 hover:bg-transparent">
+                  <TableHead className="w-32 text-[11px] uppercase font-medium text-muted-foreground">№</TableHead>
+                  <TableHead className="w-24 text-[11px] uppercase font-medium text-muted-foreground">{t.common.date}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.description}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.source}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.debit}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.credit}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.status}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.colUser}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -670,10 +670,10 @@ export default function AccountingPage() {
                   journalEntries.map((je) => (
                   <TableRow
                     key={je.id}
-                    className="cursor-pointer hover:bg-muted/60"
+                    className="cursor-pointer border-border/30 hover:bg-muted/30"
                     onClick={() => setSelectedEntry(je)}
                   >
-                    <TableCell className="font-mono text-xs font-semibold text-primary">
+                    <TableCell className="font-mono text-xs font-semibold text-violet-400">
                       {je.entryNumber}
                     </TableCell>
                     <TableCell className="font-mono text-[11px] text-muted-foreground">
@@ -706,7 +706,7 @@ export default function AccountingPage() {
             </Table>
 
             {/* Server-side Pagination Bar */}
-            <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-t border-border/50 px-4 py-2.5 text-xs text-muted-foreground">
               <span>
                 {d.totalEntriesPrefix} <strong className="text-foreground">{totalJournalCount}</strong> {d.entriesWord} ({d.pageWord} {currentPage} / {totalPages})
               </span>
@@ -735,8 +735,8 @@ export default function AccountingPage() {
 
           {/* Selected Entry Detail modal / view */}
           {selectedEntry && (
-            <div className="rounded-xl border border-indigo-500/30 bg-card p-5 space-y-4 shadow-sm animate-in fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 backdrop-blur-sm p-5 space-y-4 shadow-sm animate-in fade-in">
+              <div className="flex items-center justify-between pb-3 border-b border-border/50">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground font-mono">
@@ -777,18 +777,18 @@ export default function AccountingPage() {
                 </span>
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>{t.pages.accounting.code}</TableHead>
-                      <TableHead>{t.pages.accounting.name}</TableHead>
-                      <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
-                      <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
-                      <TableHead>{t.common.description}</TableHead>
+                    <TableRow className="border-border/40 hover:bg-transparent">
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.code}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.name}</TableHead>
+                      <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.debit}</TableHead>
+                      <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.credit}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.description}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {selectedEntry.lines.map((l) => (
-                      <TableRow key={l.id}>
-                        <TableCell className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      <TableRow key={l.id} className="border-border/30 hover:bg-muted/30">
+                        <TableCell className="font-mono font-bold text-violet-400">
                           {l.accountCode}
                         </TableCell>
                         <TableCell className="font-medium text-foreground">{l.accountName}</TableCell>
@@ -810,36 +810,36 @@ export default function AccountingPage() {
 
         {/* 3. Trial Balance Tab */}
         <TabsContent value="trial" className="space-y-4 mt-4">
-          <div className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-xs">
-            <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-medium">
-              <CheckCircle2 className="h-4 w-4" />
+          <div className="flex items-center justify-between p-3 rounded-xl border border-violet-500/30 bg-violet-500/10 backdrop-blur-sm text-xs">
+            <div className="flex items-center gap-2 text-violet-300 font-medium">
+              <CheckCircle2 className="h-4 w-4 text-violet-400" />
               <span>
                 {isTbBalanced ? d.tbBalanced : d.tbUnbalanced}
               </span>
             </div>
-            <div className="flex items-center gap-4 font-mono font-bold">
-              <span>{t.pages.accounting.debit}: {new Intl.NumberFormat(intlLocale).format(tbTotalDebit)} {t.common.currency}</span>
-              <span>{t.pages.accounting.credit}: {new Intl.NumberFormat(intlLocale).format(tbTotalCredit)} {t.common.currency}</span>
+            <div className="flex items-center gap-4 font-mono font-bold text-foreground">
+              <span>{t.pages.accounting.debit}: <span className="text-emerald-400">{new Intl.NumberFormat(intlLocale).format(tbTotalDebit)}</span> {t.common.currency}</span>
+              <span>{t.pages.accounting.credit}: <span className="text-violet-400">{new Intl.NumberFormat(intlLocale).format(tbTotalCredit)}</span> {t.common.currency}</span>
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-20">{t.pages.accounting.code}</TableHead>
-                  <TableHead>{t.pages.accounting.name}</TableHead>
-                  <TableHead className="text-right">{d.colOpeningBalance}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.debit} {d.turnoverSuffix}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.credit} {d.turnoverSuffix}</TableHead>
-                  <TableHead className="text-right">{d.colClosingBalance}</TableHead>
+                <TableRow className="border-border/40 hover:bg-transparent">
+                  <TableHead className="w-20 text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.code}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.name}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.colOpeningBalance}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.debit} {d.turnoverSuffix}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.credit} {d.turnoverSuffix}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.colClosingBalance}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {trialBalanceData.length > 0 ? (
                   trialBalanceData.map((row) => (
-                    <TableRow key={row.account_code}>
-                      <TableCell className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                    <TableRow key={row.account_code} className="border-border/30 hover:bg-muted/30">
+                      <TableCell className="font-mono font-bold text-violet-400">
                         {row.account_code}
                       </TableCell>
                       <TableCell className="font-medium text-foreground">{row.account_name}</TableCell>
@@ -847,22 +847,22 @@ export default function AccountingPage() {
                         {Number(row.opening_debit) > 0 ? (
                           <Money amount={Number(row.opening_debit)} />
                         ) : Number(row.opening_credit) > 0 ? (
-                          <span className="text-amber-600 font-medium">-<Money amount={Number(row.opening_credit)} /></span>
+                          <span className="text-amber-500 font-medium">-<Money amount={Number(row.opening_credit)} /></span>
                         ) : (
                           "0"
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-emerald-600 dark:text-emerald-400 font-medium">
+                      <TableCell className="text-right font-mono text-emerald-500 dark:text-emerald-400 font-medium">
                         {Number(row.period_debit) > 0 ? <Money amount={Number(row.period_debit)} /> : "—"}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-indigo-600 dark:text-indigo-400 font-medium">
+                      <TableCell className="text-right font-mono text-violet-400 font-medium">
                         {Number(row.period_credit) > 0 ? <Money amount={Number(row.period_credit)} /> : "—"}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold text-foreground">
                         {Number(row.closing_debit) > 0 ? (
                           <Money amount={Number(row.closing_debit)} />
                         ) : Number(row.closing_credit) > 0 ? (
-                          <span className="text-amber-600">-<Money amount={Number(row.closing_credit)} /></span>
+                          <span className="text-amber-500">-<Money amount={Number(row.closing_credit)} /></span>
                         ) : (
                           "0"
                         )}
@@ -888,7 +888,7 @@ export default function AccountingPage() {
             <select
               value={selectedLedgerAccount}
               onChange={(e) => setSelectedLedgerAccount(e.target.value)}
-              className="h-8 rounded-lg border border-input bg-card px-3 text-xs font-medium font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="h-8 rounded-lg border border-border/50 bg-card/40 px-3 text-xs font-medium font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-violet-500"
             >
               {chartOfAccounts.map((acc) => (
                 <option key={acc.id} value={acc.code}>
@@ -898,17 +898,17 @@ export default function AccountingPage() {
             </select>
           </div>
 
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>{t.common.date}</TableHead>
-                  <TableHead>{d.colDocNumber}</TableHead>
-                  <TableHead>{t.common.description}</TableHead>
-                  <TableHead>{d.colCorrAccount}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.debit}</TableHead>
-                  <TableHead className="text-right">{t.pages.accounting.credit}</TableHead>
-                  <TableHead className="text-right">{d.colRunningBalance}</TableHead>
+                <TableRow className="border-border/40 hover:bg-transparent">
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.date}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.colDocNumber}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.description}</TableHead>
+                  <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.colCorrAccount}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.debit}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.accounting.credit}</TableHead>
+                  <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.colRunningBalance}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -916,15 +916,15 @@ export default function AccountingPage() {
                   generalLedgerData
                     .slice((glPage - 1) * pageSize, glPage * pageSize)
                     .map((row, idx) => (
-                    <TableRow key={row.entry_id || idx}>
+                    <TableRow key={row.entry_id || idx} className="border-border/30 hover:bg-muted/30">
                       <TableCell className="font-mono text-xs">{row.entry_date}</TableCell>
-                      <TableCell className="font-mono text-xs text-primary font-medium">{row.entry_number}</TableCell>
+                      <TableCell className="font-mono text-xs text-violet-400 font-medium">{row.entry_number}</TableCell>
                       <TableCell className="font-medium text-foreground">{row.description}</TableCell>
-                      <TableCell className="font-mono text-primary font-bold">{row.correspondent_code}</TableCell>
-                      <TableCell className="text-right text-emerald-600 font-mono font-medium">
+                      <TableCell className="font-mono text-violet-400 font-bold">{row.correspondent_code}</TableCell>
+                      <TableCell className="text-right text-emerald-500 dark:text-emerald-400 font-mono font-medium">
                         {Number(row.debit_amount) > 0 ? <Money amount={Number(row.debit_amount)} /> : "—"}
                       </TableCell>
-                      <TableCell className="text-right text-indigo-600 font-mono font-medium">
+                      <TableCell className="text-right text-violet-400 font-mono font-medium">
                         {Number(row.credit_amount) > 0 ? <Money amount={Number(row.credit_amount)} /> : "—"}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold text-foreground">
@@ -1055,7 +1055,7 @@ export default function AccountingPage() {
               <Button
                 type="submit"
                 size="sm"
-                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? d.savingBtn : d.saveEntryBtn}
@@ -1175,7 +1175,7 @@ export default function AccountingPage() {
               <Button
                 type="submit"
                 size="sm"
-                className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                 disabled={isSubmittingCoa}
               >
                 {isSubmittingCoa ? d.addingBtn : d.saveCoaBtn}
@@ -1190,7 +1190,7 @@ export default function AccountingPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
-              <Lock className="h-4 w-4 text-amber-600" />
+              <Lock className="h-4 w-4 text-violet-400" />
               {d.closePeriodTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -1234,7 +1234,7 @@ export default function AccountingPage() {
               <Button
                 type="submit"
                 size="sm"
-                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white"
+                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                 disabled={isClosingPeriod}
               >
                 {isClosingPeriod ? d.closingBtn : d.closePeriodSubmitBtn}

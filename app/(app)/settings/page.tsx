@@ -13,7 +13,6 @@ import {
 } from "@/lib/services/supabase-service";
 import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +56,7 @@ import {
   Clock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 import { getProfileIntegrationsDict } from "@/lib/i18n/domains/profile-integrations";
@@ -1002,14 +1002,14 @@ function SettingsContent() {
 
         {/* Profile Tab */}
         <TabsContent value="profile" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">{d.personalCardTitle}</CardTitle>
-              <CardDescription className="text-xs">{d.personalCardDesc}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-xs">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 border-b border-border/50">
+              <h3 className="text-sm font-semibold text-foreground">{d.personalCardTitle}</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{d.personalCardDesc}</p>
+            </div>
+            <div className="p-4 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="rounded-xl border border-border/50 bg-card/40 p-3">
                   <span className="text-[11px] text-muted-foreground block">{d.nameProfileLabel}</span>
                   <span className="font-semibold text-foreground mt-0.5 block">
                     {personalForm.fullName ||
@@ -1018,7 +1018,7 @@ function SettingsContent() {
                       (user?.email ? user.email.split("@")[0] : d.defaultUserName)}
                   </span>
                 </div>
-                <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="rounded-xl border border-border/50 bg-card/40 p-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground">{d.emailLabel}</span>
                     <button
@@ -1041,7 +1041,7 @@ function SettingsContent() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border p-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-violet-500/30 bg-violet-500/10 p-3.5">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-foreground">{d.currentPlanLabel}</span>
@@ -1051,24 +1051,24 @@ function SettingsContent() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">{d.planDesc}</p>
                 </div>
-                <Button asChild size="sm" variant="outline" className="h-9 text-xs gap-1.5 shrink-0">
+                <Button asChild size="sm" variant="outline" className="h-9 text-xs gap-1.5 shrink-0 border-violet-500/30 hover:bg-violet-500/15 text-violet-300">
                   <Link href="/billing">
                     <CreditCard className="h-3.5 w-3.5" />
                     {d.openBillingBtn}
                   </Link>
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Personal Profile Edit Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">{pi.profile.personalEditTitle}</CardTitle>
-                <CardDescription className="text-xs">{pi.profile.personalEditDesc}</CardDescription>
-              </CardHeader>
-              <CardContent>
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 border-b border-border/50">
+                <h3 className="text-sm font-semibold text-foreground">{pi.profile.personalEditTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{pi.profile.personalEditDesc}</p>
+              </div>
+              <div className="p-4">
                 <form onSubmit={handleSavePersonalProfile} className="space-y-3 text-xs">
                   <div className="space-y-1">
                     <Label htmlFor="profile-full-name" className="text-[11px] font-medium text-foreground">
@@ -1080,7 +1080,7 @@ function SettingsContent() {
                       onChange={(e) => setPersonalForm((p) => ({ ...p, fullName: e.target.value }))}
                       placeholder={pi.profile.fullNamePlaceholder}
                       disabled={isReadOnly}
-                      className="h-9 text-xs"
+                      className="h-9 text-xs bg-background/50 border-border/60"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1093,7 +1093,7 @@ function SettingsContent() {
                       onChange={(e) => setPersonalForm((p) => ({ ...p, phone: e.target.value }))}
                       placeholder={pi.profile.phonePlaceholder}
                       disabled={isReadOnly}
-                      className="h-9 text-xs font-mono"
+                      className="h-9 text-xs font-mono bg-background/50 border-border/60"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1106,28 +1106,28 @@ function SettingsContent() {
                       onChange={(e) => setPersonalForm((p) => ({ ...p, jobTitle: e.target.value }))}
                       placeholder={pi.profile.jobTitlePlaceholder}
                       disabled={isReadOnly}
-                      className="h-9 text-xs"
+                      className="h-9 text-xs bg-background/50 border-border/60"
                     />
                   </div>
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5" disabled={isSavingPersonal}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingPersonal}>
                         {isSavingPersonal && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {isSavingPersonal ? pi.profile.savingBtn : pi.profile.savePersonalBtn}
                       </Button>
                     </div>
                   )}
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Company & Bank Requisites Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">{pi.profile.companyCardTitle}</CardTitle>
-                <CardDescription className="text-xs">{pi.profile.companyCardDesc}</CardDescription>
-              </CardHeader>
-              <CardContent>
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 border-b border-border/50">
+                <h3 className="text-sm font-semibold text-foreground">{pi.profile.companyCardTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{pi.profile.companyCardDesc}</p>
+              </div>
+              <div className="p-4">
                 <form onSubmit={handleSaveCompanyProfile} className="space-y-3 text-xs">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
@@ -1280,41 +1280,41 @@ function SettingsContent() {
 
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5" disabled={isSavingCompany}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingCompany}>
                         {isSavingCompany && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {isSavingCompany ? pi.profile.savingBtn : pi.profile.saveCompanyBtn}
                       </Button>
                     </div>
                   )}
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
         {/* Integrations Hub Tab */}
         <TabsContent value="integrations" className="space-y-4 mt-4">
           {/* Summary Header Card */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50">
               <div>
-                <CardTitle className="text-sm font-semibold">{pi.integrations.hubTitle}</CardTitle>
-                <CardDescription className="text-xs">{pi.integrations.hubDesc}</CardDescription>
+                <h3 className="text-sm font-semibold text-foreground">{pi.integrations.hubTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{pi.integrations.hubDesc}</p>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 text-xs gap-1.5 self-start sm:self-auto"
+                className="h-9 text-xs gap-1.5 self-start sm:self-auto border-border/60 hover:bg-muted/30"
                 onClick={loadIntegrations}
                 disabled={isLoadingIntegrations}
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isLoadingIntegrations ? "animate-spin" : ""}`} />
                 {pi.integrations.syncCatalogBtn}
               </Button>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-              <div className="rounded-lg border border-border bg-muted/20 p-3 flex items-center justify-between">
+            </div>
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="rounded-xl border border-border/50 bg-card/40 p-3 flex items-center justify-between">
                 <span className="font-medium text-foreground">{pi.integrations.statusOneC}</span>
                 <Badge
                   variant={
@@ -1333,7 +1333,7 @@ function SettingsContent() {
                     : pi.integrations.disconnectedBadge}
                 </Badge>
               </div>
-              <div className="rounded-lg border border-border bg-muted/20 p-3 flex items-center justify-between">
+              <div className="rounded-xl border border-border/50 bg-card/40 p-3 flex items-center justify-between">
                 <span className="font-medium text-foreground">{pi.integrations.statusDidox}</span>
                 <Badge
                   variant={integrations.didox.status === "connected" ? "success" : "slate"}
@@ -1344,13 +1344,13 @@ function SettingsContent() {
                     : pi.integrations.didoxInactiveBadge}
                 </Badge>
               </div>
-              <div className="rounded-lg border border-border bg-muted/20 p-3 flex items-center justify-between">
+              <div className="rounded-xl border border-border/50 bg-card/40 p-3 flex items-center justify-between">
                 <span className="font-medium text-foreground">{pi.integrations.statusBank}</span>
                 <Badge variant="indigo" className="text-[10px] font-mono">
                   {integrations.bank.encoding}
                 </Badge>
               </div>
-              <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="rounded-xl border border-border/50 bg-card/40 p-3">
                 <span className="text-[11px] text-muted-foreground block">
                   {pi.integrations.catalogSummaryTitle}
                 </span>
@@ -1359,23 +1359,26 @@ function SettingsContent() {
                   {pi.integrations.accountsCountLabel}: {integrations.onec.accountsCount}
                 </span>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* 1C:Buxgalteriya Card */}
-          <Card>
-            <CardHeader className="pb-3">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 border-b border-border/50">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-sm font-semibold">{pi.integrations.oneCCardTitle}</CardTitle>
-                  <CardDescription className="text-xs">{pi.integrations.oneCCardDesc}</CardDescription>
+                  <h3 className="text-sm font-semibold text-foreground">{pi.integrations.oneCCardTitle}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{pi.integrations.oneCCardDesc}</p>
                 </div>
-                <div className="inline-flex rounded-lg border border-border bg-muted/30 p-1 gap-1 self-start">
+                <div className="inline-flex rounded-lg border border-border/60 bg-muted/30 p-1 gap-1 self-start">
                   <Button
                     type="button"
                     size="sm"
                     variant={oneCSubMode === "odata" ? "default" : "ghost"}
-                    className="h-8 text-xs gap-1.5"
+                    className={cn(
+                      "h-8 text-xs gap-1.5",
+                      oneCSubMode === "odata" && "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                    )}
                     onClick={() => setOneCSubMode("odata")}
                   >
                     <Cloud className="h-3.5 w-3.5" />
@@ -1385,7 +1388,10 @@ function SettingsContent() {
                     type="button"
                     size="sm"
                     variant={oneCSubMode === "epf" ? "default" : "ghost"}
-                    className="h-8 text-xs gap-1.5"
+                    className={cn(
+                      "h-8 text-xs gap-1.5",
+                      oneCSubMode === "epf" && "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                    )}
                     onClick={() => setOneCSubMode("epf")}
                   >
                     <Laptop className="h-3.5 w-3.5" />
@@ -1393,8 +1399,8 @@ function SettingsContent() {
                   </Button>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4 text-xs">
+            </div>
+            <div className="p-4 space-y-4 text-xs">
               {oneCSubMode === "odata" ? (
                 <form onSubmit={handleSaveOData} className="space-y-3">
                   <div className="space-y-1">
@@ -1408,7 +1414,7 @@ function SettingsContent() {
                       onChange={(e) => setOdataForm((f) => ({ ...f, baseUrl: e.target.value }))}
                       placeholder={pi.integrations.odataUrlPlaceholder}
                       disabled={isReadOnly}
-                      className="h-9 text-xs font-mono"
+                      className="h-9 text-xs font-mono bg-background/50 border-border/60"
                       required
                     />
                     <p className="text-[11px] text-muted-foreground">{pi.integrations.odataHttpsHint}</p>
@@ -1425,7 +1431,7 @@ function SettingsContent() {
                         onChange={(e) => setOdataForm((f) => ({ ...f, username: e.target.value }))}
                         placeholder={pi.integrations.odataLoginPlaceholder}
                         disabled={isReadOnly}
-                        className="h-9 text-xs"
+                        className="h-9 text-xs bg-background/50 border-border/60"
                         required
                       />
                     </div>
@@ -1444,7 +1450,7 @@ function SettingsContent() {
                             : pi.integrations.odataPasswordPlaceholderNew
                         }
                         disabled={isReadOnly}
-                        className="h-9 text-xs"
+                        className="h-9 text-xs bg-background/50 border-border/60"
                       />
                     </div>
                   </div>
@@ -1464,7 +1470,7 @@ function SettingsContent() {
                               type="button"
                               size="sm"
                               variant="outline"
-                              className="h-9 text-xs gap-1.5"
+                              className="h-9 text-xs gap-1.5 border-border/60 hover:bg-muted/30"
                               onClick={handleSyncCatalog}
                               disabled={isSyncingCatalog}
                             >
@@ -1479,7 +1485,7 @@ function SettingsContent() {
                               type="button"
                               size="sm"
                               variant="outline"
-                              className="h-9 text-xs gap-1.5 text-destructive hover:text-destructive"
+                              className="h-9 text-xs gap-1.5 text-destructive hover:text-destructive border-destructive/30"
                               onClick={handleDisconnectOneC}
                               disabled={isDisconnectingOneC}
                             >
@@ -1488,7 +1494,7 @@ function SettingsContent() {
                             </Button>
                           </>
                         )}
-                        <Button type="submit" size="sm" className="h-9 text-xs gap-1.5" disabled={isTestingOData}>
+                        <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isTestingOData}>
                           {isTestingOData && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                           {pi.integrations.testAndSaveODataBtn}
                         </Button>
@@ -1527,7 +1533,7 @@ function SettingsContent() {
                   </div>
 
                   {integrations.onec.pairCode && (
-                    <div className="rounded-lg border border-border bg-muted/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <span className="text-[11px] text-muted-foreground block">
                           {pi.integrations.pairCodeLabel}
@@ -1548,7 +1554,7 @@ function SettingsContent() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-9 text-xs gap-1.5 self-start sm:self-auto"
+                        className="h-9 text-xs gap-1.5 self-start sm:self-auto border-violet-500/30 hover:bg-violet-500/15 text-violet-300"
                         onClick={() => {
                           navigator.clipboard?.writeText(integrations.onec.pairCode || "");
                           toast.success(pi.integrations.codeCopiedToast);
@@ -1565,7 +1571,7 @@ function SettingsContent() {
                       <Button
                         type="button"
                         size="sm"
-                        className="h-9 text-xs gap-1.5"
+                        className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                         onClick={handleGenerateEpfCode}
                         disabled={isGeneratingCode}
                       >
@@ -1583,7 +1589,7 @@ function SettingsContent() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-9 text-xs gap-1.5"
+                      className="h-9 text-xs gap-1.5 border-border/60 hover:bg-muted/30"
                       onClick={() => {
                         const origin =
                           typeof window !== "undefined" ? window.location.origin : "https://firmus.uz";
@@ -1599,7 +1605,7 @@ function SettingsContent() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-9 text-xs gap-1.5 text-destructive hover:text-destructive"
+                        className="h-9 text-xs gap-1.5 text-destructive hover:text-destructive border-destructive/30"
                         onClick={handleDisconnectOneC}
                         disabled={isDisconnectingOneC}
                       >
@@ -1610,19 +1616,19 @@ function SettingsContent() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Didox & Bank 2-column grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-3 flex flex-row items-start justify-between gap-2">
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 flex flex-row items-start justify-between gap-2 border-b border-border/50">
                 <div>
-                  <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                    <FileText className="h-4 w-4 text-violet-400" />
                     {pi.integrations.didoxCardTitle}
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-0.5">{pi.integrations.didoxCardDesc}</CardDescription>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{pi.integrations.didoxCardDesc}</p>
                 </div>
                 <Badge
                   variant={integrations.didox.status === "connected" ? "success" : "slate"}
@@ -1632,8 +1638,8 @@ function SettingsContent() {
                     ? pi.integrations.didoxActiveBadge
                     : pi.integrations.didoxInactiveBadge}
                 </Badge>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <div className="p-4">
                 <form onSubmit={handleSaveDidox} className="space-y-3 text-xs">
                   <div className="space-y-1">
                     <Label htmlFor="didox-stir" className="text-[11px] font-medium text-foreground">
@@ -1648,7 +1654,7 @@ function SettingsContent() {
                       }
                       placeholder={pi.integrations.didoxStirPlaceholder}
                       disabled={isReadOnly}
-                      className="h-9 text-xs font-mono"
+                      className="h-9 text-xs font-mono bg-background/50 border-border/60"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1665,7 +1671,7 @@ function SettingsContent() {
                         }))
                       }
                       disabled={isReadOnly}
-                      className="w-full h-9 text-xs rounded-md border border-input bg-background px-2.5 text-foreground"
+                      className="w-full h-9 text-xs rounded-md border border-border/60 bg-background/50 px-2.5 text-foreground"
                     >
                       <option value="manual">{pi.integrations.didoxModeManual}</option>
                       <option value="auto">{pi.integrations.didoxModeAuto}</option>
@@ -1673,25 +1679,25 @@ function SettingsContent() {
                   </div>
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5" disabled={isSavingDidox}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingDidox}>
                         {isSavingDidox && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {pi.integrations.saveDidoxBtn}
                       </Button>
                     </div>
                   )}
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
-                  <Landmark className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 border-b border-border/50">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                  <Landmark className="h-4 w-4 text-emerald-400" />
                   {pi.integrations.bankCardTitle}
-                </CardTitle>
-                <CardDescription className="text-xs">{pi.integrations.bankCardDesc}</CardDescription>
-              </CardHeader>
-              <CardContent>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{pi.integrations.bankCardDesc}</p>
+              </div>
+              <div className="p-4">
                 <form onSubmit={handleSaveBankPrefs} className="space-y-3 text-xs">
                   <div className="space-y-1">
                     <Label htmlFor="bank-encoding" className="text-[11px] font-medium text-foreground">
@@ -1707,7 +1713,7 @@ function SettingsContent() {
                         }))
                       }
                       disabled={isReadOnly}
-                      className="w-full h-9 text-xs rounded-md border border-input bg-background px-2.5 text-foreground"
+                      className="w-full h-9 text-xs rounded-md border border-border/60 bg-background/50 px-2.5 text-foreground"
                     >
                       <option value="auto">{pi.integrations.bankEncodingAuto}</option>
                       <option value="UTF-8">{pi.integrations.bankEncodingUtf8}</option>
@@ -1725,28 +1731,28 @@ function SettingsContent() {
                       onChange={(e) => setBankForm((f) => ({ ...f, defaultAccountCode: e.target.value }))}
                       placeholder={pi.integrations.bankDefaultAccountPlaceholder}
                       disabled={isReadOnly}
-                      className="h-9 text-xs font-mono"
+                      className="h-9 text-xs font-mono bg-background/50 border-border/60"
                     />
                   </div>
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5" disabled={isSavingBank}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingBank}>
                         {isSavingBank && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {pi.integrations.saveBankBtn}
                       </Button>
                     </div>
                   )}
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* 1C Draft Queue Card */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/50">
               <div>
-                <CardTitle className="text-sm font-semibold">{pi.integrations.queueTitle}</CardTitle>
-                <CardDescription className="text-xs">{pi.integrations.queueDesc}</CardDescription>
+                <h3 className="text-sm font-semibold text-foreground">{pi.integrations.queueTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{pi.integrations.queueDesc}</p>
               </div>
               {!isReadOnly &&
                 integrations.onec.mode === "odata" &&
@@ -1755,7 +1761,7 @@ function SettingsContent() {
                   <Button
                     type="button"
                     size="sm"
-                    className="h-9 text-xs gap-1.5 self-start sm:self-auto"
+                    className="h-9 text-xs gap-1.5 self-start sm:self-auto bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                     disabled={isPushingDrafts}
                     onClick={() => handlePushDraftsToOneC()}
                   >
@@ -1767,8 +1773,8 @@ function SettingsContent() {
                     {pi.integrations.pushReadyToOneCBtn} ({readyQueueCount})
                   </Button>
                 )}
-            </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
+            </div>
+            <div className="p-0 overflow-x-auto">
               {integrations.queue.length === 0 ? (
                 <div className="py-8 px-4 text-center text-xs text-muted-foreground">
                   {pi.integrations.queueEmpty}
@@ -1776,29 +1782,29 @@ function SettingsContent() {
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>{pi.integrations.queueColSource}</TableHead>
-                      <TableHead>{pi.integrations.queueColSummary}</TableHead>
-                      <TableHead className="text-right">{pi.integrations.queueColAmount}</TableHead>
-                      <TableHead>{pi.integrations.queueColStatus}</TableHead>
-                      <TableHead>{pi.integrations.queueColDocNumber}</TableHead>
-                      <TableHead className="text-right">{pi.integrations.queueColAction}</TableHead>
+                    <TableRow className="border-border/40 hover:bg-transparent">
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{pi.integrations.queueColSource}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{pi.integrations.queueColSummary}</TableHead>
+                      <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{pi.integrations.queueColAmount}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{pi.integrations.queueColStatus}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{pi.integrations.queueColDocNumber}</TableHead>
+                      <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{pi.integrations.queueColAction}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {integrations.queue.map((item) => (
-                      <TableRow key={item.id} className="text-xs">
-                        <TableCell className="font-mono text-[11px]">{item.sourceKind}</TableCell>
+                      <TableRow key={item.id} className="text-xs border-border/30 hover:bg-muted/30">
+                        <TableCell className="font-mono text-[11px] text-muted-foreground">{item.sourceKind}</TableCell>
                         <TableCell>
                           <div className="font-medium text-foreground">{item.summary}</div>
                           {item.errorMessage && (
-                            <div className="text-[11px] text-destructive flex items-center gap-1 mt-0.5">
+                            <div className="text-[11px] text-rose-400 flex items-center gap-1 mt-0.5">
                               <AlertCircle className="h-3 w-3 shrink-0" />
                               <span>{item.errorMessage}</span>
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-mono whitespace-nowrap">
+                        <TableCell className="text-right font-mono whitespace-nowrap text-foreground font-medium">
                           {item.amount > 0 ? item.amount.toLocaleString(intlLocale) : "—"}
                         </TableCell>
                         <TableCell>
@@ -1823,7 +1829,7 @@ function SettingsContent() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-[11px]">{item.onecDocNumber || "—"}</TableCell>
+                        <TableCell className="font-mono text-[11px] text-violet-400">{item.onecDocNumber || "—"}</TableCell>
                         <TableCell className="text-right">
                           {!isReadOnly &&
                             item.status === "failed" &&
@@ -1833,7 +1839,7 @@ function SettingsContent() {
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="h-8 text-[11px] px-2.5"
+                                className="h-8 text-[11px] px-2.5 border-border/60 hover:bg-muted/30"
                                 disabled={isPushingDrafts}
                                 onClick={() => handlePushDraftsToOneC([item.id])}
                               >
@@ -1846,43 +1852,43 @@ function SettingsContent() {
                   </TableBody>
                 </Table>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* 1. Entities Management Tab (Multi-Company B2B mode only) */}
         {FEATURES.multiCompanyMode && (
           <TabsContent value="entities" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 flex flex-row items-center justify-between border-b border-border/50">
                 <div>
-                  <CardTitle className="text-sm font-semibold">
+                  <h3 className="text-sm font-semibold text-foreground">
                     {t.pages.settings.entitiesTitle}
-                  </CardTitle>
-                  <CardDescription>{t.pages.settings.entitiesDesc}</CardDescription>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t.pages.settings.entitiesDesc}</p>
                 </div>
                 {!isReadOnly && (
                   <Button
                     size="sm"
-                    className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                    className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
                     onClick={() => setIsAddEntityOpen(true)}
                   >
                     <Plus className="h-3.5 w-3.5" />
                     {t.pages.settings.addEntity}
                   </Button>
                 )}
-              </CardHeader>
-              <CardContent className="p-0">
+              </div>
+              <div className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>{t.pages.settings.companyName}</TableHead>
-                      <TableHead>{t.pages.settings.tinStir}</TableHead>
-                      <TableHead>{t.pages.settings.legalForm}</TableHead>
-                      <TableHead>{t.pages.settings.taxRegime}</TableHead>
-                      <TableHead>{t.pages.settings.managingAccountant}</TableHead>
-                      <TableHead>{t.pages.settings.status}</TableHead>
-                      <TableHead className="text-right">{t.pages.settings.action}</TableHead>
+                    <TableRow className="border-border/40 hover:bg-transparent">
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.settings.companyName}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.settings.tinStir}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.settings.legalForm}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.settings.taxRegime}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.settings.managingAccountant}</TableHead>
+                      <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.settings.status}</TableHead>
+                      <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.settings.action}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1894,7 +1900,7 @@ function SettingsContent() {
                       </TableRow>
                     ) : (
                       entities.map((ent) => (
-                        <TableRow key={ent.id} className="hover:bg-muted/50">
+                        <TableRow key={ent.id} className="border-border/30 hover:bg-muted/30">
                           <TableCell className="font-semibold text-xs text-foreground">
                             {ent.name}
                             {ent.tradeName && (
@@ -1903,7 +1909,7 @@ function SettingsContent() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="font-mono text-xs text-primary font-bold">
+                          <TableCell className="font-mono text-xs text-violet-400 font-bold">
                             {ent.tinStir}
                           </TableCell>
                           <TableCell className="text-xs">{ent.companyType}</TableCell>
@@ -1927,7 +1933,7 @@ function SettingsContent() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs px-2"
+                                className="h-7 text-xs px-2 border-border/60 hover:bg-muted/30"
                                 onClick={() => setEditingEntity({ ...ent })}
                               >
                                 {t.pages.settings.edit}
@@ -1939,8 +1945,8 @@ function SettingsContent() {
                     )}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
         )}
 
@@ -1948,12 +1954,12 @@ function SettingsContent() {
         <TabsContent value="security" className="space-y-4 mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Password Change Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">{pi.security.passwordCardTitle}</CardTitle>
-                <CardDescription className="text-xs">{pi.security.passwordCardDesc}</CardDescription>
-              </CardHeader>
-              <CardContent>
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 border-b border-border/50">
+                <h3 className="text-sm font-semibold text-foreground">{pi.security.passwordCardTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{pi.security.passwordCardDesc}</p>
+              </div>
+              <div className="p-4">
                 <form onSubmit={handleUpdatePassword} className="space-y-3 text-xs">
                   <div className="space-y-1">
                     <Label htmlFor="security-new-password" className="text-[11px] font-medium text-foreground">
@@ -1966,7 +1972,7 @@ function SettingsContent() {
                       value={passwordForm.newPassword}
                       onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))}
                       placeholder={pi.security.newPasswordPlaceholder}
-                      className="h-9 text-xs"
+                      className="h-9 text-xs bg-background/50 border-border/60"
                       required
                     />
                   </div>
@@ -1981,30 +1987,30 @@ function SettingsContent() {
                       value={passwordForm.confirmPassword}
                       onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))}
                       placeholder={pi.security.confirmPasswordPlaceholder}
-                      className="h-9 text-xs"
+                      className="h-9 text-xs bg-background/50 border-border/60"
                       required
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground">{pi.security.minCharsHint}</p>
                   <p className="text-[11px] text-muted-foreground">{pi.security.oauthPasswordHint}</p>
                   <div className="pt-1 flex justify-end">
-                    <Button type="submit" size="sm" className="h-9 text-xs gap-1.5" disabled={isUpdatingPassword}>
+                    <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isUpdatingPassword}>
                       {isUpdatingPassword && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                       {pi.security.savePasswordBtn}
                     </Button>
                   </div>
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* 2FA, Active Session & API Token Revocation Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">{t.pages.settings.securityTitle}</CardTitle>
-                <CardDescription>{t.pages.settings.securityDesc}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-xs">
-                <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 border-b border-border/50">
+                <h3 className="text-sm font-semibold text-foreground">{t.pages.settings.securityTitle}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{t.pages.settings.securityDesc}</p>
+              </div>
+              <div className="p-4 space-y-4 text-xs">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border/50 bg-card/40">
                   <div className="space-y-0.5 pr-3">
                     <span className="font-semibold text-foreground text-xs block">
                       {t.pages.settings.twoFactorTitle}
@@ -2024,7 +2030,7 @@ function SettingsContent() {
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-border">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border border-border/50 bg-card/40">
                   <div className="space-y-0.5">
                     <span className="font-semibold text-foreground text-xs block">
                       {pi.security.revokeTokensTitle}
@@ -2036,7 +2042,7 @@ function SettingsContent() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-9 text-xs gap-1.5 text-destructive hover:text-destructive shrink-0"
+                      className="h-9 text-xs gap-1.5 text-rose-400 hover:text-rose-300 border-rose-500/30 hover:bg-rose-500/10 shrink-0"
                       disabled={isRevokingTokens}
                       onClick={handleRevokeApiTokens}
                     >
@@ -2054,13 +2060,13 @@ function SettingsContent() {
                   <h4 className="font-semibold text-foreground text-xs mb-2">
                     {t.pages.settings.activeSessions}:
                   </h4>
-                  <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
+                  <div className="p-3 rounded-xl border border-border/50 bg-card/40 space-y-1">
                     <div className="flex justify-between font-mono text-[11px]">
                       <span className="font-semibold text-foreground">
                         {user?.email ? maskEmail(user.email) : d.authenticatedSession} •{" "}
                         {t.pages.settings.currentSession}
                       </span>
-                      <span className="text-emerald-600 dark:text-emerald-400">
+                      <span className="text-emerald-400">
                         {t.pages.settings.online}
                       </span>
                     </div>
@@ -2069,20 +2075,20 @@ function SettingsContent() {
                     </p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
         {/* 4. Notifications Tab */}
         <TabsContent value="notifications" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">{t.pages.settings.notificationsTitle}</CardTitle>
-              <CardDescription>{t.pages.settings.notificationsDesc}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 text-xs">
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 border-b border-border/50">
+              <h3 className="text-sm font-semibold text-foreground">{t.pages.settings.notificationsTitle}</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{t.pages.settings.notificationsDesc}</p>
+            </div>
+            <div className="p-4 space-y-3 text-xs">
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/50 bg-card/40">
                 <div>
                   <span className="font-semibold text-foreground block">{t.pages.settings.emailAlerts}</span>
                   <p className="text-muted-foreground text-[11px]">{t.pages.settings.emailAlertsDesc}</p>
@@ -2098,7 +2104,7 @@ function SettingsContent() {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-lg border border-border">
+              <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/50 bg-card/40">
                 <div>
                   <span className="font-semibold text-foreground block">{t.pages.settings.telegramAlerts}</span>
                   <p className="text-muted-foreground text-[11px]">{t.pages.settings.telegramAlertsDesc}</p>
@@ -2113,18 +2119,18 @@ function SettingsContent() {
                   }}
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* 5. Language Tab */}
         <TabsContent value="language" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">{t.pages.settings.interfaceLangTitle}</CardTitle>
-              <CardDescription>{t.pages.settings.interfaceLangDesc}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 border-b border-border/50">
+              <h3 className="text-sm font-semibold text-foreground">{t.pages.settings.interfaceLangTitle}</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">{t.pages.settings.interfaceLangDesc}</p>
+            </div>
+            <div className="p-4 space-y-2 text-xs">
               {[
                 { code: "uz", name: d.langUz, flag: "🇺🇿" },
                 { code: "ru", name: d.langRu, flag: "🇷🇺" },
@@ -2138,21 +2144,21 @@ function SettingsContent() {
                     const nextDict = getReconcileErpDict(lang.code as any).erpExtra.settings;
                     toast.success(nextDict.toasts.languageChanged.replace("{lang}", lang.name));
                   }}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all text-left ${
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all text-left ${
                     language === lang.code
-                      ? "border-primary bg-primary/5 font-semibold"
-                      : "border-border hover:bg-accent"
+                      ? "border-violet-500 bg-violet-500/10 font-semibold text-foreground shadow-[0_0_12px_rgba(139,92,246,0.15)]"
+                      : "border-border/50 hover:bg-muted/30 text-foreground"
                   }`}
                 >
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2.5">
                     <span className="text-base">{lang.flag}</span>
                     <span>{lang.name}</span>
                   </span>
-                  {language === lang.code && <CheckCircle2 className="h-4 w-4 text-primary" />}
+                  {language === lang.code && <CheckCircle2 className="h-4 w-4 text-violet-400" />}
                 </button>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 

@@ -9,7 +9,6 @@ import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 import { createWorkspaceRecord, createBusinessEntity } from "@/lib/services/supabase-service";
 import { businessEntitySchema } from "@/lib/validations/accounting";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -146,31 +145,31 @@ export default function OnboardingPage() {
 
         <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
           <div
-            className="h-full bg-indigo-600 rounded-full transition-all duration-300"
+            className="h-full bg-violet-600 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(139,92,246,0.5)]"
             style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
 
-        <Card className="shadow-lg border-border">
+        <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.18)] overflow-hidden">
           {step === 1 && (
             <div>
-              <CardHeader>
-                <CardTitle className="text-base font-bold">{d.workspaceTypeLabel}</CardTitle>
-                <CardDescription className="text-xs">
+              <div className="p-6 pb-2">
+                <div className="text-base font-bold text-foreground">{d.workspaceTypeLabel}</div>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {d.step1Desc}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0 text-xs">
+                </p>
+              </div>
+              <div className="p-6 pt-0 space-y-3 text-xs">
                 <div
                   onClick={() => setAccountType("accounting_firm")}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     accountType === "accounting_firm"
-                      ? "border-primary bg-indigo-500/5 ring-1 ring-primary"
-                      : "border-border hover:bg-accent"
+                      ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                      : "border-border hover:bg-muted/40"
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 font-bold">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400 border border-violet-500/30 font-bold">
                       <Briefcase className="h-5 w-5" />
                     </div>
                     <div>
@@ -186,12 +185,12 @@ export default function OnboardingPage() {
                   onClick={() => setAccountType("individual_company")}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     accountType === "individual_company"
-                      ? "border-primary bg-indigo-500/5 ring-1 ring-primary"
-                      : "border-border hover:bg-accent"
+                      ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                      : "border-border hover:bg-muted/40"
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 font-bold">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400 border border-violet-500/30 font-bold">
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div>
@@ -202,19 +201,19 @@ export default function OnboardingPage() {
                     </div>
                   </div>
                 </div>
-              </CardContent>
+              </div>
             </div>
           )}
 
           {step === 2 && (
             <div>
-              <CardHeader>
-                <CardTitle className="text-base font-bold">{d.step2Title}</CardTitle>
-                <CardDescription className="text-xs">
+              <div className="p-6 pb-2">
+                <div className="text-base font-bold text-foreground">{d.step2Title}</div>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {d.step2Desc}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-0 text-xs">
+                </p>
+              </div>
+              <div className="p-6 pt-0 space-y-4 text-xs">
                 <div>
                   <label className="font-semibold text-foreground block mb-1">
                     {d.workspaceNameLabel}
@@ -226,19 +225,19 @@ export default function OnboardingPage() {
                     className="text-xs h-9"
                   />
                 </div>
-              </CardContent>
+              </div>
             </div>
           )}
 
           {step === 3 && (
             <div>
-              <CardHeader>
-                <CardTitle className="text-base font-bold">{d.step3Title}</CardTitle>
-                <CardDescription className="text-xs">
+              <div className="p-6 pb-2">
+                <div className="text-base font-bold text-foreground">{d.step3Title}</div>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {d.step3Desc}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0 text-xs">
+                </p>
+              </div>
+              <div className="p-6 pt-0 space-y-3 text-xs">
                 <div>
                   <label className="font-semibold text-foreground block mb-1">{d.tinLabel}</label>
                   <Input
@@ -272,13 +271,13 @@ export default function OnboardingPage() {
                     <option value="fixed_tax">{d.taxRegimes.fixed_tax}</option>
                   </select>
                 </div>
-              </CardContent>
+              </div>
             </div>
           )}
 
           {step === 4 && (
             <div className="text-center py-6 px-4 space-y-4">
-              <div className="h-14 w-14 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto">
+              <div className="h-14 w-14 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/30 flex items-center justify-center mx-auto shadow-[0_0_15px_rgba(139,92,246,0.2)]">
                 <CheckCircle2 className="h-8 w-8" />
               </div>
               <div>
@@ -292,7 +291,7 @@ export default function OnboardingPage() {
 
               <div className="pt-2">
                 <Button
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 px-6"
+                  className="bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 px-6 shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all"
                   disabled={isSaving}
                   onClick={handleCompleteOnboarding}
                 >
@@ -303,7 +302,7 @@ export default function OnboardingPage() {
           )}
 
           {step < 4 && (
-            <div className="flex items-center justify-between p-4 border-t border-border bg-muted/20 rounded-b-xl">
+            <div className="flex items-center justify-between p-4 border-t border-border/50 bg-muted/20">
               {step > 1 ? (
                 <Button variant="outline" size="sm" onClick={prevStep} className="text-xs h-8">
                   <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
@@ -316,13 +315,13 @@ export default function OnboardingPage() {
               <Button
                 size="sm"
                 onClick={nextStep}
-                className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all"
               >
                 {d.nextBtn} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
               </Button>
             </div>
           )}
-        </Card>
+        </div>
       </div>
     </div>
   );

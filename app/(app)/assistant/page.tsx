@@ -17,7 +17,6 @@ import {
   AiStreamingMessage,
 } from "@/components/shared/ai-chat-visuals";
 import { AiThreadHistoryPanel } from "@/components/shared/ai-thread-history-panel";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -1024,7 +1023,7 @@ function AssistantContent() {
 
         {/* TAB 1: AI CHAT */}
         <TabsContent value="chat" className="space-y-3">
-          <Card
+          <div
             onDragOver={(e) => {
               e.preventDefault();
               setIsDraggingOverChat(true);
@@ -1037,7 +1036,11 @@ function AssistantContent() {
               e.preventDefault();
               handleDropImageToChat(e.dataTransfer?.files?.[0]);
             }}
-            className={`overflow-hidden ${isDraggingOverChat ? "border-violet-500 ring-2 ring-violet-500/30" : ""}`}
+            className={`rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden ${
+              isDraggingOverChat
+                ? "border-violet-500 ring-2 ring-violet-500/30 shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+                : ""
+            }`}
           >
             <div className="flex flex-col md:flex-row min-h-[520px] md:h-[calc(100vh-210px)]">
               {/* Collapsible Chat History Sidebar */}
@@ -1088,7 +1091,7 @@ function AssistantContent() {
                   </Button>
                 </div>
 
-                <CardContent className="pt-4 space-y-3 flex-1 flex flex-col justify-between min-h-0 overflow-hidden">
+                <div className="pt-4 space-y-3 flex-1 flex flex-col justify-between min-h-0 overflow-hidden">
                   <div
                     ref={chatScrollRef}
                     className="flex-1 min-h-0 flex flex-col space-y-4 overflow-y-auto pr-1"
@@ -1203,25 +1206,27 @@ function AssistantContent() {
                       onSubmit={() => handleSendChat()}
                     />
                   </div>
-                </CardContent>
+                </div>
               </div>
             </div>
-          </Card>
+          </div>
         </TabsContent>
 
         {/* TAB 2: INVOICE / RECEIPT SCANNER */}
         <TabsContent value="scan" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="border-dashed">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{d.scan.uploadTitle}</CardTitle>
-                <CardDescription className="text-xs">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm divide-y md:divide-y-0 md:divide-x divide-border/50 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+            <div className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  {d.scan.uploadTitle}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
                   {subscription.limits.pdfAllowed
                     ? d.scan.uploadDescPdf(Math.round(subscription.limits.pdfMaxBytes / (1024 * 1024)))
                     : d.scan.uploadDescImagesOnly}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs">
+                </p>
+              </div>
+              <div className="space-y-3 text-xs">
                 <input
                   ref={scanFileRef}
                   type="file"
@@ -1263,14 +1268,16 @@ function AssistantContent() {
                   {isScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                   {d.scan.analyzeButton}
                 </Button>
-              </CardContent>
-            </Card>
+                </div>
+              </div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{d.scan.resultTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs space-y-3">
+              <div className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                    {d.scan.resultTitle}
+                  </div>
+                </div>
+                <div className="text-xs space-y-3 flex-1 flex flex-col justify-between">
                 {!scanResult ? (
                   <p className="text-muted-foreground py-8 text-center">
                     {d.scan.emptyResult}
@@ -1381,19 +1388,19 @@ function AssistantContent() {
                     </div>
                   </>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {currentEntity?.id && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <History className="h-4 w-4 text-muted-foreground" />
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+              <div className="p-4 pb-3 border-b border-border/40 flex items-center justify-between">
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <History className="h-4 w-4 text-violet-400" />
                   {d.scan.savedDocsTitle} ({savedScansCount})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 overflow-x-auto">
+                </div>
+              </div>
+              <div className="p-0 overflow-x-auto">
                 {savedScans.length === 0 ? (
                   <div className="py-6 text-center text-xs text-muted-foreground">
                     {isLoadingScans ? t.common.loading : d.scan.noSavedDocs}
@@ -1469,8 +1476,8 @@ function AssistantContent() {
                   itemLabel={d.scan.paginationItemLabel}
                   onPageChange={setSavedScansPage}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </TabsContent>
 
@@ -1478,14 +1485,14 @@ function AssistantContent() {
         <TabsContent value="calc" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Payroll Calculator */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{d.calc.payroll.title}</CardTitle>
-                <CardDescription className="text-xs">
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm p-4 sm:p-5 space-y-4">
+              <div>
+                <div className="text-sm font-semibold text-foreground">{d.calc.payroll.title}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
                   {d.calc.payroll.taxArticleRef}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs">
+                </div>
+              </div>
+              <div className="space-y-3 text-xs">
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -1552,17 +1559,17 @@ function AssistantContent() {
                     );
                   })}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* VAT + Turnover + Vacation */}
             <div className="space-y-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">{d.calc.vat.title}</CardTitle>
-                  <CardDescription className="text-xs">{d.calc.vat.taxArticleRef}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-xs">
+              <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm p-4 sm:p-5 space-y-3">
+                <div>
+                  <div className="text-sm font-semibold text-foreground">{d.calc.vat.title}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{d.calc.vat.taxArticleRef}</div>
+                </div>
+                <div className="space-y-3 text-xs">
                   <div className="flex gap-2">
                     <Button
                       type="button"
@@ -1604,14 +1611,14 @@ function AssistantContent() {
                       <div className="font-mono font-bold"><Money amount={vatCalc.total} /></div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">{d.calc.other.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm p-4 sm:p-5 space-y-3">
+                <div>
+                  <div className="text-sm font-semibold text-foreground">{d.calc.other.title}</div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="space-y-1.5 rounded-lg bg-muted/40 p-2.5">
                     <div className="font-semibold">{d.calc.other.turnoverTitle}</div>
                     <Input
@@ -1642,20 +1649,22 @@ function AssistantContent() {
                       <span className="font-mono font-bold text-violet-400"><Money amount={vacationCalc.netVacation} /></span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
           </div>
         </TabsContent>
 
         {/* TAB 4: CONTRACT RISK ANALYZER */}
         <TabsContent value="contract" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{d.contract.uploadTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm divide-y md:divide-y-0 md:divide-x divide-border/50 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+            <div className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  {d.contract.uploadTitle}
+                </div>
+              </div>
+              <div className="space-y-3 text-xs">
                 <input
                   ref={contractFileRef}
                   type="file"
@@ -1701,14 +1710,16 @@ function AssistantContent() {
                   {isCheckingContract ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileWarning className="h-3.5 w-3.5" />}
                   {d.contract.analyzeButton}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">{d.contract.resultTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs space-y-3">
+            <div className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  {d.contract.resultTitle}
+                </div>
+              </div>
+              <div className="text-xs space-y-3 flex-1 flex flex-col justify-between">
                 {!contractResult ? (
                   <p className="text-muted-foreground py-8 text-center">
                     {d.contract.emptyResult}
@@ -1736,26 +1747,26 @@ function AssistantContent() {
                     )}
                   </>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
         {/* TAB 5: UNIFIED WORK BATCHES HISTORY (10 PER PAGE FROM DB) */}
         <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3 flex flex-col gap-3">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-4 pb-3 border-b border-border/40 flex flex-col gap-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <div className="text-sm font-semibold flex items-center gap-2">
                     <History className="h-4 w-4 text-violet-400" />
                     {d.history.title} ({allHistoryCount})
-                  </CardTitle>
-                  <CardDescription className="text-xs">
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {FEATURES.multiCompanyMode
                       ? d.history.descMultiCompany
                       : d.history.descSingleCompany}
-                  </CardDescription>
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-1 flex-wrap">
@@ -1814,9 +1825,9 @@ function AssistantContent() {
                   ))}
                 </div>
               )}
-            </CardHeader>
+            </div>
 
-            <CardContent className="p-0 overflow-x-auto">
+            <div className="p-0 overflow-x-auto">
               {!isContextReady || isLoadingHistory ? (
                 <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
@@ -1923,8 +1934,8 @@ function AssistantContent() {
                   onPageChange={setAllHistoryPage}
                 />
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

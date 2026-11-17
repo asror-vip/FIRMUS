@@ -13,7 +13,6 @@ import {
 import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { useAppState } from "@/lib/context/app-state";
 import { ExceptionItem } from "@/lib/types/accounting";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/shared/status-pill";
@@ -344,37 +343,37 @@ function AiAuditorContent() {
         </Button>
       </div>
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 flex items-center justify-between">
+      {/* Datara Continuous Metric Ribbon */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/40 rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+        <div className="p-4 flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground">{d.openSuspicions}</span>
-            <p className="text-xl font-bold font-mono text-foreground mt-0.5">{openCount}</p>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{d.openSuspicions}</span>
+            <p className="text-2xl font-bold font-mono text-foreground mt-0.5">{openCount}</p>
           </div>
-          <div className="h-9 w-9 rounded-lg bg-rose-500/10 text-rose-600 flex items-center justify-center">
+          <div className="h-9 w-9 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center">
             <ShieldAlert className="h-5 w-5" />
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-4 flex items-center justify-between">
+        <div className="p-4 flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground">{t.statuses.critical}</span>
-            <p className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400 mt-0.5">{critCount}</p>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{t.statuses.critical}</span>
+            <p className="text-2xl font-bold font-mono text-rose-400 mt-0.5">{critCount}</p>
           </div>
-          <div className="h-9 w-9 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">
+          <div className="h-9 w-9 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
             <AlertTriangle className="h-5 w-5" />
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-4 flex items-center justify-between">
+        <div className="p-4 flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground">{d.resolvedCountLabel}</span>
-            <p className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">{resolvedCount}</p>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{d.resolvedCountLabel}</span>
+            <p className="text-2xl font-bold font-mono text-violet-400 mt-0.5">{resolvedCount}</p>
           </div>
-          <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+          <div className="h-9 w-9 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20 flex items-center justify-center">
             <CheckCircle2 className="h-5 w-5" />
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Main Split Interface */}
@@ -411,8 +410,8 @@ function AiAuditorContent() {
                   onClick={() => setSelectedExc(exc)}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
                     selectedExc?.id === exc.id
-                      ? "border-indigo-600 bg-indigo-500/5 ring-1 ring-indigo-600"
-                      : "border-border bg-card hover:border-slate-300 dark:hover:border-slate-700"
+                      ? "border-violet-500 bg-violet-500/10 shadow-[0_0_12px_rgba(139,92,246,0.15)] ring-1 ring-violet-500/50"
+                      : "border-border/50 bg-card/30 hover:border-violet-500/30 hover:bg-card/50"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -428,7 +427,7 @@ function AiAuditorContent() {
                     {exc.description}
                   </p>
 
-                  <div className="pt-2 mt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
+                  <div className="pt-2 mt-2 border-t border-border/40 flex items-center justify-between text-[11px]">
                     <span className="font-medium text-foreground flex items-center gap-1 truncate max-w-[160px]">
                       <Building className="h-3 w-3 text-muted-foreground shrink-0" />
                       {exc.entityName}
@@ -446,7 +445,7 @@ function AiAuditorContent() {
                 </div>
               ))
             ) : (
-              <div className="p-8 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xl">
+              <div className="p-8 text-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl">
                 {d.emptyExceptions}
               </div>
             )}
@@ -457,7 +456,7 @@ function AiAuditorContent() {
             totalCount={totalExceptionsCount}
             isLoading={isLoading}
             itemLabel={d.exceptionItemLabel}
-            className="rounded-lg border border-border bg-card"
+            className="rounded-lg border border-border/50 bg-card/30"
             onPageChange={setExcPage}
           />
         </div>
@@ -465,9 +464,9 @@ function AiAuditorContent() {
         {/* Right Detail Panel */}
         <div className="lg:col-span-7">
           {selectedExc ? (
-            <Card className="h-full flex flex-col justify-between">
+            <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden h-full flex flex-col justify-between">
               <div>
-                <CardHeader className="pb-4 border-b border-border">
+                <div className="p-5 pb-4 border-b border-border/50">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <StatusPill status={selectedExc.severity} />
@@ -477,19 +476,19 @@ function AiAuditorContent() {
                       ID: {selectedExc.id} • {selectedExc.date}
                     </span>
                   </div>
-                  <CardTitle className="text-base font-bold text-foreground leading-snug">
+                  <h3 className="text-base font-bold text-foreground leading-snug">
                     {selectedExc.title}
-                  </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground pt-1">
+                  </h3>
+                  <p className="text-xs text-muted-foreground pt-1">
                     {selectedExc.description}
-                  </CardDescription>
-                </CardHeader>
+                  </p>
+                </div>
 
-                <CardContent className="p-5 space-y-5 text-xs">
+                <div className="p-5 space-y-5 text-xs">
                   {/* Evidence Box */}
-                  <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2.5">
+                  <div className="rounded-xl border border-border/50 bg-card/40 p-4 space-y-2.5">
                     <span className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-primary" />
+                      <FileText className="h-3.5 w-3.5 text-violet-400" />
                       {t.pages.aiAuditor.evidenceTitle}
                     </span>
                     <div className="grid grid-cols-2 gap-3 pt-1">
@@ -502,17 +501,17 @@ function AiAuditorContent() {
                         <span className="font-mono text-foreground">{selectedExc.evidence.referenceId}</span>
                       </div>
                     </div>
-                    <div className="pt-2 border-t border-border/60">
+                    <div className="pt-2 border-t border-border/40">
                       <span className="text-[10px] text-muted-foreground block">{d.detailsLabel}</span>
                       <span className="text-foreground leading-relaxed">{selectedExc.evidence.details}</span>
                     </div>
                   </div>
 
                   {/* AI Recommendation Box */}
-                  <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 space-y-2.5">
+                  <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-4 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-indigo-600 dark:text-indigo-400 text-xs flex items-center gap-1.5">
-                        <Sparkles className="h-4 w-4" />
+                      <span className="font-bold text-violet-300 text-xs flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-violet-400" />
                         {t.pages.aiAuditor.aiSuggestionTitle}
                       </span>
                       <Badge variant="indigo" className="text-[10px] font-mono">
@@ -524,26 +523,26 @@ function AiAuditorContent() {
                     <div className="pt-2">
                       <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
                         <span>{t.pages.aiAuditor.confidence}</span>
-                        <span className="font-mono">{selectedExc.aiConfidence}%</span>
+                        <span className="font-mono text-violet-300">{selectedExc.aiConfidence}%</span>
                       </div>
-                      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                      <div className="h-1.5 w-full bg-muted/40 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-indigo-600 rounded-full transition-all"
+                          className="h-full bg-gradient-to-r from-violet-600 to-violet-400 rounded-full transition-all"
                           style={{ width: `${selectedExc.aiConfidence}%` }}
                         />
                       </div>
                     </div>
                   </div>
-                </CardContent>
+                </div>
               </div>
 
               {/* Action Buttons Footer */}
               {!isReadOnly && (
-              <div className="p-4 border-t border-border flex items-center justify-between gap-3 bg-muted/10">
+              <div className="p-4 border-t border-border/50 flex items-center justify-between gap-3 bg-card/20">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 text-xs"
+                  className="h-8 text-xs border-border/60 hover:bg-muted/30"
                   disabled={isMutating}
                   onClick={() =>
                     handleResolve(
@@ -561,7 +560,7 @@ function AiAuditorContent() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-8 text-xs text-rose-600"
+                    className="h-8 text-xs text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
                     disabled={isMutating}
                     onClick={() => handleResolve(selectedExc, "reject")}
                   >
@@ -570,7 +569,7 @@ function AiAuditorContent() {
                   </Button>
                   <Button
                     size="sm"
-                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                     disabled={isMutating || selectedExc.status === "resolved"}
                     onClick={() => handleResolve(selectedExc, "approve")}
                   >
@@ -580,9 +579,9 @@ function AiAuditorContent() {
                 </div>
               </div>
               )}
-            </Card>
+            </div>
           ) : (
-            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-xs">
+            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/50 p-8 text-center text-muted-foreground text-xs">
               {d.selectPrompt}
             </div>
           )}
@@ -590,16 +589,16 @@ function AiAuditorContent() {
       </div>
 
       {/* AI Agent Harakatlar Jurnali (Audit Trail) */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
+      <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+        <div className="p-4 flex flex-row items-center justify-between border-b border-border/50">
           <div>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-indigo-500" />
+            <h3 className="text-base font-bold flex items-center gap-2 text-foreground">
+              <Sparkles className="h-4 w-4 text-violet-400" />
               {d.auditTrailTitle}
-            </CardTitle>
-            <CardDescription className="text-xs">
+            </h3>
+            <p className="text-xs text-muted-foreground">
               {d.auditTrailDesc}
-            </CardDescription>
+            </p>
           </div>
           <Button
             variant="ghost"
@@ -611,22 +610,22 @@ function AiAuditorContent() {
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isLoadingLogs && "animate-spin")} />
             {d.refreshBtn}
           </Button>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="p-4">
           {isLoadingLogs ? (
             <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-              <RefreshCw className="h-4 w-4 animate-spin text-indigo-500" />
+              <RefreshCw className="h-4 w-4 animate-spin text-violet-400" />
               {d.loadingLogs}
             </div>
           ) : actionLogs.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+            <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-border/50 rounded-lg">
               {d.emptyLogs}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-border text-muted-foreground text-left">
+                  <tr className="border-b border-border/40 text-[11px] uppercase font-medium text-muted-foreground text-left">
                     <th className="pb-2 font-medium">{d.colTime}</th>
                     <th className="pb-2 font-medium">{d.colActionType}</th>
                     <th className="pb-2 font-medium">{d.colSummary}</th>
@@ -634,7 +633,7 @@ function AiAuditorContent() {
                     <th className="pb-2 font-medium text-right">{d.colDecision}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60">
+                <tbody className="divide-y divide-border/30">
                   {actionLogs.map((log) => {
                     const badgeVariant =
                       log.decision === "approved"
@@ -644,7 +643,7 @@ function AiAuditorContent() {
                         : "warning";
 
                     return (
-                      <tr key={log.id} className="hover:bg-muted/40 transition-colors">
+                      <tr key={log.id} className="hover:bg-muted/20 transition-colors">
                         <td className="py-2.5 pr-3 text-muted-foreground whitespace-nowrap font-mono text-[11px]">
                           {new Date(log.created_at).toLocaleString(intlLocale, {
                             year: "numeric",
@@ -655,7 +654,7 @@ function AiAuditorContent() {
                           })}
                         </td>
                         <td className="py-2.5 pr-3">
-                          <span className="font-mono text-[11px] font-semibold bg-muted px-1.5 py-0.5 rounded">
+                          <span className="font-mono text-[11px] font-semibold bg-violet-500/10 text-violet-300 border border-violet-500/20 px-1.5 py-0.5 rounded">
                             {log.action_type}
                           </span>
                         </td>
@@ -691,8 +690,8 @@ function AiAuditorContent() {
             className="mt-2"
             onPageChange={setLogsPage}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

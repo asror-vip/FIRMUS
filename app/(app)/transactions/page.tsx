@@ -430,7 +430,7 @@ function TransactionsContent() {
             <Button
               variant="outline"
               size="sm"
-              className="text-xs h-8 gap-1.5 border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300"
+              className="text-xs h-8 gap-1.5 border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300"
               onClick={() => setIsImportOpen(true)}
             >
               <Upload className="h-3.5 w-3.5" />
@@ -445,7 +445,7 @@ function TransactionsContent() {
             onClick={handleExport1C}
             title={d.export1CTitle}
           >
-            <FileCode className="h-3.5 w-3.5 text-amber-600" />
+            <FileCode className="h-3.5 w-3.5 text-violet-400" />
             {d.export1CBtn}
           </Button>
 
@@ -462,7 +462,7 @@ function TransactionsContent() {
           {!isReadOnly && (
             <Button
               size="sm"
-              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
               onClick={() => setIsAddOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -507,14 +507,14 @@ function TransactionsContent() {
       </div>
 
       {isFilterOpen && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-xl border border-border bg-muted/20 p-3 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-xl border border-border/50 bg-card/40 backdrop-blur-sm p-3.5 text-xs">
           <div>
             <Label className="text-[11px] text-muted-foreground">{d.dateFromLabel}</Label>
             <Input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="h-8 text-xs mt-1 bg-background"
+              className="h-8 text-xs mt-1 bg-background/50 border-border/60"
             />
           </div>
           <div>
@@ -523,7 +523,7 @@ function TransactionsContent() {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="h-8 text-xs mt-1 bg-background"
+              className="h-8 text-xs mt-1 bg-background/50 border-border/60"
             />
           </div>
           <div>
@@ -533,7 +533,7 @@ function TransactionsContent() {
               placeholder={d.minAmountPlaceholder}
               value={minAmount}
               onChange={(e) => setMinAmount(e.target.value)}
-              className="h-8 text-xs font-mono mt-1 bg-background"
+              className="h-8 text-xs font-mono mt-1 bg-background/50 border-border/60"
             />
           </div>
           <div className="flex items-end">
@@ -541,7 +541,7 @@ function TransactionsContent() {
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 text-xs w-full"
+              className="h-8 text-xs w-full border-border/60 hover:bg-muted/30"
               onClick={() => {
                 setDateFrom("");
                 setDateTo("");
@@ -556,15 +556,14 @@ function TransactionsContent() {
 
       {/* Bulk Action Bar (when selected) */}
       {!isReadOnly && selectedIds.length > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2.5 text-xs">
+        <div className="flex items-center justify-between rounded-lg border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs">
           <span className="font-medium text-foreground">
             {selectedIds.length} — {t.nav.transactions}
           </span>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              variant="success"
-              className="h-7 px-3 text-xs"
+              className="h-7 px-3 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
               disabled={isMutating}
               onClick={handleBatchApprove}
             >
@@ -584,23 +583,23 @@ function TransactionsContent() {
       )}
 
       {/* Transactions Data Table */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="border-border/40 hover:bg-transparent">
               <TableHead className="w-10">
                 <Checkbox
                   checked={isAllSelected}
                   onCheckedChange={(checked) => handleSelectAll(!!checked)}
                 />
               </TableHead>
-              <TableHead>{t.pages.transactions.tableHeaders.date}</TableHead>
-              <TableHead>{t.pages.transactions.tableHeaders.counterparty}</TableHead>
-              <TableHead>{t.pages.transactions.tableHeaders.description}</TableHead>
-              <TableHead className="text-right">{t.pages.transactions.tableHeaders.amount}</TableHead>
-              <TableHead>{t.pages.transactions.tableHeaders.source}</TableHead>
-              <TableHead>{t.pages.transactions.tableHeaders.status}</TableHead>
-              <TableHead>{t.pages.transactions.tableHeaders.linkedDoc}</TableHead>
+              <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.transactions.tableHeaders.date}</TableHead>
+              <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.transactions.tableHeaders.counterparty}</TableHead>
+              <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.transactions.tableHeaders.description}</TableHead>
+              <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{t.pages.transactions.tableHeaders.amount}</TableHead>
+              <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.transactions.tableHeaders.source}</TableHead>
+              <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.transactions.tableHeaders.status}</TableHead>
+              <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.pages.transactions.tableHeaders.linkedDoc}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -614,7 +613,7 @@ function TransactionsContent() {
               paginatedTx.map((tx) => (
               <TableRow
                 key={tx.id}
-                className="cursor-pointer hover:bg-muted/60 transition-colors"
+                className="cursor-pointer border-border/30 hover:bg-muted/30 transition-colors"
                 onClick={() => setSelectedTx(tx)}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
@@ -645,7 +644,7 @@ function TransactionsContent() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {tx.matchedDocumentName ? (
-                    <span className="flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+                    <span className="flex items-center gap-1 text-[11px] text-violet-400 font-medium">
                       <FileText className="h-3 w-3" />
                       {tx.matchedDocumentName}
                     </span>
@@ -747,14 +746,14 @@ function TransactionsContent() {
 
             {/* AI Explanation / Suggestion Card */}
             {selectedTx.aiExplanation && (
-              <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3.5">
-                <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold mb-1">
+              <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3.5">
+                <div className="flex items-center gap-1.5 text-violet-400 font-semibold mb-1">
                   <Sparkles className="h-3.5 w-3.5" />
                   <span>{t.dashboard.aiRecommendationTitle}</span>
                   {selectedTx.aiConfidence && (
-                    <Badge variant="indigo" className="ml-auto text-[9px] px-1 py-0 h-4">
+                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/15 text-violet-300 font-mono">
                       {selectedTx.aiConfidence}% {t.pages.aiAuditor.confidence}
-                    </Badge>
+                    </span>
                   )}
                 </div>
                 <p className="text-[11px] text-foreground leading-relaxed">
@@ -767,7 +766,7 @@ function TransactionsContent() {
             {selectedTx.matchedDocumentName && (
               <div className="rounded-xl border border-border p-3.5 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400">
                     <FileText className="h-4 w-4" />
                   </div>
                   <div>
@@ -790,7 +789,7 @@ function TransactionsContent() {
             {!isReadOnly && (
               <div className="pt-4 flex items-center gap-2">
                 <Button
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-9"
+                  className="flex-1 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] h-9"
                   disabled={isMutating || selectedTx.status === "posted"}
                   onClick={() => handleApproveTx(selectedTx)}
                 >
