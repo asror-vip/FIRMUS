@@ -10,6 +10,7 @@ import {
   fetchTaxDeadlinesPaginated,
   payTaxRecordInDb,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { useAppState } from "@/lib/context/app-state";
 import { sanitizeCsvField, downloadCsvBlob } from "@/lib/utils/csv";
@@ -30,29 +31,78 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
 
+function extractTrialBalanceTaxMetrics(tb: any[]) {
+  const rows = tb || [];
+  const row6410 = rows.find((r: any) => r.account_code === "6410");
+  const row4410 = rows.find((r: any) => r.account_code === "4410");
+  const row6520 = rows.find((r: any) => r.account_code === "6520");
+
+  return {
+    vatOutput6410: row6410 ? Number(row6410.period_credit || 0) : 0,
+    vatInput4410: row4410 ? Number(row4410.period_debit || 0) : 0,
+    liveSocialTax: row6520
+      ? Number(row6520.closing_credit ?? row6520.period_credit ?? 0)
+      : 0,
+    liveJshds: row6410
+      ? Number(row6410.period_credit ?? row6410.closing_credit ?? 0)
+      : 0,
+  };
+}
+
 export default function TaxPage() {
   const { currentEntity } = useAppState();
   const { t, locale } = useTranslation();
   const dict = getReconcileErpDict(locale);
   const d = dict.erpExtra.tax;
   const intlLocale = getIntlLocale(locale);
-  const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
-  const [totalTaxCount, setTotalTaxCount] = useState(0);
+  const PAGE_SIZE = 10;
+
+  const initialPeekTb = currentEntity?.id
+    ? peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id))
+    : null;
+  const initialPeekTax = currentEntity?.id
+    ? peekQueryCache<{ data: TaxRecord[]; count: number }>(
+        cacheKeys.taxRecordsPaginated(currentEntity.id, 1, PAGE_SIZE)
+      )
+    : null;
+  const initialTbMetrics = initialPeekTb
+    ? extractTrialBalanceTaxMetrics(initialPeekTb.data || [])
+    : null;
+
+  const [taxRecords, setTaxRecords] = useState<TaxRecord[]>(
+    () => (initialPeekTax?.data.data as TaxRecord[]) || []
+  );
+  const [totalTaxCount, setTotalTaxCount] = useState(() => initialPeekTax?.data.count ?? 0);
   const [taxPage, setTaxPage] = useState(1);
   const [deadlines, setDeadlines] = useState<any[]>([]);
   const [totalDeadlinesCount, setTotalDeadlinesCount] = useState(0);
   const [deadlinesPage, setDeadlinesPage] = useState(1);
-  const PAGE_SIZE = 10;
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !(initialPeekTb && initialPeekTax));
   const [selectedTax, setSelectedTax] = useState<TaxRecord | null>(null);
   const [isCalcModalOpen, setIsCalcModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Real Ledger balances for 6410 (Tax Payable), 4410 (Input VAT), 6520 (Social Tax)
-  const [vatOutput6410, setVatOutput6410] = useState<number>(0);
-  const [vatInput4410, setVatInput4410] = useState<number>(0);
-  const [liveSocialTax, setLiveSocialTax] = useState<number>(0);
-  const [liveJshds, setLiveJshds] = useState<number>(0);
+  const [vatOutput6410, setVatOutput6410] = useState<number>(
+    () => initialTbMetrics?.vatOutput6410 ?? 0
+  );
+  const [vatInput4410, setVatInput4410] = useState<number>(
+    () => initialTbMetrics?.vatInput4410 ?? 0
+  );
+  const [liveSocialTax, setLiveSocialTax] = useState<number>(
+    () => initialTbMetrics?.liveSocialTax ?? 0
+  );
+  const [liveJshds, setLiveJshds] = useState<number>(
+    () => initialTbMetrics?.liveJshds ?? 0
+  );
+
+  const applyTrialBalanceMetrics = useCallback((tb: any[]) => {
+    const metrics = extractTrialBalanceTaxMetrics(tb);
+    setVatOutput6410(metrics.vatOutput6410);
+    setVatInput4410(metrics.vatInput4410);
+    setLiveSocialTax(metrics.liveSocialTax);
+    setLiveJshds(metrics.liveJshds);
+  }, []);
 
   const loadTaxData = useCallback(async () => {
     if (!currentEntity?.id) {
@@ -68,7 +118,25 @@ export default function TaxPage() {
       return;
     }
 
-    setIsLoading(true);
+    const peekTb = peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id));
+    const peekTax = peekQueryCache<{ data: TaxRecord[]; count: number }>(
+      cacheKeys.taxRecordsPaginated(currentEntity.id, taxPage, PAGE_SIZE)
+    );
+
+    if (peekTb) {
+      applyTrialBalanceMetrics(peekTb.data || []);
+    }
+    if (peekTax) {
+      setTaxRecords((peekTax.data.data || []) as TaxRecord[]);
+      setTotalTaxCount(peekTax.data.count ?? 0);
+    }
+
+    if (peekTb && peekTax) {
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       const [tb, dbTaxPage, dbDeadlinesPage] = await Promise.all([
         fetchTrialBalance(currentEntity.id),
@@ -76,22 +144,7 @@ export default function TaxPage() {
         fetchTaxDeadlinesPaginated(currentEntity.id, { page: deadlinesPage, pageSize: PAGE_SIZE }),
       ]);
 
-      const row6410 = (tb || []).find((r: any) => r.account_code === "6410");
-      const row4410 = (tb || []).find((r: any) => r.account_code === "4410");
-      const row6520 = (tb || []).find((r: any) => r.account_code === "6520");
-
-      setVatOutput6410(row6410 ? Number(row6410.period_credit || 0) : 0);
-      setVatInput4410(row4410 ? Number(row4410.period_debit || 0) : 0);
-
-      const socTax = row6520
-        ? Number(row6520.closing_credit ?? row6520.period_credit ?? 0)
-        : 0;
-      setLiveSocialTax(socTax);
-
-      const jshds = row6410
-        ? Number(row6410.period_credit ?? row6410.closing_credit ?? 0)
-        : 0;
-      setLiveJshds(jshds);
+      applyTrialBalanceMetrics(tb || []);
 
       setTaxRecords((dbTaxPage.data || []) as TaxRecord[]);
       setTotalTaxCount(dbTaxPage.count);
@@ -103,7 +156,7 @@ export default function TaxPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentEntity?.id, taxPage, deadlinesPage, d.toasts.loadError]);
+  }, [currentEntity?.id, taxPage, deadlinesPage, d.toasts.loadError, applyTrialBalanceMetrics]);
 
   useEffect(() => {
     setTaxPage(1);

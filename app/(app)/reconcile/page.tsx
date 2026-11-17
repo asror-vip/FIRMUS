@@ -45,6 +45,7 @@ import {
   deleteWorkBatch,
   type WorkBatchRecord,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { sanitizeStringForAi } from "@/lib/utils/privacy";
 import { roundMoney } from "@/lib/utils/finance";
 import { supabase } from "@/lib/supabase/client";
@@ -110,10 +111,32 @@ function ReconcileContent() {
   const [isPostingLedger, setIsPostingLedger] = useState(false);
 
   // Saved batch history state (10 per page from DB, lightweight metadata)
+  const HISTORY_PAGE_SIZE = 10;
+  const ROWS_PAGE_SIZE = 10;
+  const initialHistoryBatches = currentEntity?.id
+    ? peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+        cacheKeys.workBatches({
+          entityId: currentEntity.id,
+          batchType: "reconcile",
+          page: 1,
+          pageSize: HISTORY_PAGE_SIZE,
+        })
+      )
+    : null;
+  const initialHistoryMonths = currentEntity?.id
+    ? peekQueryCache<string[]>(cacheKeys.workBatchMonths(currentEntity.id, "reconcile"))
+    : null;
+
   const historyCardRef = useRef<HTMLDivElement | null>(null);
-  const [savedBatches, setSavedBatches] = useState<WorkBatchRecord[]>([]);
-  const [savedBatchesCount, setSavedBatchesCount] = useState(0);
-  const [historyMonths, setHistoryMonths] = useState<string[]>([]);
+  const [savedBatches, setSavedBatches] = useState<WorkBatchRecord[]>(
+    () => initialHistoryBatches?.data.data ?? []
+  );
+  const [savedBatchesCount, setSavedBatchesCount] = useState(
+    () => initialHistoryBatches?.data.count ?? 0
+  );
+  const [historyMonths, setHistoryMonths] = useState<string[]>(
+    () => initialHistoryMonths?.data ?? []
+  );
   const [historyMonth, setHistoryMonth] = useState<string>("all");
   const [historyPage, setHistoryPage] = useState(1);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -121,8 +144,6 @@ function ReconcileContent() {
   const [isSavingBatch, setIsSavingBatch] = useState(false);
   const [openingBatchId, setOpeningBatchId] = useState<string | null>(null);
   const [rowsPage, setRowsPage] = useState(1);
-  const HISTORY_PAGE_SIZE = 10;
-  const ROWS_PAGE_SIZE = 10;
 
   // Paste dialog state
   const [pasteTarget, setPasteTarget] = useState<"bank" | "onec" | null>(null);
@@ -133,15 +154,40 @@ function ReconcileContent() {
       setSavedBatches([]);
       setSavedBatchesCount(0);
       setHistoryMonths([]);
+      setIsLoadingHistory(false);
       return;
     }
-    setIsLoadingHistory(true);
+    const periodMonth = historyMonth === "all" ? undefined : historyMonth;
+    const cachedBatches = peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+      cacheKeys.workBatches({
+        entityId: currentEntity.id,
+        batchType: "reconcile",
+        periodMonth,
+        page: historyPage,
+        pageSize: HISTORY_PAGE_SIZE,
+      })
+    );
+    const cachedMonths = peekQueryCache<string[]>(
+      cacheKeys.workBatchMonths(currentEntity.id, "reconcile")
+    );
+    if (cachedBatches) {
+      setSavedBatches(cachedBatches.data.data);
+      setSavedBatchesCount(cachedBatches.data.count);
+    }
+    if (cachedMonths) {
+      setHistoryMonths(cachedMonths.data);
+    }
+    if (cachedBatches && cachedMonths) {
+      setIsLoadingHistory(false);
+    } else {
+      setIsLoadingHistory(true);
+    }
     try {
       const [{ data, count }, months] = await Promise.all([
         fetchWorkBatchesPaginated({
           entityId: currentEntity.id,
           batchType: "reconcile",
-          periodMonth: historyMonth === "all" ? undefined : historyMonth,
+          periodMonth,
           page: historyPage,
           pageSize: HISTORY_PAGE_SIZE,
         }),

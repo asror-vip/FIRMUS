@@ -13,6 +13,7 @@ import {
   fetchWorkspaceUsageSummary,
   type WorkBatchRecord,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { getLocalizedPlanSpec, normalizePlanId } from "@/lib/config/plans";
@@ -51,16 +52,59 @@ function SoloToolsHome() {
   const solo = getBillingHomeDict(locale).home.solo;
   const { currentWorkspace, currentEntity, isContextReady, subscription, toggleAiDrawer } =
     useAppState();
-  const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
-  const [recentBatches, setRecentBatches] = useState<WorkBatchRecord[]>([]);
-  const [totalBatches, setTotalBatches] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const initialUsage = isContextReady
+    ? peekQueryCache<{ monthlyBatches: number; aiThreadsCount: number }>(
+        cacheKeys.usage(currentWorkspace?.id, currentEntity?.id)
+      )
+    : null;
+  const initialBatches =
+    isContextReady && currentEntity?.id
+      ? peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+          cacheKeys.workBatches({ entityId: currentEntity.id, page: 1, pageSize: 5 })
+        )
+      : null;
+  const hasInitialCache = Boolean(
+    isContextReady && initialUsage && (!currentEntity?.id || initialBatches)
+  );
+
+  const [usage, setUsage] = useState(
+    () => initialUsage?.data ?? { monthlyBatches: 0, aiThreadsCount: 0 }
+  );
+  const [recentBatches, setRecentBatches] = useState<WorkBatchRecord[]>(
+    () => initialBatches?.data.data ?? []
+  );
+  const [totalBatches, setTotalBatches] = useState(
+    () => initialBatches?.data.count ?? 0
+  );
+  const [isLoading, setIsLoading] = useState(!hasInitialCache);
 
   useEffect(() => {
     let isMounted = true;
     if (!isContextReady) return;
 
-    setIsLoading(true);
+    const cachedUsage = peekQueryCache<{ monthlyBatches: number; aiThreadsCount: number }>(
+      cacheKeys.usage(currentWorkspace?.id, currentEntity?.id)
+    );
+    const cachedBatches = currentEntity?.id
+      ? peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+          cacheKeys.workBatches({ entityId: currentEntity.id, page: 1, pageSize: 5 })
+        )
+      : null;
+
+    if (cachedUsage) {
+      setUsage(cachedUsage.data);
+    }
+    if (cachedBatches) {
+      setRecentBatches(cachedBatches.data.data || []);
+      setTotalBatches(cachedBatches.data.count || 0);
+    } else if (!currentEntity?.id) {
+      setRecentBatches([]);
+      setTotalBatches(0);
+    }
+
+    const hasAllCached = Boolean(cachedUsage && (!currentEntity?.id || cachedBatches));
+    setIsLoading(!hasAllCached);
+
     Promise.all([
       fetchWorkspaceUsageSummary({
         workspaceId: currentWorkspace?.id,

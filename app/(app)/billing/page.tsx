@@ -14,6 +14,7 @@ import {
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getBillingHomeDict, getIntlLocale } from "@/lib/i18n/domains/billing-home";
 import { fetchWorkspaceUsageSummary } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { getClientDeviceHash } from "@/lib/utils/device-fingerprint";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -118,8 +119,13 @@ export default function BillingPage() {
   const [isActivatingTrial, setIsActivatingTrial] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedPlanForInfo, setSelectedPlanForInfo] = useState<PlanSpec | null>(null);
-  const [usage, setUsage] = useState({ monthlyBatches: 0, aiThreadsCount: 0 });
-  const [isLoadingUsage, setIsLoadingUsage] = useState(true);
+  const initialUsage = peekQueryCache<{ monthlyBatches: number; aiThreadsCount: number }>(
+    cacheKeys.usage(currentWorkspace?.id, currentEntity?.id)
+  );
+  const [usage, setUsage] = useState(
+    () => initialUsage?.data ?? { monthlyBatches: 0, aiThreadsCount: 0 }
+  );
+  const [isLoadingUsage, setIsLoadingUsage] = useState(!initialUsage);
 
   const activePlanSpec = selectedPlanForInfo
     ? getLocalizedPlanSpec(selectedPlanForInfo.id, locale)
@@ -146,7 +152,15 @@ export default function BillingPage() {
   }, [currentEntity]);
 
   const loadStats = useCallback(async () => {
-    setIsLoadingUsage(true);
+    const cached = peekQueryCache<{ monthlyBatches: number; aiThreadsCount: number }>(
+      cacheKeys.usage(currentWorkspace?.id, currentEntity?.id)
+    );
+    if (cached) {
+      setUsage(cached.data);
+      setIsLoadingUsage(false);
+    } else {
+      setIsLoadingUsage(true);
+    }
     try {
       const res = await fetchWorkspaceUsageSummary({
         workspaceId: currentWorkspace?.id,

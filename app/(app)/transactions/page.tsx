@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, Suspense } from "reac
 import { useRouter, useSearchParams } from "next/navigation";
 import { Transaction } from "@/lib/types/accounting";
 import { fetchTransactionsPaginated, createTransaction, updateTransactionStatus } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { transactionSchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -49,18 +50,34 @@ function TransactionsContent() {
   const tabParam = searchParams.get("tab");
   const initialTab = tabParam || "all";
   const initialTxId = searchParams.get("id");
+  const pageSize = 10;
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const initialPeek = currentEntity?.id
+    ? peekQueryCache<{ data: Transaction[]; count: number }>(
+        cacheKeys.transactionsPaginated(currentEntity.id, {
+          page: 1,
+          pageSize,
+          tab: initialTab,
+          search: "",
+        })
+      )
+    : null;
+
+  const [transactions, setTransactions] = useState<Transaction[]>(
+    () => (initialPeek?.data.data as Transaction[]) || []
+  );
+  const [totalCount, setTotalCount] = useState(() => initialPeek?.data.count ?? 0);
+  const [isLoading, setIsLoading] = useState(() => !initialPeek);
   const [isMutating, setIsMutating] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(() => {
+    if (!initialTxId || !initialPeek?.data.data) return null;
+    return (initialPeek.data.data as Transaction[]).find((row) => row.id === initialTxId) || null;
+  });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
 
   useEffect(() => {
     setActiveTab(tabParam || "all");
@@ -140,7 +157,28 @@ function TransactionsContent() {
       return;
     }
 
-    setIsLoading(true);
+    const peek = peekQueryCache<{ data: Transaction[]; count: number }>(
+      cacheKeys.transactionsPaginated(currentEntity.id, {
+        page: Math.max(1, currentPage || 1),
+        pageSize,
+        tab: activeTab || "all",
+        search: debouncedSearch.trim(),
+      })
+    );
+
+    if (peek) {
+      const cachedRows = (peek.data.data || []) as Transaction[];
+      setTransactions(cachedRows);
+      setTotalCount(peek.data.count ?? 0);
+      if (initialTxId) {
+        const match = cachedRows.find((row) => row.id === initialTxId);
+        if (match) setSelectedTx(match);
+      }
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       const { data, count } = await fetchTransactionsPaginated(currentEntity.id, {
         page: currentPage,

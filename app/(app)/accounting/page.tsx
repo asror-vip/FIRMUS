@@ -11,6 +11,7 @@ import {
   fetchChartOfAccounts,
   createChartOfAccount,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { journalEntrySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { useAppState } from "@/lib/context/app-state";
 import { generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
@@ -41,7 +42,10 @@ export default function AccountingPage() {
   const [coaSearch, setCoaSearch] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<JournalEntry | null>(null);
   const [selectedLedgerAccount, setSelectedLedgerAccount] = useState("5110");
-  const [chartOfAccounts, setChartOfAccounts] = useState<any[]>([]);
+  const [chartOfAccounts, setChartOfAccounts] = useState<any[]>(() => {
+    if (!currentEntity?.id) return [];
+    return peekQueryCache<any[]>(cacheKeys.chartOfAccounts(currentEntity.id))?.data || [];
+  });
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [totalJournalCount, setTotalJournalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -51,7 +55,10 @@ export default function AccountingPage() {
   const [isLoadingEntries, setIsLoadingEntries] = useState(false);
   const [ledgerVersion, setLedgerVersion] = useState(0);
 
-  const [trialBalanceData, setTrialBalanceData] = useState<any[]>([]);
+  const [trialBalanceData, setTrialBalanceData] = useState<any[]>(() => {
+    if (!currentEntity?.id) return [];
+    return peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id))?.data || [];
+  });
   const [generalLedgerData, setGeneralLedgerData] = useState<any[]>([]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isAddCoaOpen, setIsAddCoaOpen] = useState(false);
@@ -90,6 +97,10 @@ export default function AccountingPage() {
       setChartOfAccounts([]);
       return;
     }
+    const peek = peekQueryCache<any[]>(cacheKeys.chartOfAccounts(currentEntity.id));
+    if (peek) {
+      setChartOfAccounts(peek.data || []);
+    }
     const accounts = await fetchChartOfAccounts(currentEntity.id);
     setChartOfAccounts(accounts || []);
   }, [currentEntity?.id]);
@@ -101,7 +112,16 @@ export default function AccountingPage() {
       setIsLoadingEntries(false);
       return;
     }
-    setIsLoadingEntries(true);
+    const peek = peekQueryCache<{ data: JournalEntry[]; count: number }>(
+      cacheKeys.journalEntriesPaginated(currentEntity.id, currentPage, pageSize)
+    );
+    if (peek) {
+      setJournalEntries((peek.data.data || []) as JournalEntry[]);
+      setTotalJournalCount(peek.data.count ?? 0);
+      setIsLoadingEntries(false);
+    } else {
+      setIsLoadingEntries(true);
+    }
     try {
       const { data, count } = await fetchJournalEntriesPaginated(currentEntity.id, {
         page: currentPage,
@@ -122,12 +142,20 @@ export default function AccountingPage() {
     setCurrentPage(1);
     setCoaPage(1);
     setGlPage(1);
-    setJournalEntries([]);
-    setTotalJournalCount(0);
-    setTrialBalanceData([]);
+    const peekJournal = currentEntity?.id
+      ? peekQueryCache<{ data: JournalEntry[]; count: number }>(
+          cacheKeys.journalEntriesPaginated(currentEntity.id, 1, pageSize)
+        )
+      : null;
+    setJournalEntries((peekJournal?.data.data || []) as JournalEntry[]);
+    setTotalJournalCount(peekJournal?.data.count ?? 0);
+    const peekTb = currentEntity?.id
+      ? peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id))
+      : null;
+    setTrialBalanceData(peekTb?.data || []);
     setGeneralLedgerData([]);
     loadAccounts();
-  }, [currentEntity?.id, loadAccounts]);
+  }, [currentEntity?.id, loadAccounts, pageSize]);
 
   useEffect(() => {
     setCoaPage(1);
@@ -166,6 +194,11 @@ export default function AccountingPage() {
     }
     if (subTab !== "trial") return;
 
+    const peek = peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id));
+    if (peek) {
+      setTrialBalanceData(peek.data || []);
+    }
+
     fetchTrialBalance(currentEntity.id).then((tb) => {
       if (isMounted) {
         setTrialBalanceData(tb || []);
@@ -185,6 +218,13 @@ export default function AccountingPage() {
       return;
     }
     if (subTab !== "ledger") return;
+
+    const peek = peekQueryCache<any[]>(
+      cacheKeys.generalLedger(currentEntity.id, selectedLedgerAccount)
+    );
+    if (peek) {
+      setGeneralLedgerData(peek.data || []);
+    }
 
     fetchGeneralLedger(currentEntity.id, selectedLedgerAccount).then((gl) => {
       if (isMounted) {

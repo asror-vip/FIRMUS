@@ -25,6 +25,7 @@ import {
   fetchBusinessEntities,
   fetchWorkspaces,
 } from "@/lib/services/workspace-context-service";
+import { clearAllQueryCache } from "@/lib/cache/query-cache";
 
 const provisionLocks = new Map<string, Promise<void>>();
 
@@ -96,6 +97,8 @@ export function AppStateProvider({
   const router = useRouter();
   const pathname = usePathname();
   const loadedUserIdRef = useRef<string | null>(null);
+  const prevUserIdRef = useRef<string | null>(null);
+  const subscriptionHydratedForUserRef = useRef<string | null>(null);
 
   const [user, setUser] = useState<any | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -118,6 +121,9 @@ export function AppStateProvider({
         const data = (await res.json()) as SubscriptionSnapshot;
         if (data?.planId) {
           setSubscription(data);
+          if (loadedUserIdRef.current) {
+            subscriptionHydratedForUserRef.current = loadedUserIdRef.current;
+          }
         }
       }
     } catch {
@@ -219,8 +225,10 @@ export function AppStateProvider({
 
   const loadWorkspaceAndEntities = useCallback(
     async (authUser: any) => {
-      // Run subscription fetch in parallel without blocking initial context readiness
-      void refreshSubscription();
+      // Run subscription fetch in parallel only if not already hydrated for this user
+      if (subscriptionHydratedForUserRef.current !== authUser.id) {
+        void refreshSubscription();
+      }
 
       try {
         let [realWorkspaces, realEntities] = await Promise.all([
@@ -298,9 +306,22 @@ export function AppStateProvider({
       data: { user: authUser },
     } = await supabase.auth.getUser();
     if (authUser) {
+      if (prevUserIdRef.current && prevUserIdRef.current !== authUser.id) {
+        clearAllQueryCache();
+        subscriptionHydratedForUserRef.current = null;
+      }
+      prevUserIdRef.current = authUser.id;
       setUser(authUser);
       loadedUserIdRef.current = authUser.id;
       await loadWorkspaceAndEntities(authUser);
+    } else {
+      if (prevUserIdRef.current !== null || loadedUserIdRef.current !== null) {
+        clearAllQueryCache();
+      }
+      prevUserIdRef.current = null;
+      loadedUserIdRef.current = null;
+      subscriptionHydratedForUserRef.current = null;
+      setUser(null);
     }
   }, [loadWorkspaceAndEntities]);
 
@@ -314,6 +335,16 @@ export function AppStateProvider({
           const {
             data: { session },
           } = await supabase.auth.getSession();
+          const sessionUserId = session?.user?.id ?? null;
+          if (prevUserIdRef.current && prevUserIdRef.current !== sessionUserId) {
+            clearAllQueryCache();
+            loadedUserIdRef.current = null;
+            subscriptionHydratedForUserRef.current = null;
+          }
+          if (sessionUserId === null && prevUserIdRef.current !== null) {
+            clearAllQueryCache();
+          }
+          prevUserIdRef.current = sessionUserId;
           if (isMounted) {
             setUser(session?.user ?? null);
             setIsContextReady(true);
@@ -321,11 +352,31 @@ export function AppStateProvider({
           return;
         }
 
+        // On client-side navigations where the same user is already hydrated, avoid redundant getUser() RTT
+        if (loadedUserIdRef.current) {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          if (session?.user?.id === loadedUserIdRef.current) {
+            if (isMounted) {
+              setIsContextReady(true);
+            }
+            return;
+          }
+        }
+
         const {
           data: { user: authUser },
         } = await supabase.auth.getUser();
 
-        if (isMounted && authUser) {
+        if (!isMounted) return;
+
+        if (authUser) {
+          if (prevUserIdRef.current && prevUserIdRef.current !== authUser.id) {
+            clearAllQueryCache();
+            subscriptionHydratedForUserRef.current = null;
+          }
+          prevUserIdRef.current = authUser.id;
           setUser(authUser);
           if (loadedUserIdRef.current !== authUser.id) {
             loadedUserIdRef.current = authUser.id;
@@ -333,8 +384,14 @@ export function AppStateProvider({
           } else {
             setIsContextReady(true);
           }
-        } else if (isMounted) {
+        } else {
+          if (prevUserIdRef.current !== null || loadedUserIdRef.current !== null) {
+            clearAllQueryCache();
+          }
+          prevUserIdRef.current = null;
           loadedUserIdRef.current = null;
+          subscriptionHydratedForUserRef.current = null;
+          setUser(null);
           setIsContextReady(true);
         }
       } catch (err) {
@@ -348,10 +405,25 @@ export function AppStateProvider({
     const {
       data: { subscription: authSub },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
+      const nextUser = session?.user ?? null;
+      const nextUserId = nextUser?.id ?? null;
+
+      if (prevUserIdRef.current !== nextUserId) {
+        if (prevUserIdRef.current !== null || nextUserId === null) {
+          clearAllQueryCache();
+        }
+        if (nextUserId !== loadedUserIdRef.current) {
+          loadedUserIdRef.current = null;
+          subscriptionHydratedForUserRef.current = null;
+        }
+        prevUserIdRef.current = nextUserId;
+      }
+
+      if (nextUser) {
+        setUser(nextUser);
       } else {
         loadedUserIdRef.current = null;
+        subscriptionHydratedForUserRef.current = null;
         setUser(null);
       }
     });
@@ -420,7 +492,15 @@ export function AppStateProvider({
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut();
     loadedUserIdRef.current = null;
+    prevUserIdRef.current = null;
+    subscriptionHydratedForUserRef.current = null;
+    clearAllQueryCache();
     setUser(null);
+    setWorkspaces([]);
+    setEntities([]);
+    setCurrentWorkspaceId("");
+    setCurrentEntityId("");
+    setSubscription(DEFAULT_STARTER_SNAPSHOT);
     router.push("/login");
   }, [router]);
 

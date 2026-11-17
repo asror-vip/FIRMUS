@@ -1,5 +1,10 @@
 import { supabase } from "@/lib/supabase/client";
 import { FEATURES } from "@/lib/config/features";
+import {
+  cachedQuery,
+  cacheKeys,
+  invalidateCachePrefix,
+} from "@/lib/cache/query-cache";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,31 +25,37 @@ async function resolveActiveWorkspaceId(explicitWorkspaceId?: string): Promise<s
 
 export async function fetchWorkspaces() {
   try {
-    const selectColumns = FEATURES.multiCompanyMode
-      ? "id, name, type, plan_id, business_entities(id), team_members(id)"
-      : "id, name, type, plan_id";
+    return await cachedQuery(
+      cacheKeys.workspaces(),
+      async () => {
+        const selectColumns = FEATURES.multiCompanyMode
+          ? "id, name, type, plan_id, business_entities(id), team_members(id)"
+          : "id, name, type, plan_id";
 
-    const { data, error } = await supabase
-      .from("workspaces")
-      .select(selectColumns)
-      .order("created_at", { ascending: true });
+        const { data, error } = await supabase
+          .from("workspaces")
+          .select(selectColumns)
+          .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error("fetchWorkspaces error:", error);
-      return [];
-    }
+        if (error) {
+          console.error("fetchWorkspaces error:", error);
+          throw error;
+        }
 
-    if (!data || data.length === 0) return [];
+        if (!data || data.length === 0) return [];
 
-    return data.map((ws: any) => ({
-      id: ws.id,
-      name: ws.name,
-      type: ws.type || "accounting_firm",
-      ownerName: "FIRMUS Rahbari",
-      currentPlan: ws.plan_id || "professional",
-      entitiesCount: FEATURES.multiCompanyMode ? (ws.business_entities?.length ?? 0) : 0,
-      membersCount: FEATURES.multiCompanyMode ? (ws.team_members?.length ?? 0) : 1,
-    }));
+        return data.map((ws: any) => ({
+          id: ws.id,
+          name: ws.name,
+          type: ws.type || "accounting_firm",
+          ownerName: "FIRMUS Rahbari",
+          currentPlan: ws.plan_id || "professional",
+          entitiesCount: FEATURES.multiCompanyMode ? (ws.business_entities?.length ?? 0) : 0,
+          membersCount: FEATURES.multiCompanyMode ? (ws.team_members?.length ?? 0) : 1,
+        }));
+      },
+      { ttlMs: 120_000 }
+    );
   } catch (err) {
     console.error("fetchWorkspaces exception:", err);
     return [];
@@ -60,6 +71,7 @@ export async function createWorkspaceRecord(
     p_type: type,
   });
   if (error) throw error;
+  invalidateCachePrefix("workspaces:", "entities:");
   return {
     id: data.id,
     name: data.name,
@@ -73,35 +85,41 @@ export async function createWorkspaceRecord(
 
 export async function fetchBusinessEntities() {
   try {
-    const { data, error } = await supabase
-      .from("business_entities")
-      .select(
-        "id, workspace_id, legal_name, trade_name, tin_stir, company_type, tax_regime, currency, accountant_name, is_active"
-      )
-      .order("created_at", { ascending: true });
+    return await cachedQuery(
+      cacheKeys.entities(),
+      async () => {
+        const { data, error } = await supabase
+          .from("business_entities")
+          .select(
+            "id, workspace_id, legal_name, trade_name, tin_stir, company_type, tax_regime, currency, accountant_name, is_active"
+          )
+          .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error("fetchBusinessEntities error:", error);
-      return [];
-    }
+        if (error) {
+          console.error("fetchBusinessEntities error:", error);
+          throw error;
+        }
 
-    if (!data || data.length === 0) return [];
+        if (!data || data.length === 0) return [];
 
-    return data.map((ent: any) => ({
-      id: ent.id,
-      workspaceId: ent.workspace_id,
-      name: ent.legal_name,
-      tradeName: ent.trade_name || undefined,
-      tinStir: ent.tin_stir,
-      companyType: ent.company_type || "MChJ",
-      taxRegime: ent.tax_regime || "vat_profit_tax",
-      currency: ent.currency || "UZS",
-      accountantName: ent.accountant_name || "Bosh buxgalter",
-      isActive: ent.is_active,
-      directorName: "",
-      bankAccount: "",
-      bankName: "",
-    }));
+        return data.map((ent: any) => ({
+          id: ent.id,
+          workspaceId: ent.workspace_id,
+          name: ent.legal_name,
+          tradeName: ent.trade_name || undefined,
+          tinStir: ent.tin_stir,
+          companyType: ent.company_type || "MChJ",
+          taxRegime: ent.tax_regime || "vat_profit_tax",
+          currency: ent.currency || "UZS",
+          accountantName: ent.accountant_name || "Bosh buxgalter",
+          isActive: ent.is_active,
+          directorName: "",
+          bankAccount: "",
+          bankName: "",
+        }));
+      },
+      { ttlMs: 120_000 }
+    );
   } catch (err) {
     console.error("fetchBusinessEntities exception:", err);
     return [];
@@ -141,6 +159,7 @@ export async function createBusinessEntity(entity: {
     .single();
 
   if (error) throw error;
+  invalidateCachePrefix("workspaces:", "entities:");
   return {
     id: data.id,
     workspaceId: data.workspace_id,

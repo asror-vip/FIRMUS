@@ -52,6 +52,7 @@ import {
   type WorkBatchRecord,
   type AiChatThreadDetail,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import type { AgentActionProposal } from "@/lib/ai/agent-types";
 import {
   Sparkles,
@@ -187,21 +188,53 @@ function AssistantContent() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<ScannedDocResult | null>(null);
   const [isPostingDoc, setIsPostingDoc] = useState(false);
-  const [savedScans, setSavedScans] = useState<WorkBatchRecord[]>([]);
-  const [savedScansCount, setSavedScansCount] = useState(0);
+  const initialSavedScans = currentEntity?.id
+    ? peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+        cacheKeys.workBatches({
+          entityId: currentEntity.id,
+          batchType: "document_scan",
+          page: 1,
+          pageSize: HISTORY_PAGE_SIZE,
+        })
+      )
+    : null;
+  const [savedScans, setSavedScans] = useState<WorkBatchRecord[]>(
+    () => initialSavedScans?.data.data ?? []
+  );
+  const [savedScansCount, setSavedScansCount] = useState(
+    () => initialSavedScans?.data.count ?? 0
+  );
   const [savedScansPage, setSavedScansPage] = useState(1);
   const [isLoadingScans, setIsLoadingScans] = useState(false);
   const [activeScanBatchId, setActiveScanBatchId] = useState<string | null>(null);
 
   // 5. Unified Tarix tab state (paginated 10 per page from DB)
-  const [allHistory, setAllHistory] = useState<WorkBatchRecord[]>([]);
-  const [allHistoryCount, setAllHistoryCount] = useState(0);
+  const initialUnifiedBatches = currentEntity?.id
+    ? peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+        cacheKeys.workBatches({
+          entityId: currentEntity.id,
+          page: 1,
+          pageSize: HISTORY_PAGE_SIZE,
+        })
+      )
+    : null;
+  const initialUnifiedMonths = currentEntity?.id
+    ? peekQueryCache<string[]>(cacheKeys.workBatchMonths(currentEntity.id))
+    : null;
+  const [allHistory, setAllHistory] = useState<WorkBatchRecord[]>(
+    () => initialUnifiedBatches?.data.data ?? []
+  );
+  const [allHistoryCount, setAllHistoryCount] = useState(
+    () => initialUnifiedBatches?.data.count ?? 0
+  );
   const [allHistoryPage, setAllHistoryPage] = useState(1);
   const [historyTypeFilter, setHistoryTypeFilter] = useState<
     "all" | "reconcile" | "document_scan" | "contract_risk"
   >("all");
   const [historyMonthFilter, setHistoryMonthFilter] = useState<string>("all");
-  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [availableMonths, setAvailableMonths] = useState<string[]>(
+    () => initialUnifiedMonths?.data ?? []
+  );
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [openingBatchId, setOpeningBatchId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -210,9 +243,24 @@ function AssistantContent() {
     if (!currentEntity?.id) {
       setSavedScans([]);
       setSavedScansCount(0);
+      setIsLoadingScans(false);
       return;
     }
-    setIsLoadingScans(true);
+    const cached = peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+      cacheKeys.workBatches({
+        entityId: currentEntity.id,
+        batchType: "document_scan",
+        page: savedScansPage,
+        pageSize: HISTORY_PAGE_SIZE,
+      })
+    );
+    if (cached) {
+      setSavedScans(cached.data.data);
+      setSavedScansCount(cached.data.count);
+      setIsLoadingScans(false);
+    } else {
+      setIsLoadingScans(true);
+    }
     try {
       const { data, count } = await fetchWorkBatchesPaginated({
         entityId: currentEntity.id,
@@ -232,22 +280,45 @@ function AssistantContent() {
       setAllHistory([]);
       setAllHistoryCount(0);
       setAvailableMonths([]);
+      setIsLoadingHistory(false);
       return;
     }
-    setIsLoadingHistory(true);
+    const batchType = historyTypeFilter === "all" ? undefined : historyTypeFilter;
+    const periodMonth = historyMonthFilter === "all" ? undefined : historyMonthFilter;
+    const cachedBatches = peekQueryCache<{ data: WorkBatchRecord[]; count: number }>(
+      cacheKeys.workBatches({
+        entityId: currentEntity.id,
+        batchType,
+        periodMonth,
+        page: allHistoryPage,
+        pageSize: HISTORY_PAGE_SIZE,
+      })
+    );
+    const cachedMonths = peekQueryCache<string[]>(
+      cacheKeys.workBatchMonths(currentEntity.id, batchType)
+    );
+    if (cachedBatches) {
+      setAllHistory(cachedBatches.data.data);
+      setAllHistoryCount(cachedBatches.data.count);
+    }
+    if (cachedMonths) {
+      setAvailableMonths(cachedMonths.data);
+    }
+    if (cachedBatches && cachedMonths) {
+      setIsLoadingHistory(false);
+    } else {
+      setIsLoadingHistory(true);
+    }
     try {
       const [{ data, count }, months] = await Promise.all([
         fetchWorkBatchesPaginated({
           entityId: currentEntity.id,
-          batchType: historyTypeFilter === "all" ? undefined : historyTypeFilter,
-          periodMonth: historyMonthFilter === "all" ? undefined : historyMonthFilter,
+          batchType,
+          periodMonth,
           page: allHistoryPage,
           pageSize: HISTORY_PAGE_SIZE,
         }),
-        fetchWorkBatchMonths(
-          currentEntity.id,
-          historyTypeFilter === "all" ? undefined : historyTypeFilter
-        ),
+        fetchWorkBatchMonths(currentEntity.id, batchType),
       ]);
       setAllHistory(data);
       setAllHistoryCount(count);

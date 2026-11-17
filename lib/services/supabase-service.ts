@@ -1,6 +1,11 @@
 import { supabase } from "@/lib/supabase/client";
 import { splitVatInclusive, calculatePayrollContributions } from "@/lib/utils/finance";
 import { depersonalizeForAi, sanitizeStringForAi } from "@/lib/utils/privacy";
+import {
+  cachedQuery,
+  cacheKeys,
+  invalidateCachePrefix,
+} from "@/lib/cache/query-cache";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -24,27 +29,33 @@ async function resolveActiveWorkspaceId(explicitWorkspaceId?: string): Promise<s
 // ==========================================
 export async function fetchWorkspaces() {
   try {
-    const { data, error } = await supabase
-      .from("workspaces")
-      .select("*, business_entities(id), team_members(id)")
-      .order("created_at", { ascending: true });
+    return await cachedQuery(
+      cacheKeys.workspaces(),
+      async () => {
+        const { data, error } = await supabase
+          .from("workspaces")
+          .select("*, business_entities(id), team_members(id)")
+          .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error("fetchWorkspaces error:", error);
-      return [];
-    }
+        if (error) {
+          console.error("fetchWorkspaces error:", error);
+          throw error;
+        }
 
-    if (!data || data.length === 0) return [];
+        if (!data || data.length === 0) return [];
 
-    return data.map((ws: any) => ({
-      id: ws.id,
-      name: ws.name,
-      type: ws.type || "accounting_firm",
-      ownerName: "FIRMUS Rahbari",
-      currentPlan: ws.plan_id || "professional",
-      entitiesCount: ws.business_entities?.length ?? 0,
-      membersCount: ws.team_members?.length ?? 0,
-    }));
+        return data.map((ws: any) => ({
+          id: ws.id,
+          name: ws.name,
+          type: ws.type || "accounting_firm",
+          ownerName: "FIRMUS Rahbari",
+          currentPlan: ws.plan_id || "professional",
+          entitiesCount: ws.business_entities?.length ?? 0,
+          membersCount: ws.team_members?.length ?? 0,
+        }));
+      },
+      { ttlMs: 120_000 }
+    );
   } catch (err) {
     console.error("fetchWorkspaces exception:", err);
     return [];
@@ -57,6 +68,7 @@ export async function createWorkspaceRecord(name: string, type: "accounting_firm
     p_type: type,
   });
   if (error) throw error;
+  invalidateCachePrefix("workspaces:", "entities:", "usage:");
   return {
     id: data.id,
     name: data.name,
@@ -79,6 +91,7 @@ export async function updateWorkspacePlanInDb(workspaceId: string, planId: strin
     .select()
     .single();
   if (error) throw error;
+  invalidateCachePrefix("workspaces:", "usage:");
   return data;
 }
 
@@ -87,33 +100,39 @@ export async function updateWorkspacePlanInDb(workspaceId: string, planId: strin
 // ==========================================
 export async function fetchBusinessEntities() {
   try {
-    const { data, error } = await supabase
-      .from("business_entities")
-      .select("*")
-      .order("created_at", { ascending: true });
+    return await cachedQuery(
+      cacheKeys.entities(),
+      async () => {
+        const { data, error } = await supabase
+          .from("business_entities")
+          .select("*")
+          .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error("fetchBusinessEntities error:", error);
-      return [];
-    }
+        if (error) {
+          console.error("fetchBusinessEntities error:", error);
+          throw error;
+        }
 
-    if (!data || data.length === 0) return [];
+        if (!data || data.length === 0) return [];
 
-    return data.map((ent: any) => ({
-      id: ent.id,
-      workspaceId: ent.workspace_id,
-      name: ent.legal_name,
-      tradeName: ent.trade_name || undefined,
-      tinStir: ent.tin_stir,
-      companyType: ent.company_type || "MChJ",
-      taxRegime: ent.tax_regime || "vat_profit_tax",
-      currency: ent.currency || "UZS",
-      accountantName: ent.accountant_name || "Bosh buxgalter",
-      isActive: ent.is_active,
-      directorName: "",
-      bankAccount: "",
-      bankName: "",
-    }));
+        return data.map((ent: any) => ({
+          id: ent.id,
+          workspaceId: ent.workspace_id,
+          name: ent.legal_name,
+          tradeName: ent.trade_name || undefined,
+          tinStir: ent.tin_stir,
+          companyType: ent.company_type || "MChJ",
+          taxRegime: ent.tax_regime || "vat_profit_tax",
+          currency: ent.currency || "UZS",
+          accountantName: ent.accountant_name || "Bosh buxgalter",
+          isActive: ent.is_active,
+          directorName: "",
+          bankAccount: "",
+          bankName: "",
+        }));
+      },
+      { ttlMs: 120_000 }
+    );
   } catch (err) {
     console.error("fetchBusinessEntities exception:", err);
     return [];
@@ -151,6 +170,7 @@ export async function createBusinessEntity(entity: {
     .single();
 
   if (error) throw error;
+  invalidateCachePrefix("workspaces:", "entities:");
   return {
     id: data.id,
     workspaceId: data.workspace_id,
@@ -196,6 +216,7 @@ export async function updateBusinessEntity(
     .single();
 
   if (error) throw error;
+  invalidateCachePrefix("workspaces:", "entities:");
   return {
     id: data.id,
     name: data.legal_name,
@@ -235,20 +256,22 @@ function mapTransactionRow(tx: any) {
 export async function fetchTransactions(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
-    let query = supabase
-      .from("transactions")
-      .select("*")
-      .order("date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(500);
+    return await cachedQuery(cacheKeys.transactionsAll(entityId), async () => {
+      let query = supabase
+        .from("transactions")
+        .select("*")
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(500);
 
-    if (entityId) {
-      query = query.eq("business_entity_id", entityId);
-    }
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []).map(mapTransactionRow);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []).map(mapTransactionRow);
+    });
   } catch (err) {
     console.error("fetchTransactions error:", err);
     return [];
@@ -269,52 +292,70 @@ export async function fetchTransactionsPaginated(
   }
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const tab = options.tab || "all";
+  const search = options.search?.trim() || "";
 
-  let query = supabase
-    .from("transactions")
-    .select("*", { count: "exact" })
-    .order("date", { ascending: false })
-    .order("created_at", { ascending: false });
+  return cachedQuery(
+    cacheKeys.transactionsPaginated(entityId || "all", {
+      page,
+      pageSize,
+      tab,
+      search,
+    }),
+    async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
-  if (entityId) {
-    query = query.eq("business_entity_id", entityId);
-  }
+      let query = supabase
+        .from("transactions")
+        .select("*", { count: "exact" })
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false });
 
-  if (options.tab === "income" || options.tab === "expense") {
-    query = query.eq("type", options.tab);
-  } else if (options.tab === "pending" || options.tab === "exception") {
-    query = query.eq("status", options.tab);
-  }
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
 
-  if (options.search && options.search.trim()) {
-    const q = options.search.trim().replace(/[,%()]/g, "");
-    query = query.or(`counterparty.ilike.%${q}%,description.ilike.%${q}%`);
-  }
+      if (tab === "income" || tab === "expense") {
+        query = query.eq("type", tab);
+      } else if (tab === "pending" || tab === "exception") {
+        query = query.eq("status", tab);
+      }
 
-  const { data, error, count } = await query.range(from, to);
-  if (error) throw error;
+      if (search) {
+        const q = search.replace(/[,%()]/g, "");
+        query = query.or(`counterparty.ilike.%${q}%,description.ilike.%${q}%`);
+      }
 
-  return {
-    data: (data || []).map(mapTransactionRow),
-    count: count ?? 0,
-  };
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+
+      return {
+        data: (data || []).map(mapTransactionRow),
+        count: count ?? 0,
+      };
+    }
+  );
 }
 
 export async function fetchRecentTransactions(entityId: string, limit = 120) {
   if (!isValidUuid(entityId)) return [];
   try {
-    const { data, error } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("business_entity_id", entityId)
-      .order("date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(Math.max(1, Math.min(250, limit)));
+    return await cachedQuery(
+      cacheKeys.recentTransactions(entityId, limit),
+      async () => {
+        const { data, error } = await supabase
+          .from("transactions")
+          .select("*")
+          .eq("business_entity_id", entityId)
+          .order("date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(Math.max(1, Math.min(250, limit)));
 
-    if (error) throw error;
-    return (data || []).map(mapTransactionRow);
+        if (error) throw error;
+        return (data || []).map(mapTransactionRow);
+      }
+    );
   } catch (err) {
     console.error("fetchRecentTransactions error:", err);
     return [];
@@ -326,28 +367,30 @@ export async function fetchTransactionCounts(entityId: string) {
     return { total: 0, posted: 0, pending: 0 };
   }
   try {
-    const [totalRes, postedRes, pendingRes] = await Promise.all([
-      supabase
-        .from("transactions")
-        .select("id", { count: "exact", head: true })
-        .eq("business_entity_id", entityId),
-      supabase
-        .from("transactions")
-        .select("id", { count: "exact", head: true })
-        .eq("business_entity_id", entityId)
-        .eq("status", "posted"),
-      supabase
-        .from("transactions")
-        .select("id", { count: "exact", head: true })
-        .eq("business_entity_id", entityId)
-        .eq("status", "pending"),
-    ]);
+    return await cachedQuery(cacheKeys.transactionCounts(entityId), async () => {
+      const [totalRes, postedRes, pendingRes] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("business_entity_id", entityId),
+        supabase
+          .from("transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("business_entity_id", entityId)
+          .eq("status", "posted"),
+        supabase
+          .from("transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("business_entity_id", entityId)
+          .eq("status", "pending"),
+      ]);
 
-    return {
-      total: totalRes.count ?? 0,
-      posted: postedRes.count ?? 0,
-      pending: pendingRes.count ?? 0,
-    };
+      return {
+        total: totalRes.count ?? 0,
+        posted: postedRes.count ?? 0,
+        pending: pendingRes.count ?? 0,
+      };
+    });
   } catch (err) {
     console.error("fetchTransactionCounts error:", err);
     return { total: 0, posted: 0, pending: 0 };
@@ -440,6 +483,7 @@ export async function createTransaction(tx: {
     }
   }
 
+  invalidateCachePrefix("tx:", "je:", "tb:", "gl:", "usage:");
   return mapTransactionRow(data);
 }
 
@@ -499,6 +543,7 @@ export async function updateTransactionStatus(
     if (jeErr) throw new Error(`Bosh kitob provodkasida xatolik: ${jeErr.message}`);
   }
 
+  invalidateCachePrefix("tx:", "je:", "tb:", "gl:");
   return { id: txId, status };
 }
 
@@ -747,6 +792,7 @@ export async function signDocumentWithEImzo(
     }
   }
 
+  invalidateCachePrefix("je:", "tb:", "gl:");
   return data;
 }
 
@@ -1115,20 +1161,22 @@ function mapExceptionRow(exc: any) {
 export async function fetchExceptions(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
-    let query = supabase
-      .from("exceptions")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(500);
+    return await cachedQuery(cacheKeys.exceptions(entityId), async () => {
+      let query = supabase
+        .from("exceptions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500);
 
-    if (entityId) {
-      query = query.eq("business_entity_id", entityId);
-    }
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
+      const { data, error } = await query;
+      if (error) throw error;
 
-    return (data || []).map(mapExceptionRow);
+      return (data || []).map(mapExceptionRow);
+    });
   } catch (err) {
     console.error("fetchExceptions error:", err);
     return [];
@@ -1149,32 +1197,45 @@ export async function fetchExceptionsPaginated(
   }
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const severity = options.severity || "all";
+  const search = options.search?.trim() || "";
 
-  let query = supabase
-    .from("exceptions")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false });
+  return cachedQuery(
+    cacheKeys.exceptionsPaginated(entityId || "all", {
+      page,
+      pageSize,
+      severity,
+      search,
+    }),
+    async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
-  if (entityId) {
-    query = query.eq("business_entity_id", entityId);
-  }
-  if (options.severity && options.severity !== "all") {
-    query = query.eq("severity", options.severity);
-  }
-  if (options.search && options.search.trim()) {
-    const q = options.search.trim().replace(/[,%()]/g, "");
-    query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%,counterparty.ilike.%${q}%`);
-  }
+      let query = supabase
+        .from("exceptions")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false });
 
-  const { data, error, count } = await query.range(from, to);
-  if (error) throw error;
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
+      if (severity !== "all") {
+        query = query.eq("severity", severity);
+      }
+      if (search) {
+        const q = search.replace(/[,%()]/g, "");
+        query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%,counterparty.ilike.%${q}%`);
+      }
 
-  return {
-    data: (data || []).map(mapExceptionRow),
-    count: count ?? 0,
-  };
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+
+      return {
+        data: (data || []).map(mapExceptionRow),
+        count: count ?? 0,
+      };
+    }
+  );
 }
 
 export async function fetchExceptionSummaryCounts(entityId: string) {
@@ -1182,34 +1243,36 @@ export async function fetchExceptionSummaryCounts(entityId: string) {
     return { open: 0, critical: 0, resolved: 0, total: 0 };
   }
   try {
-    const [openRes, critRes, resolvedRes, totalRes] = await Promise.all([
-      supabase
-        .from("exceptions")
-        .select("id", { count: "exact", head: true })
-        .eq("business_entity_id", entityId)
-        .in("status", ["open", "in_review"]),
-      supabase
-        .from("exceptions")
-        .select("id", { count: "exact", head: true })
-        .eq("business_entity_id", entityId)
-        .eq("severity", "critical")
-        .neq("status", "resolved"),
-      supabase
-        .from("exceptions")
-        .select("id", { count: "exact", head: true })
-        .eq("business_entity_id", entityId)
-        .eq("status", "resolved"),
-      supabase
-        .from("exceptions")
-        .select("id", { count: "exact", head: true })
-        .eq("business_entity_id", entityId),
-    ]);
-    return {
-      open: openRes.count ?? 0,
-      critical: critRes.count ?? 0,
-      resolved: resolvedRes.count ?? 0,
-      total: totalRes.count ?? 0,
-    };
+    return await cachedQuery(cacheKeys.exceptionCounts(entityId), async () => {
+      const [openRes, critRes, resolvedRes, totalRes] = await Promise.all([
+        supabase
+          .from("exceptions")
+          .select("id", { count: "exact", head: true })
+          .eq("business_entity_id", entityId)
+          .in("status", ["open", "in_review"]),
+        supabase
+          .from("exceptions")
+          .select("id", { count: "exact", head: true })
+          .eq("business_entity_id", entityId)
+          .eq("severity", "critical")
+          .neq("status", "resolved"),
+        supabase
+          .from("exceptions")
+          .select("id", { count: "exact", head: true })
+          .eq("business_entity_id", entityId)
+          .eq("status", "resolved"),
+        supabase
+          .from("exceptions")
+          .select("id", { count: "exact", head: true })
+          .eq("business_entity_id", entityId),
+      ]);
+      return {
+        open: openRes.count ?? 0,
+        critical: critRes.count ?? 0,
+        resolved: resolvedRes.count ?? 0,
+        total: totalRes.count ?? 0,
+      };
+    });
   } catch (err) {
     console.error("fetchExceptionSummaryCounts error:", err);
     return { open: 0, critical: 0, resolved: 0, total: 0 };
@@ -1231,6 +1294,7 @@ export async function resolveExceptionInDb(id: string, action: "approve" | "reje
     .single();
 
   if (error) throw error;
+  invalidateCachePrefix("exc:");
   return data;
 }
 
@@ -1386,40 +1450,43 @@ export async function saveUserPhoneVerification(userId: string, phone: string) {
 export async function fetchChartOfAccounts(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
-    let query = supabase
-      .from("chart_of_accounts")
-      .select("*")
-      .eq("is_active", true)
-      .order("code", { ascending: true })
-      .limit(500);
+    return await cachedQuery(cacheKeys.chartOfAccounts(entityId), async () => {
+      let query = supabase
+        .from("chart_of_accounts")
+        .select("*")
+        .eq("is_active", true)
+        .order("code", { ascending: true })
+        .limit(500);
 
-    if (entityId) {
-      query = query.or(`business_entity_id.eq.${entityId},business_entity_id.is.null`);
-    }
+      if (entityId) {
+        query = query.or(`business_entity_id.eq.${entityId},business_entity_id.is.null`);
+      }
 
-    const { data, error } = await query;
-    if (error || !data || data.length === 0) {
-      return [];
-    }
+      const { data, error } = await query;
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        return [];
+      }
 
-    return data.map((acc: any) => ({
-      id: acc.id,
-      code: acc.code,
-      name: acc.name,
-      type: acc.type === "asset" || acc.type === "expense" ? "active" : "passive",
-      category:
-        acc.type === "asset"
-          ? "Aktivlar"
-          : acc.type === "liability"
-          ? "Majburiyatlar"
-          : acc.type === "equity"
-          ? "Xususiy kapital"
-          : acc.type === "revenue"
-          ? "Daromadlar"
-          : "Xarajatlar",
-      balance: 0,
-      level: 2,
-    }));
+      return data.map((acc: any) => ({
+        id: acc.id,
+        code: acc.code,
+        name: acc.name,
+        type: acc.type === "asset" || acc.type === "expense" ? "active" : "passive",
+        category:
+          acc.type === "asset"
+            ? "Aktivlar"
+            : acc.type === "liability"
+            ? "Majburiyatlar"
+            : acc.type === "equity"
+            ? "Xususiy kapital"
+            : acc.type === "revenue"
+            ? "Daromadlar"
+            : "Xarajatlar",
+        balance: 0,
+        level: 2,
+      }));
+    });
   } catch (err) {
     console.error("fetchChartOfAccounts error:", err);
     return [];
@@ -1461,6 +1528,7 @@ export async function createChartOfAccount(acc: {
     .single();
 
   if (error) throw error;
+  invalidateCachePrefix("coa:");
   return data;
 }
 
@@ -1495,20 +1563,22 @@ function mapJournalEntryRow(je: any) {
 export async function fetchJournalEntries(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
-    let query = supabase
-      .from("journal_entries")
-      .select("*, journal_lines(*)")
-      .order("entry_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(500);
+    return await cachedQuery(cacheKeys.journalEntries(entityId), async () => {
+      let query = supabase
+        .from("journal_entries")
+        .select("*, journal_lines(*)")
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(500);
 
-    if (entityId) {
-      query = query.eq("business_entity_id", entityId);
-    }
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []).map(mapJournalEntryRow);
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []).map(mapJournalEntryRow);
+    });
   } catch (err) {
     console.error("fetchJournalEntries error:", err);
     return [];
@@ -1522,25 +1592,31 @@ export async function fetchJournalEntriesPaginated(
   if (entityId && !isValidUuid(entityId)) return { data: [], count: 0 };
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
 
-  let query = supabase
-    .from("journal_entries")
-    .select("*, journal_lines(*)", { count: "exact" })
-    .order("entry_date", { ascending: false })
-    .order("created_at", { ascending: false });
+  return cachedQuery(
+    cacheKeys.journalEntriesPaginated(entityId || "all", page, pageSize),
+    async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
-  if (entityId) {
-    query = query.eq("business_entity_id", entityId);
-  }
+      let query = supabase
+        .from("journal_entries")
+        .select("*, journal_lines(*)", { count: "exact" })
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
-  const { data, error, count } = await query.range(from, to);
-  if (error) throw error;
-  return {
-    data: (data || []).map(mapJournalEntryRow),
-    count: count ?? 0,
-  };
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
+
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+      return {
+        data: (data || []).map(mapJournalEntryRow),
+        count: count ?? 0,
+      };
+    }
+  );
 }
 
 export async function createJournalEntryRecord(entry: {
@@ -1587,6 +1663,7 @@ export async function createJournalEntryRecord(entry: {
   });
 
   if (error) throw error;
+  invalidateCachePrefix("je:", "tb:", "gl:");
   return data;
 }
 
@@ -1596,6 +1673,7 @@ export async function reverseJournalEntryRecord(entryId: string, reason: string 
     p_reason: reason,
   });
   if (error) throw error;
+  invalidateCachePrefix("je:", "tb:", "gl:");
   return data;
 }
 
@@ -1616,19 +1694,25 @@ export async function closeAccountingPeriod(params: {
     p_idempotency_key: `idem-close-${params.entityId}-${params.fromDate}-${params.toDate}`,
   });
   if (error) throw error;
+  invalidateCachePrefix("je:", "tb:", "gl:");
   return data;
 }
 
 export async function fetchTrialBalance(entityId: string, fromDate?: string, toDate?: string) {
   try {
     if (!isValidUuid(entityId)) return [];
-    const { data, error } = await supabase.rpc("get_trial_balance", {
-      p_entity_id: entityId,
-      p_from_date: fromDate || "1970-01-01",
-      p_to_date: toDate || "2099-12-31",
-    });
-    if (error) throw error;
-    return data || [];
+    return await cachedQuery(
+      cacheKeys.trialBalance(entityId, fromDate, toDate),
+      async () => {
+        const { data, error } = await supabase.rpc("get_trial_balance", {
+          p_entity_id: entityId,
+          p_from_date: fromDate || "1970-01-01",
+          p_to_date: toDate || "2099-12-31",
+        });
+        if (error) throw error;
+        return data || [];
+      }
+    );
   } catch (err) {
     console.error("fetchTrialBalance error:", err);
     return [];
@@ -1638,14 +1722,19 @@ export async function fetchTrialBalance(entityId: string, fromDate?: string, toD
 export async function fetchGeneralLedger(entityId: string, accountCode: string, fromDate?: string, toDate?: string) {
   try {
     if (!isValidUuid(entityId)) return [];
-    const { data, error } = await supabase.rpc("get_general_ledger", {
-      p_entity_id: entityId,
-      p_account_code: accountCode,
-      p_from_date: fromDate || "1970-01-01",
-      p_to_date: toDate || "2099-12-31",
-    });
-    if (error) throw error;
-    return data || [];
+    return await cachedQuery(
+      cacheKeys.generalLedger(entityId, accountCode, fromDate, toDate),
+      async () => {
+        const { data, error } = await supabase.rpc("get_general_ledger", {
+          p_entity_id: entityId,
+          p_account_code: accountCode,
+          p_from_date: fromDate || "1970-01-01",
+          p_to_date: toDate || "2099-12-31",
+        });
+        if (error) throw error;
+        return data || [];
+      }
+    );
   } catch (err) {
     console.error("fetchGeneralLedger error:", err);
     return [];
@@ -1671,20 +1760,22 @@ function mapTaxRecordRow(r: any) {
 export async function fetchTaxRecords(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
-    let query = supabase
-      .from("tax_records")
-      .select("*")
-      .order("deadline", { ascending: false })
-      .limit(500);
+    return await cachedQuery(cacheKeys.taxRecords(entityId), async () => {
+      let query = supabase
+        .from("tax_records")
+        .select("*")
+        .order("deadline", { ascending: false })
+        .limit(500);
 
-    if (entityId) {
-      query = query.eq("business_entity_id", entityId);
-    }
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
+      const { data, error } = await query;
+      if (error) throw error;
 
-    return (data || []).map(mapTaxRecordRow);
+      return (data || []).map(mapTaxRecordRow);
+    });
   } catch (err) {
     console.error("fetchTaxRecords error:", err);
     return [];
@@ -1698,43 +1789,51 @@ export async function fetchTaxRecordsPaginated(
   if (entityId && !isValidUuid(entityId)) return { data: [], count: 0 };
   const page = Math.max(1, options.page || 1);
   const pageSize = Math.min(100, Math.max(1, options.pageSize || 10));
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
 
-  let query = supabase
-    .from("tax_records")
-    .select("*", { count: "exact" })
-    .order("deadline", { ascending: false });
+  return cachedQuery(
+    cacheKeys.taxRecordsPaginated(entityId || "all", page, pageSize),
+    async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
-  if (entityId) {
-    query = query.eq("business_entity_id", entityId);
-  }
+      let query = supabase
+        .from("tax_records")
+        .select("*", { count: "exact" })
+        .order("deadline", { ascending: false });
 
-  const { data, error, count } = await query.range(from, to);
-  if (error) throw error;
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
 
-  return {
-    data: (data || []).map(mapTaxRecordRow),
-    count: count ?? 0,
-  };
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+
+      return {
+        data: (data || []).map(mapTaxRecordRow),
+        count: count ?? 0,
+      };
+    }
+  );
 }
 
 export async function fetchTaxDeadlines(entityId?: string) {
   try {
     if (entityId && !isValidUuid(entityId)) return [];
-    let query = supabase
-      .from("tax_deadlines")
-      .select("*")
-      .order("date", { ascending: true })
-      .limit(500);
+    return await cachedQuery(cacheKeys.taxDeadlines(entityId), async () => {
+      let query = supabase
+        .from("tax_deadlines")
+        .select("*")
+        .order("date", { ascending: true })
+        .limit(500);
 
-    if (entityId) {
-      query = query.eq("business_entity_id", entityId);
-    }
+      if (entityId) {
+        query = query.eq("business_entity_id", entityId);
+      }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    });
   } catch (err) {
     console.error("fetchTaxDeadlines error:", err);
     return [];
@@ -1777,6 +1876,7 @@ export async function payTaxRecordInDb(taxRecordId: string, fullCalculatedAmount
     .select()
     .single();
   if (error) throw error;
+  invalidateCachePrefix("tax:");
   return data;
 }
 
@@ -2002,6 +2102,7 @@ export async function postMonthlyPayroll(params: {
     throw new Error(`Ish haqi provodkasida xatolik: ${error.message}`);
   }
 
+  invalidateCachePrefix("je:", "tb:", "gl:");
   return {
     data,
     payroll: { gross, jshds12, socialTax12, netPay },
@@ -2139,33 +2240,47 @@ export async function fetchWorkBatchesPaginated(params: {
   if (!isValidUuid(params.entityId)) return { data: [], count: 0 };
   const page = Math.max(1, params.page || 1);
   const pageSize = Math.min(100, Math.max(1, params.pageSize || 10));
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+  const search = params.search?.trim() || "";
 
-  let query = supabase
-    .from("work_batches")
-    .select(WORK_BATCH_META_COLUMNS, { count: "exact" })
-    .eq("business_entity_id", params.entityId)
-    .order("created_at", { ascending: false });
+  return cachedQuery(
+    cacheKeys.workBatches({
+      entityId: params.entityId,
+      batchType: params.batchType,
+      periodMonth: params.periodMonth,
+      page,
+      pageSize,
+      search: search || undefined,
+    }),
+    async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
-  if (params.periodMonth && /^\d{4}-\d{2}$/.test(params.periodMonth)) {
-    query = query.eq("period_month", params.periodMonth);
-  }
-  if (params.batchType) {
-    query = query.eq("batch_type", params.batchType);
-  }
-  if (params.search && params.search.trim()) {
-    const q = params.search.trim().replace(/[,%()]/g, "");
-    query = query.or(`title.ilike.%${q}%,bank_file_name.ilike.%${q}%,onec_file_name.ilike.%${q}%`);
-  }
+      let query = supabase
+        .from("work_batches")
+        .select(WORK_BATCH_META_COLUMNS, { count: "exact" })
+        .eq("business_entity_id", params.entityId)
+        .order("created_at", { ascending: false });
 
-  const { data, error, count } = await query.range(from, to);
-  if (error) throw error;
+      if (params.periodMonth && /^\d{4}-\d{2}$/.test(params.periodMonth)) {
+        query = query.eq("period_month", params.periodMonth);
+      }
+      if (params.batchType) {
+        query = query.eq("batch_type", params.batchType);
+      }
+      if (search) {
+        const q = search.replace(/[,%()]/g, "");
+        query = query.or(`title.ilike.%${q}%,bank_file_name.ilike.%${q}%,onec_file_name.ilike.%${q}%`);
+      }
 
-  return {
-    data: (data || []).map(mapWorkBatchRow),
-    count: count ?? 0,
-  };
+      const { data, error, count } = await query.range(from, to);
+      if (error) throw error;
+
+      return {
+        data: (data || []).map(mapWorkBatchRow),
+        count: count ?? 0,
+      };
+    }
+  );
 }
 
 export async function fetchWorkBatchMonths(
@@ -2174,24 +2289,29 @@ export async function fetchWorkBatchMonths(
 ): Promise<string[]> {
   if (!isValidUuid(entityId)) return [];
   try {
-    let query = supabase
-      .from("work_batches")
-      .select("period_month")
-      .eq("business_entity_id", entityId)
-      .order("period_month", { ascending: false })
-      .limit(200);
+    return await cachedQuery(
+      cacheKeys.workBatchMonths(entityId, batchType),
+      async () => {
+        let query = supabase
+          .from("work_batches")
+          .select("period_month")
+          .eq("business_entity_id", entityId)
+          .order("period_month", { ascending: false })
+          .limit(200);
 
-    if (batchType) {
-      query = query.eq("batch_type", batchType);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
+        if (batchType) {
+          query = query.eq("batch_type", batchType);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
 
-    const months = new Set<string>();
-    for (const r of data || []) {
-      if (r.period_month) months.add(r.period_month);
-    }
-    return Array.from(months).sort((a, b) => b.localeCompare(a));
+        const months = new Set<string>();
+        for (const r of data || []) {
+          if (r.period_month) months.add(r.period_month);
+        }
+        return Array.from(months).sort((a, b) => b.localeCompare(a));
+      }
+    );
   } catch (err) {
     console.error("fetchWorkBatchMonths error:", err);
     return [];
@@ -2200,15 +2320,17 @@ export async function fetchWorkBatchMonths(
 
 export async function fetchWorkBatchById(batchId: string): Promise<WorkBatchRecord | null> {
   if (!isValidUuid(batchId)) return null;
-  const { data, error } = await supabase
-    .from("work_batches")
-    .select("*")
-    .eq("id", batchId)
-    .maybeSingle();
+  return cachedQuery(cacheKeys.workBatchById(batchId), async () => {
+    const { data, error } = await supabase
+      .from("work_batches")
+      .select("*")
+      .eq("id", batchId)
+      .maybeSingle();
 
-  if (error) throw error;
-  if (!data) return null;
-  return mapWorkBatchRow(data);
+    if (error) throw error;
+    if (!data) return null;
+    return mapWorkBatchRow(data);
+  });
 }
 
 export async function findDuplicateScanBatch(params: {
@@ -2308,6 +2430,8 @@ export async function saveWorkBatch(input: {
 
   if (error) throw error;
 
+  invalidateCachePrefix("batches:", "batch-months:", "batch:", "usage:");
+
   return {
     id: data.id,
     businessEntityId: data.business_entity_id,
@@ -2333,6 +2457,7 @@ export async function markWorkBatchPosted(batchId: string) {
     .update({ status: "posted_to_ledger" })
     .eq("id", batchId);
   if (error) throw error;
+  invalidateCachePrefix("batches:", "batch-months:", "batch:", "je:", "tb:", "gl:");
 }
 
 export async function deleteWorkBatch(batchId: string) {
@@ -2342,6 +2467,7 @@ export async function deleteWorkBatch(batchId: string) {
     .delete()
     .eq("id", batchId);
   if (error) throw error;
+  invalidateCachePrefix("batches:", "batch-months:", "batch:", "usage:");
 }
 
 // ==========================================
@@ -2395,6 +2521,7 @@ function sanitizeChatMessagesForStorage(messages: StoredAiChatMessage[]): Stored
 
 export async function fetchAiChatThreadsPaginated(params: {
   entityId?: string;
+  workspaceId?: string;
   search?: string;
   page?: number;
   pageSize?: number;
@@ -2402,35 +2529,48 @@ export async function fetchAiChatThreadsPaginated(params: {
   try {
     const page = Math.max(1, params.page || 1);
     const pageSize = Math.min(50, Math.max(1, params.pageSize || 10));
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
+    const search = params.search?.trim() || "";
 
-    let query = supabase
-      .from("ai_chat_threads")
-      .select(AI_CHAT_THREAD_META_COLUMNS, { count: "exact" })
-      .order("updated_at", { ascending: false });
+    return await cachedQuery(
+      cacheKeys.aiThreads({
+        entityId: params.entityId,
+        workspaceId: params.workspaceId,
+        page,
+        pageSize,
+        search: search || undefined,
+      }),
+      async () => {
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
 
-    if (params.entityId && isValidUuid(params.entityId)) {
-      query = query.or(`business_entity_id.eq.${params.entityId},business_entity_id.is.null`);
-    }
-    if (params.search && params.search.trim()) {
-      const q = params.search.trim().replace(/[,%()]/g, "");
-      query = query.ilike("title", `%${q}%`);
-    }
+        let query = supabase
+          .from("ai_chat_threads")
+          .select(AI_CHAT_THREAD_META_COLUMNS, { count: "exact" })
+          .order("updated_at", { ascending: false });
 
-    const { data, error, count } = await query.range(from, to);
-    if (error) throw error;
+        if (params.entityId && isValidUuid(params.entityId)) {
+          query = query.or(`business_entity_id.eq.${params.entityId},business_entity_id.is.null`);
+        }
+        if (search) {
+          const q = search.replace(/[,%()]/g, "");
+          query = query.ilike("title", `%${q}%`);
+        }
 
-    return {
-      data: (data || []).map((r: any) => ({
-        id: r.id,
-        businessEntityId: r.business_entity_id || undefined,
-        title: r.title || "Suhbat",
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-      })),
-      count: count ?? 0,
-    };
+        const { data, error, count } = await query.range(from, to);
+        if (error) throw error;
+
+        return {
+          data: (data || []).map((r: any) => ({
+            id: r.id,
+            businessEntityId: r.business_entity_id || undefined,
+            title: r.title || "Suhbat",
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+          })),
+          count: count ?? 0,
+        };
+      }
+    );
   } catch (err) {
     console.error("fetchAiChatThreadsPaginated error:", err);
     return { data: [], count: 0 };
@@ -2439,23 +2579,25 @@ export async function fetchAiChatThreadsPaginated(params: {
 
 export async function fetchAiChatThreadById(threadId: string): Promise<AiChatThreadDetail | null> {
   if (!isValidUuid(threadId)) return null;
-  const { data, error } = await supabase
-    .from("ai_chat_threads")
-    .select("*")
-    .eq("id", threadId)
-    .maybeSingle();
+  return cachedQuery(cacheKeys.aiThreadById(threadId), async () => {
+    const { data, error } = await supabase
+      .from("ai_chat_threads")
+      .select("*")
+      .eq("id", threadId)
+      .maybeSingle();
 
-  if (error) throw error;
-  if (!data) return null;
+    if (error) throw error;
+    if (!data) return null;
 
-  return {
-    id: data.id,
-    businessEntityId: data.business_entity_id || undefined,
-    title: data.title || "Suhbat",
-    messages: Array.isArray(data.messages_json) ? data.messages_json : [],
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
-  };
+    return {
+      id: data.id,
+      businessEntityId: data.business_entity_id || undefined,
+      title: data.title || "Suhbat",
+      messages: Array.isArray(data.messages_json) ? data.messages_json : [],
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    };
+  });
 }
 
 export async function upsertAiChatThread(input: {
@@ -2490,6 +2632,7 @@ export async function upsertAiChatThread(input: {
 
       if (error) throw error;
       if (data) {
+        invalidateCachePrefix("threads:", "thread:", "usage:");
         return {
           id: data.id,
           businessEntityId: data.business_entity_id || undefined,
@@ -2512,6 +2655,7 @@ export async function upsertAiChatThread(input: {
       .single();
 
     if (error) throw error;
+    invalidateCachePrefix("threads:", "thread:", "usage:");
     return {
       id: data.id,
       businessEntityId: data.business_entity_id || undefined,
@@ -2534,6 +2678,7 @@ export async function renameAiChatThread(threadId: string, nextTitle: string) {
     .update({ title: cleanTitle })
     .eq("id", threadId);
   if (error) throw error;
+  invalidateCachePrefix("threads:", "thread:");
 }
 
 export async function deleteAiChatThread(threadId: string) {
@@ -2543,6 +2688,7 @@ export async function deleteAiChatThread(threadId: string) {
     .delete()
     .eq("id", threadId);
   if (error) throw error;
+  invalidateCachePrefix("threads:", "thread:", "usage:");
 }
 
 // ==========================================
@@ -2556,32 +2702,37 @@ export async function fetchWorkspaceUsageSummary(params: {
   aiThreadsCount: number;
 }> {
   try {
-    const periodMonth = new Date().toISOString().slice(0, 7);
+    return await cachedQuery(
+      cacheKeys.usage(params.workspaceId, params.entityId),
+      async () => {
+        const periodMonth = new Date().toISOString().slice(0, 7);
 
-    let batchQuery = supabase
-      .from("work_batches")
-      .select("id", { count: "exact", head: true })
-      .eq("period_month", periodMonth);
+        let batchQuery = supabase
+          .from("work_batches")
+          .select("id", { count: "exact", head: true })
+          .eq("period_month", periodMonth);
 
-    if (params.entityId && isValidUuid(params.entityId)) {
-      batchQuery = batchQuery.eq("business_entity_id", params.entityId);
-    }
+        if (params.entityId && isValidUuid(params.entityId)) {
+          batchQuery = batchQuery.eq("business_entity_id", params.entityId);
+        }
 
-    let chatQuery = supabase
-      .from("ai_chat_threads")
-      .select("id", { count: "exact", head: true });
+        let chatQuery = supabase
+          .from("ai_chat_threads")
+          .select("id", { count: "exact", head: true });
 
-    if (params.entityId && isValidUuid(params.entityId)) {
-      chatQuery = chatQuery.or(
-        `business_entity_id.eq.${params.entityId},business_entity_id.is.null`
-      );
-    }
+        if (params.entityId && isValidUuid(params.entityId)) {
+          chatQuery = chatQuery.or(
+            `business_entity_id.eq.${params.entityId},business_entity_id.is.null`
+          );
+        }
 
-    const [batchRes, chatRes] = await Promise.all([batchQuery, chatQuery]);
-    return {
-      monthlyBatches: batchRes.count ?? 0,
-      aiThreadsCount: chatRes.count ?? 0,
-    };
+        const [batchRes, chatRes] = await Promise.all([batchQuery, chatQuery]);
+        return {
+          monthlyBatches: batchRes.count ?? 0,
+          aiThreadsCount: chatRes.count ?? 0,
+        };
+      }
+    );
   } catch (err) {
     console.warn("fetchWorkspaceUsageSummary warning:", err);
     return { monthlyBatches: 0, aiThreadsCount: 0 };

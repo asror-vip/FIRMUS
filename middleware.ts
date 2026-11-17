@@ -68,6 +68,24 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  const isErpBlocked =
+    !FEATURES.fullAccountingErp &&
+    ERP_ONLY_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+
+  const isRscOrPrefetch =
+    request.headers.get("rsc") === "1" ||
+    request.headers.get("next-router-prefetch") === "1";
+
+  // Client-side RSC navigations & prefetches with an active auth cookie skip remote getUser() RTT
+  if (isRscOrPrefetch && hasAuthCookie && !isAuthPage) {
+    if (isErpBlocked) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/";
+      return NextResponse.redirect(redirectUrl);
+    }
+    return response;
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -113,10 +131,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Gate full ERP routes when fullAccountingErp is disabled
-  if (
-    !FEATURES.fullAccountingErp &&
-    ERP_ONLY_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-  ) {
+  if (isErpBlocked) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/";
     return NextResponse.redirect(redirectUrl);

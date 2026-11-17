@@ -17,6 +17,7 @@ import {
   fetchExceptionSummaryCounts,
   fetchTrialBalance,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { useAppState } from "@/lib/context/app-state";
 import { formatUzsByLocale } from "@/lib/config/plans";
 import { useTranslation } from "@/lib/i18n/useTranslation";
@@ -43,18 +44,56 @@ import {
   CartesianGrid,
 } from "recharts";
 
+function computeVatNetPayable(tb: any[]): number {
+  const row6410 = (tb || []).find((r: any) => r.account_code === "6410");
+  const row4410 = (tb || []).find((r: any) => r.account_code === "4410");
+  const vatOut = Number(row6410?.period_credit || 0);
+  const vatIn = Number(row4410?.period_debit || 0);
+  return Math.max(0, vatOut - vatIn);
+}
+
 export function FullErpDashboard() {
   const router = useRouter();
   const { currentEntity, toggleAiDrawer } = useAppState();
   const { t, locale } = useTranslation();
   const erp = getBillingHomeDict(locale).home.erp;
   const intlLocale = getIntlLocale(locale);
+  const entityId = currentEntity?.id;
 
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [recentExceptions, setRecentExceptions] = useState<any[]>([]);
-  const [txCounts, setTxCounts] = useState({ total: 0, posted: 0, pending: 0 });
-  const [excCounts, setExcCounts] = useState({ open: 0, critical: 0, resolved: 0, total: 0 });
-  const [vatNetPayable, setVatNetPayable] = useState<number>(0);
+  const [transactions, setTransactions] = useState<any[]>(() =>
+    entityId ? peekQueryCache<any[]>(cacheKeys.recentTransactions(entityId, 100))?.data ?? [] : []
+  );
+  const [recentExceptions, setRecentExceptions] = useState<any[]>(() =>
+    entityId
+      ? peekQueryCache<{ data: any[]; count: number }>(
+          cacheKeys.exceptionsPaginated(entityId, {
+            page: 1,
+            pageSize: 5,
+            severity: "all",
+            search: "",
+          })
+        )?.data.data ?? []
+      : []
+  );
+  const [txCounts, setTxCounts] = useState(() =>
+    entityId
+      ? peekQueryCache<{ total: number; posted: number; pending: number }>(
+          cacheKeys.transactionCounts(entityId)
+        )?.data ?? { total: 0, posted: 0, pending: 0 }
+      : { total: 0, posted: 0, pending: 0 }
+  );
+  const [excCounts, setExcCounts] = useState(() =>
+    entityId
+      ? peekQueryCache<{ open: number; critical: number; resolved: number; total: number }>(
+          cacheKeys.exceptionCounts(entityId)
+        )?.data ?? { open: 0, critical: 0, resolved: 0, total: 0 }
+      : { open: 0, critical: 0, resolved: 0, total: 0 }
+  );
+  const [vatNetPayable, setVatNetPayable] = useState<number>(() => {
+    if (!entityId) return 0;
+    const cachedTb = peekQueryCache<any[]>(cacheKeys.trialBalance(entityId));
+    return cachedTb ? computeVatNetPayable(cachedTb.data) : 0;
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -66,6 +105,34 @@ export function FullErpDashboard() {
       setVatNetPayable(0);
       return;
     }
+
+    const cachedTxs = peekQueryCache<any[]>(
+      cacheKeys.recentTransactions(currentEntity.id, 100)
+    );
+    const cachedTxCounts = peekQueryCache<{ total: number; posted: number; pending: number }>(
+      cacheKeys.transactionCounts(currentEntity.id)
+    );
+    const cachedExcs = peekQueryCache<{ data: any[]; count: number }>(
+      cacheKeys.exceptionsPaginated(currentEntity.id, {
+        page: 1,
+        pageSize: 5,
+        severity: "all",
+        search: "",
+      })
+    );
+    const cachedExcCounts = peekQueryCache<{
+      open: number;
+      critical: number;
+      resolved: number;
+      total: number;
+    }>(cacheKeys.exceptionCounts(currentEntity.id));
+    const cachedTb = peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id));
+
+    if (cachedTxs) setTransactions(cachedTxs.data || []);
+    if (cachedTxCounts) setTxCounts(cachedTxCounts.data);
+    if (cachedExcs) setRecentExceptions(cachedExcs.data.data || []);
+    if (cachedExcCounts) setExcCounts(cachedExcCounts.data);
+    if (cachedTb) setVatNetPayable(computeVatNetPayable(cachedTb.data));
 
     Promise.all([
       fetchRecentTransactions(currentEntity.id, 100),
@@ -79,12 +146,7 @@ export function FullErpDashboard() {
       setTxCounts(countsTx);
       setRecentExceptions(excsPage?.data || []);
       setExcCounts(countsExc);
-
-      const row6410 = (tb || []).find((r: any) => r.account_code === "6410");
-      const row4410 = (tb || []).find((r: any) => r.account_code === "4410");
-      const vatOut = Number(row6410?.period_credit || 0);
-      const vatIn = Number(row4410?.period_debit || 0);
-      setVatNetPayable(Math.max(0, vatOut - vatIn));
+      setVatNetPayable(computeVatNetPayable(tb || []));
     });
 
     return () => {

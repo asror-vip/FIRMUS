@@ -27,6 +27,7 @@ import {
   type AiChatThreadMeta,
   type AiChatThreadDetail,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 
 interface AiThreadHistoryPanelProps {
   entityId?: string;
@@ -67,17 +68,44 @@ export function AiThreadHistoryPanel({
   const intlLocale = getIntlLocale(locale);
   const th = d.shared.aiThreadHistoryPanel;
 
-  const [threads, setThreads] = useState<AiChatThreadMeta[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const initialThreadsCache = peekQueryCache<{ data: AiChatThreadMeta[]; count: number }>(
+    cacheKeys.aiThreads({
+      entityId,
+      page: 1,
+      pageSize: THREAD_PAGE_SIZE,
+    })
+  );
+
+  const [threads, setThreads] = useState<AiChatThreadMeta[]>(
+    () => initialThreadsCache?.data.data ?? []
+  );
+  const [totalCount, setTotalCount] = useState(
+    () => initialThreadsCache?.data.count ?? 0
+  );
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!initialThreadsCache);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
   const loadThreads = useCallback(async () => {
-    setIsLoading(true);
+    const trimmedSearch = search.trim();
+    const cached = peekQueryCache<{ data: AiChatThreadMeta[]; count: number }>(
+      cacheKeys.aiThreads({
+        entityId,
+        page,
+        pageSize: THREAD_PAGE_SIZE,
+        search: trimmedSearch || undefined,
+      })
+    );
+    if (cached) {
+      setThreads(cached.data.data);
+      setTotalCount(cached.data.count);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
     try {
       const { data, count } = await fetchAiChatThreadsPaginated({
         entityId,
@@ -110,7 +138,12 @@ export function AiThreadHistoryPanel({
 
   const handleOpen = async (meta: AiChatThreadMeta) => {
     if (editingId === meta.id) return;
-    setOpeningId(meta.id);
+    const cachedDetail = peekQueryCache<AiChatThreadDetail | null>(
+      cacheKeys.aiThreadById(meta.id)
+    );
+    if (!cachedDetail?.data) {
+      setOpeningId(meta.id);
+    }
     try {
       const detail = await fetchAiChatThreadById(meta.id);
       if (detail) {

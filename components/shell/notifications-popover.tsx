@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { fetchExceptions, fetchTaxDeadlines } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 
@@ -37,6 +38,59 @@ import { toast } from "sonner";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
 
+function getReadNotificationIds(entityId: string): string[] {
+  try {
+    const saved = localStorage.getItem(`firmus_read_notifs_${entityId}`);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return [];
+}
+
+function buildNotificationItems(
+  excs: any[],
+  deadlines: any[],
+  readIds: string[],
+  labels: { today: string; viewInAuditor: string; duePrefix: string; goToTax: string }
+): NotificationItem[] {
+  const built: NotificationItem[] = [];
+
+  (excs || [])
+    .filter((e: any) => e.status === "open" || e.status === "in_review")
+    .forEach((e: any) => {
+      const nid = `exc-${e.id}`;
+      built.push({
+        id: nid,
+        category: "exception",
+        severity: e.severity === "critical" ? "critical" : "warning",
+        title: e.title,
+        description: e.description,
+        timestamp: e.date || labels.today,
+        isRead: readIds.includes(nid),
+        actionLabel: labels.viewInAuditor,
+        actionUrl: `/ai-auditor?id=${e.id}`,
+      });
+    });
+
+  (deadlines || [])
+    .filter((item: any) => item.status !== "completed")
+    .forEach((item: any) => {
+      const nid = `tax-${item.id}`;
+      built.push({
+        id: nid,
+        category: "tax",
+        severity: item.status === "urgent" ? "warning" : "info",
+        title: item.title,
+        description: item.description || `${labels.duePrefix}: ${item.date}`,
+        timestamp: item.date,
+        isRead: readIds.includes(nid),
+        actionLabel: labels.goToTax,
+        actionUrl: "/tax",
+      });
+    });
+
+  return built;
+}
+
 export function NotificationsPopover() {
   const router = useRouter();
   const { currentEntity } = useAppState();
@@ -52,11 +106,21 @@ export function NotificationsPopover() {
       return;
     }
 
-    let readIds: string[] = [];
-    try {
-      const saved = localStorage.getItem(`firmus_read_notifs_${currentEntity.id}`);
-      if (saved) readIds = JSON.parse(saved);
-    } catch {}
+    const readIds = getReadNotificationIds(currentEntity.id);
+    const notifLabels = {
+      today: d.notifications.today,
+      viewInAuditor: d.notifications.viewInAuditor,
+      duePrefix: d.notifications.duePrefix,
+      goToTax: d.notifications.goToTax,
+    };
+
+    const peekExcs = peekQueryCache<any[]>(cacheKeys.exceptions(currentEntity.id));
+    const peekDeadlines = peekQueryCache<any[]>(cacheKeys.taxDeadlines(currentEntity.id));
+    if (peekExcs && peekDeadlines) {
+      setNotifications(
+        buildNotificationItems(peekExcs.data, peekDeadlines.data, readIds, notifLabels)
+      );
+    }
 
     try {
       const [excs, deadlines] = await Promise.all([
@@ -64,51 +128,33 @@ export function NotificationsPopover() {
         fetchTaxDeadlines(currentEntity.id),
       ]);
 
-      const built: NotificationItem[] = [];
-
-      (excs || [])
-        .filter((e: any) => e.status === "open" || e.status === "in_review")
-        .forEach((e: any) => {
-          const nid = `exc-${e.id}`;
-          built.push({
-            id: nid,
-            category: "exception",
-            severity: e.severity === "critical" ? "critical" : "warning",
-            title: e.title,
-            description: e.description,
-            timestamp: e.date || d.notifications.today,
-            isRead: readIds.includes(nid),
-            actionLabel: d.notifications.viewInAuditor,
-            actionUrl: `/ai-auditor?id=${e.id}`,
-          });
-        });
-
-      (deadlines || [])
-        .filter((d: any) => d.status !== "completed")
-        .forEach((item: any) => {
-          const nid = `tax-${item.id}`;
-          built.push({
-            id: nid,
-            category: "tax",
-            severity: item.status === "urgent" ? "warning" : "info",
-            title: item.title,
-            description: item.description || `${d.notifications.duePrefix}: ${item.date}`,
-            timestamp: item.date,
-            isRead: readIds.includes(nid),
-            actionLabel: d.notifications.goToTax,
-            actionUrl: "/tax",
-          });
-        });
-
-      setNotifications(built);
+      setNotifications(buildNotificationItems(excs, deadlines, readIds, notifLabels));
     } catch (err) {
       console.error("Failed loading notifications:", err);
     }
   }, [currentEntity?.id, d.notifications.duePrefix, d.notifications.goToTax, d.notifications.today, d.notifications.viewInAuditor]);
 
   useEffect(() => {
-    setNotifications([]);
-  }, [currentEntity?.id]);
+    if (!FEATURES.fullAccountingErp || !currentEntity?.id) {
+      setNotifications([]);
+      return;
+    }
+    const peekExcs = peekQueryCache<any[]>(cacheKeys.exceptions(currentEntity.id));
+    const peekDeadlines = peekQueryCache<any[]>(cacheKeys.taxDeadlines(currentEntity.id));
+    if (peekExcs && peekDeadlines) {
+      const readIds = getReadNotificationIds(currentEntity.id);
+      setNotifications(
+        buildNotificationItems(peekExcs.data, peekDeadlines.data, readIds, {
+          today: d.notifications.today,
+          viewInAuditor: d.notifications.viewInAuditor,
+          duePrefix: d.notifications.duePrefix,
+          goToTax: d.notifications.goToTax,
+        })
+      );
+    } else {
+      setNotifications([]);
+    }
+  }, [currentEntity?.id, d.notifications.duePrefix, d.notifications.goToTax, d.notifications.today, d.notifications.viewInAuditor]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { fetchTrialBalance, fetchRecentTransactions } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { useAppState } from "@/lib/context/app-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,14 @@ export default function FinancePage() {
   const d = dict.erpExtra.finance;
   const intlLocale = getIntlLocale(locale);
   const [activeTab, setActiveTab] = useState("pnl");
-  const [trialBalance, setTrialBalance] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [trialBalance, setTrialBalance] = useState<any[]>(() => {
+    if (!currentEntity?.id) return [];
+    return peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id))?.data || [];
+  });
+  const [transactions, setTransactions] = useState<any[]>(() => {
+    if (!currentEntity?.id) return [];
+    return peekQueryCache<any[]>(cacheKeys.recentTransactions(currentEntity.id, 150))?.data || [];
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -36,6 +43,15 @@ export default function FinancePage() {
       setTrialBalance([]);
       setTransactions([]);
       return;
+    }
+
+    const peekTb = peekQueryCache<any[]>(cacheKeys.trialBalance(currentEntity.id));
+    if (peekTb) {
+      setTrialBalance(peekTb.data || []);
+    }
+    const peekTx = peekQueryCache<any[]>(cacheKeys.recentTransactions(currentEntity.id, 150));
+    if (peekTx) {
+      setTransactions(peekTx.data || []);
     }
 
     Promise.all([

@@ -10,6 +10,7 @@ import {
   createJournalEntryRecord,
   isValidUuid,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { useAppState } from "@/lib/context/app-state";
 import { ExceptionItem } from "@/lib/types/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -50,6 +51,17 @@ interface AiActionLog {
   created_at: string;
 }
 
+function pickSelectedException(
+  rows: ExceptionItem[],
+  targetExcId: string | null,
+  prev: ExceptionItem | null
+): ExceptionItem | null {
+  if (targetExcId) {
+    return rows.find((e) => e.id === targetExcId) || rows[0] || null;
+  }
+  return prev ? rows.find((e) => e.id === prev.id) || rows[0] || null : rows[0] || null;
+}
+
 function AiAuditorContent() {
   const searchParams = useSearchParams();
   const targetExcId = searchParams.get("id");
@@ -58,12 +70,37 @@ function AiAuditorContent() {
   const dict = getReconcileErpDict(locale);
   const d = dict.erpExtra.aiAuditor;
   const intlLocale = getIntlLocale(locale);
+  const PAGE_SIZE = 10;
 
-  const [exceptions, setExceptions] = useState<ExceptionItem[]>([]);
-  const [totalExceptionsCount, setTotalExceptionsCount] = useState(0);
+  const initialPeekExc = currentEntity?.id
+    ? peekQueryCache<{ data: ExceptionItem[]; count: number }>(
+        cacheKeys.exceptionsPaginated(currentEntity.id, {
+          page: 1,
+          pageSize: PAGE_SIZE,
+          severity: "all",
+          search: "",
+        })
+      )
+    : null;
+  const initialPeekCounts = currentEntity?.id
+    ? peekQueryCache<{ open: number; critical: number; resolved: number; total: number }>(
+        cacheKeys.exceptionCounts(currentEntity.id)
+      )
+    : null;
+
+  const [exceptions, setExceptions] = useState<ExceptionItem[]>(
+    () => initialPeekExc?.data.data || []
+  );
+  const [totalExceptionsCount, setTotalExceptionsCount] = useState(
+    () => initialPeekExc?.data.count ?? 0
+  );
   const [excPage, setExcPage] = useState(1);
-  const [excCounts, setExcCounts] = useState({ open: 0, critical: 0, resolved: 0, total: 0 });
-  const [selectedExc, setSelectedExc] = useState<ExceptionItem | null>(null);
+  const [excCounts, setExcCounts] = useState(
+    () => initialPeekCounts?.data || { open: 0, critical: 0, resolved: 0, total: 0 }
+  );
+  const [selectedExc, setSelectedExc] = useState<ExceptionItem | null>(() =>
+    pickSelectedException(initialPeekExc?.data.data || [], targetExcId, null)
+  );
   const [actionLogs, setActionLogs] = useState<AiActionLog[]>([]);
   const [totalLogsCount, setTotalLogsCount] = useState(0);
   const [logsPage, setLogsPage] = useState(1);
@@ -73,7 +110,6 @@ function AiAuditorContent() {
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const PAGE_SIZE = 10;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -83,6 +119,12 @@ function AiAuditorContent() {
   }, [search]);
 
   const loadSummaryCounts = useCallback(async (entityId: string) => {
+    const peek = peekQueryCache<{ open: number; critical: number; resolved: number; total: number }>(
+      cacheKeys.exceptionCounts(entityId)
+    );
+    if (peek) {
+      setExcCounts(peek.data);
+    }
     try {
       const summaryCounts = await fetchExceptionSummaryCounts(entityId);
       setExcCounts(summaryCounts);
@@ -97,7 +139,33 @@ function AiAuditorContent() {
     entityId: string,
     includeSummary = false
   ): Promise<{ open: number; total: number } | null> => {
-    setIsLoading(true);
+    const peekExc = peekQueryCache<{ data: ExceptionItem[]; count: number }>(
+      cacheKeys.exceptionsPaginated(entityId, {
+        page: Math.max(1, excPage || 1),
+        pageSize: PAGE_SIZE,
+        severity: filterSeverity || "all",
+        search: debouncedSearch.trim(),
+      })
+    );
+    const peekCounts = includeSummary
+      ? peekQueryCache<{ open: number; critical: number; resolved: number; total: number }>(
+          cacheKeys.exceptionCounts(entityId)
+        )
+      : null;
+
+    if (peekExc && (!includeSummary || peekCounts)) {
+      const cachedRows = peekExc.data.data || [];
+      setExceptions(cachedRows);
+      setTotalExceptionsCount(peekExc.data.count ?? 0);
+      if (peekCounts) {
+        setExcCounts(peekCounts.data);
+      }
+      setSelectedExc((prev) => pickSelectedException(cachedRows, targetExcId, prev));
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       const [{ data, count }, summaryCounts] = await Promise.all([
         fetchExceptionsPaginated(entityId, {
@@ -113,12 +181,7 @@ function AiAuditorContent() {
       if (summaryCounts) {
         setExcCounts(summaryCounts);
       }
-      if (targetExcId) {
-        const match = data.find((e) => e.id === targetExcId);
-        setSelectedExc(match || data[0] || null);
-      } else {
-        setSelectedExc((prev) => (prev ? (data.find((e) => e.id === prev.id) || data[0] || null) : (data[0] || null)));
-      }
+      setSelectedExc((prev) => pickSelectedException(data, targetExcId, prev));
       return summaryCounts ? { open: summaryCounts.open, total: summaryCounts.total } : null;
     } catch (err) {
       console.error("Error loading exceptions:", err);

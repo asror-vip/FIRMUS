@@ -15,6 +15,10 @@ const CONTENT_SECURITY_POLICY = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
+    staleTimes: {
+      dynamic: 120,
+      static: 300,
+    },
     optimizePackageImports: [
       "lucide-react",
       "recharts",

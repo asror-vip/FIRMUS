@@ -10,6 +10,7 @@ import {
   createBusinessEntity,
   updateBusinessEntity,
 } from "@/lib/services/supabase-service";
+import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { businessEntitySchema, getFirstZodError } from "@/lib/validations/accounting";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,8 +63,24 @@ function SettingsContent() {
     refreshContext,
   } = useAppState();
 
-  const [entities, setEntities] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const filterWorkspaceEntities = useCallback(
+    (data: any[]) =>
+      currentWorkspace?.id
+        ? (data || []).filter((e: any) => !e.workspaceId || e.workspaceId === currentWorkspace.id)
+        : data || [],
+    [currentWorkspace?.id]
+  );
+
+  const initialPeekEntities = FEATURES.multiCompanyMode
+    ? peekQueryCache<any[]>(cacheKeys.entities())
+    : null;
+
+  const [entities, setEntities] = useState<any[]>(() =>
+    initialPeekEntities ? filterWorkspaceEntities(initialPeekEntities.data || []) : []
+  );
+  const [isLoading, setIsLoading] = useState(() =>
+    FEATURES.multiCompanyMode ? !initialPeekEntities : false
+  );
   const [isAddEntityOpen, setIsAddEntityOpen] = useState(false);
   const [editingEntity, setEditingEntity] = useState<any | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -129,20 +146,23 @@ function SettingsContent() {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
+    const peek = peekQueryCache<any[]>(cacheKeys.entities());
+    if (peek) {
+      setEntities(filterWorkspaceEntities(peek.data || []));
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
     try {
       const data = await fetchBusinessEntities();
-      const filtered = currentWorkspace?.id
-        ? (data || []).filter((e: any) => !e.workspaceId || e.workspaceId === currentWorkspace.id)
-        : data || [];
-      setEntities(filtered);
+      setEntities(filterWorkspaceEntities(data || []));
     } catch (err) {
       console.error("Error loading entities:", err);
       toast.error(d.toasts.loadEntitiesError);
     } finally {
       setIsLoading(false);
     }
-  }, [currentWorkspace?.id, d.toasts.loadEntitiesError]);
+  }, [filterWorkspaceEntities, d.toasts.loadEntitiesError]);
 
   useEffect(() => {
     loadEntities();
