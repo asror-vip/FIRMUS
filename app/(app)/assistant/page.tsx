@@ -1039,10 +1039,10 @@ function AssistantContent() {
             }}
             className={`overflow-hidden ${isDraggingOverChat ? "border-indigo-500 ring-2 ring-indigo-500/30" : ""}`}
           >
-            <div className="flex flex-col md:flex-row min-h-[480px]">
+            <div className="flex flex-col md:flex-row min-h-[520px] md:h-[calc(100vh-210px)]">
               {/* Collapsible Chat History Sidebar */}
               {showChatSidebar && (
-                <div className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-border/70 bg-muted/15 max-h-[260px] md:max-h-[540px] flex flex-col">
+                <div className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-border/70 bg-muted/15 max-h-[260px] md:max-h-full md:h-full flex flex-col">
                   <AiThreadHistoryPanel
                     entityId={currentEntity?.id}
                     activeThreadId={activeThreadId}
@@ -1058,7 +1058,7 @@ function AssistantContent() {
               )}
 
               {/* Active Conversation Area */}
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 flex flex-col min-w-0 min-h-0">
                 <div className="flex items-center justify-between gap-2 px-3.5 py-2 border-b border-border/60 bg-card/50">
                   <div className="flex items-center gap-1.5">
                     <Button
@@ -1088,10 +1088,10 @@ function AssistantContent() {
                   </Button>
                 </div>
 
-                <CardContent className="pt-4 space-y-3 flex-1 flex flex-col justify-between min-h-[420px]">
+                <CardContent className="pt-4 space-y-3 flex-1 flex flex-col justify-between min-h-0 overflow-hidden">
                   <div
                     ref={chatScrollRef}
-                    className="flex-1 flex flex-col space-y-4 max-h-[440px] overflow-y-auto pr-1"
+                    className="flex-1 min-h-0 flex flex-col space-y-4 overflow-y-auto pr-1"
                   >
                     {messages.length === 0 && !isSending ? (
                       <AiEmptyHero greeting={d.chat.emptyGreeting} />
