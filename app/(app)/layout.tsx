@@ -1,15 +1,26 @@
 import React from "react";
+import { redirect } from "next/navigation";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { Footer } from "@/components/shell/footer";
 import { FirstLoginNotice } from "@/components/shared/first-login-notice";
 import { AppOverlays } from "@/components/shell/app-overlays";
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
       <Sidebar />

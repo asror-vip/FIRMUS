@@ -55,6 +55,35 @@ export function checkBurstRateLimit(userId: string, maxPerMinute: number): { all
   return { allowed: true };
 }
 
+/**
+ * Distributed rate limiter backed by Postgres atomic table `api_rate_limits`.
+ * Safe across serverless/edge instances, with in-memory fallback.
+ */
+export async function checkRateLimitDistributed(
+  bucketKey: string,
+  maxHits: number,
+  windowSeconds = 60
+): Promise<{ allowed: boolean; retryAfterSec?: number }> {
+  try {
+    const svc = getServiceClient();
+    const { data, error } = await svc.rpc("check_rate_limit_atomic", {
+      p_bucket_key: bucketKey,
+      p_max_hits: maxHits,
+      p_window_seconds: windowSeconds,
+    });
+
+    if (error || !data) {
+      return checkBurstRateLimit(bucketKey, maxHits);
+    }
+
+    const allowed = Boolean(data.allowed);
+    const retryAfterSec = Math.max(1, Number(data.reset_in_seconds || 1));
+    return { allowed, retryAfterSec: allowed ? undefined : retryAfterSec };
+  } catch {
+    return checkBurstRateLimit(bucketKey, maxHits);
+  }
+}
+
 export async function resolveEffectiveSubscription(userId: string): Promise<SubscriptionSnapshot> {
   const svc = getServiceClient();
   const { month, day } = getTashkentPeriods();
@@ -237,8 +266,12 @@ export async function authorizeAndConsumeAiCredits(params: {
   const snapshot = await resolveEffectiveSubscription(params.userId);
   const spec = PLANS_CONFIG[snapshot.planId];
 
-  // 1. Burst rate limit guard
-  const burst = checkBurstRateLimit(params.userId, spec.limits.burstRequestsPerMin);
+  // 1. Distributed rate limit guard (Postgres-backed with local fallback)
+  const burst = await checkRateLimitDistributed(
+    `ai:${params.userId}`,
+    spec.limits.burstRequestsPerMin,
+    60
+  );
   if (!burst.allowed) {
     return {
       ok: false,

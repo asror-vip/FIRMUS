@@ -124,7 +124,7 @@ BEGIN
     
     IF v_user_id IS NOT NULL THEN
         IF p_business_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
         END IF;
         
         -- Check caller role
@@ -136,7 +136,7 @@ BEGIN
         END IF;
         
         IF v_user_role NOT IN ('admin', 'director', 'chief_accountant', 'accountant') THEN
-            RAISE EXCEPTION 'Provodka yaratish uchun yetarli vakolat yo''q (Rol: %s)', v_user_role;
+            RAISE EXCEPTION 'Provodka yaratish uchun yetarli vakolat yo''q (Rol: %)', v_user_role;
         END IF;
     END IF;
 
@@ -207,7 +207,7 @@ BEGIN
 
     -- 5. Strict Balance Check: Debit MUST EQUAL Credit
     IF v_total_debit <> v_total_credit THEN
-        RAISE EXCEPTION 'Balanssiz provodka rad etildi: Debet (%s) va Kredit (%s) summalari teng emas!',
+        RAISE EXCEPTION 'Balanssiz provodka rad etildi: Debet (%) va Kredit (%) summalari teng emas!',
             v_total_debit, v_total_credit;
     END IF;
 

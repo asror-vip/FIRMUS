@@ -35,6 +35,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/terms") ||
     pathname.startsWith("/auth/callback") ||
     pathname.startsWith("/api/payments/") ||
+    // 1C desktop bridge endpoints authenticate via Bearer integration token verified in route handler, no Supabase browser cookie
+    pathname.startsWith("/api/1c/") ||
     pathname === "/api/health";
 
   const isResetPasswordPage = pathname.startsWith("/reset-password");

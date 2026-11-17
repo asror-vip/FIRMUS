@@ -52,7 +52,7 @@ BEGIN
     -- 2. Multi-Tenant & Role Authorization Check
     IF v_user_id IS NOT NULL THEN
         IF p_business_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
         END IF;
         
         SELECT workspace_id INTO v_workspace_id FROM public.business_entities WHERE id = p_business_entity_id;
@@ -63,7 +63,7 @@ BEGIN
         END IF;
         
         IF v_user_role NOT IN ('admin', 'director', 'chief_accountant', 'accountant') THEN
-            RAISE EXCEPTION 'Provodka yaratish uchun yetarli vakolat yo''q (Rol: %s)', v_user_role;
+            RAISE EXCEPTION 'Provodka yaratish uchun yetarli vakolat yo''q (Rol: %)', v_user_role;
         END IF;
     END IF;
 
@@ -109,7 +109,7 @@ BEGIN
 
     -- 5. Strict Balance Check: Debit MUST EQUAL Credit
     IF v_total_debit <> v_total_credit THEN
-        RAISE EXCEPTION 'Balanssiz provodka rad etildi: Debet (%s) va Kredit (%s) summalari teng emas!',
+        RAISE EXCEPTION 'Balanssiz provodka rad etildi: Debet (%) va Kredit (%) summalari teng emas!',
             v_total_debit, v_total_credit;
     END IF;
 
@@ -401,7 +401,7 @@ BEGIN
     -- Strict Tenant Boundary Check
     IF auth.uid() IS NOT NULL THEN
         IF p_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) hisobotlarini ko''rish huquqiga ega emassiz', p_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) hisobotlarini ko''rish huquqiga ega emassiz', p_entity_id;
         END IF;
     ELSIF current_user NOT IN ('postgres', 'service_role') THEN
         RAISE EXCEPTION 'Kirish taqiqlangan: autentifikatsiyadan o''tilmagan';
@@ -472,7 +472,7 @@ BEGIN
     -- Strict Tenant Boundary Check
     IF auth.uid() IS NOT NULL THEN
         IF p_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) bosh kitobini ko''rish huquqiga ega emassiz', p_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) bosh kitobini ko''rish huquqiga ega emassiz', p_entity_id;
         END IF;
     ELSIF current_user NOT IN ('postgres', 'service_role') THEN
         RAISE EXCEPTION 'Kirish taqiqlangan: autentifikatsiyadan o''tilmagan';

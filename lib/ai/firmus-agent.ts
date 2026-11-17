@@ -20,6 +20,7 @@ import {
   UUID_REGEX,
   DATE_REGEX,
 } from "./agent-types";
+import { signAiProposalToken } from "./proposal-token";
 
 export const MUTATING_AGENT_ROLES = new Set([
   "workspace_owner",
@@ -422,6 +423,7 @@ interface ToolContext {
   entity: any;
   coaMap: Map<string, { code: string; name: string; type: string }>;
   userRole: string;
+  userId?: string;
 }
 
 async function runToolCall(
@@ -982,6 +984,15 @@ async function runDeterministicAgent(params: {
     reply += `\n\n(Eslatma: Erkin tabiiy tilda toʻliq AI Function Calling ishlashi uchun .env.local fayliga bepul Google AI Studio \`GEMINI_API_KEY\` kalitini qoʻshing — hozir qatʼiy Supabase tahlil rejimi ishlamoqda.)`;
   }
 
+  if (actionProposed) {
+    actionProposed.proposalToken = signAiProposalToken({
+      userId: ctx.userId || "",
+      entityId: entity.id,
+      proposalType: actionProposed.type,
+      proposalPayload: (actionProposed.payload || {}) as Record<string, unknown>,
+    });
+  }
+
   return {
     mode: "deterministic_guard",
     modelUsed: "deterministic-21bhms-guard",
@@ -1030,7 +1041,7 @@ export async function runFirmusAgent(params: {
 
   const coaRows = (coaRes.data || []) as Array<{ code: string; name: string; type: string }>;
   const coaMap = new Map(coaRows.map((c) => [c.code, c]));
-  const ctx: ToolContext = { supabase, entity, coaMap, userRole };
+  const ctx: ToolContext = { supabase, entity, coaMap, userRole, userId: params.userId };
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (!apiKey) {
@@ -1122,6 +1133,14 @@ export async function runFirmusAgent(params: {
             }
           }
           if (textReply || pendingProposal) {
+            if (pendingProposal) {
+              pendingProposal.proposalToken = signAiProposalToken({
+                userId: params.userId,
+                entityId: params.entity.id,
+                proposalType: pendingProposal.type,
+                proposalPayload: (pendingProposal.payload || {}) as Record<string, unknown>,
+              });
+            }
             return {
               mode: "gemini_agent",
               modelUsed: modelName,

@@ -112,6 +112,7 @@ export const agentExecuteRequestSchema = z.object({
   entityId: z.string().regex(UUID_REGEX, "Notoʻgʻri korxona ID"),
   decision: z.enum(["approve", "reject"]),
   modelUsed: z.string().trim().min(1).max(80).default("firmus-agent"),
+  proposalToken: z.string().trim().optional(),
   proposal: z.discriminatedUnion("type", [
     z.object({
       type: z.literal("journal_entry"),
@@ -120,6 +121,7 @@ export const agentExecuteRequestSchema = z.object({
       amount: z.string().trim().optional(),
       accounts: z.string().trim().optional(),
       targetId: z.string().optional(),
+      proposalToken: z.string().trim().optional(),
       payload: journalProposalPayloadSchema,
     }),
     z.object({
@@ -127,6 +129,7 @@ export const agentExecuteRequestSchema = z.object({
       title: z.string().trim().min(1).max(200),
       summary: z.string().trim().max(500).optional(),
       targetId: z.string().regex(UUID_REGEX),
+      proposalToken: z.string().trim().optional(),
       payload: reverseEntryPayloadSchema,
     }),
     z.object({
@@ -136,6 +139,7 @@ export const agentExecuteRequestSchema = z.object({
       amount: z.string().trim().optional(),
       accounts: z.string().trim().optional(),
       targetId: z.string().regex(UUID_REGEX),
+      proposalToken: z.string().trim().optional(),
       payload: exceptionPayloadSchema.optional(),
     }),
     z.object({
@@ -145,6 +149,7 @@ export const agentExecuteRequestSchema = z.object({
       amount: z.string().trim().optional(),
       accounts: z.string().trim().optional(),
       targetId: z.string().regex(UUID_REGEX),
+      proposalToken: z.string().trim().optional(),
       payload: transactionPayloadSchema.optional(),
     }),
     z.object({
@@ -152,6 +157,7 @@ export const agentExecuteRequestSchema = z.object({
       title: z.string().trim().min(1).max(200),
       summary: z.string().trim().max(500).optional(),
       amount: z.string().trim().optional(),
+      proposalToken: z.string().trim().optional(),
       payload: contractPayloadSchema,
     }),
     z.object({
@@ -159,6 +165,7 @@ export const agentExecuteRequestSchema = z.object({
       title: z.string().trim().min(1).max(200),
       summary: z.string().trim().max(500).optional(),
       amount: z.string().trim().optional(),
+      proposalToken: z.string().trim().optional(),
       payload: inventoryPayloadSchema,
     }),
     z.object({
@@ -166,12 +173,14 @@ export const agentExecuteRequestSchema = z.object({
       title: z.string().trim().min(1).max(200),
       summary: z.string().trim().max(500).optional(),
       amount: z.string().trim().optional(),
+      proposalToken: z.string().trim().optional(),
       payload: employeePayloadSchema,
     }),
     z.object({
       type: z.literal("close_period"),
       title: z.string().trim().min(1).max(200),
       summary: z.string().trim().max(500).optional(),
+      proposalToken: z.string().trim().optional(),
       payload: closePeriodPayloadSchema,
     }),
   ]),

@@ -113,6 +113,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     reqId = body.id ?? null;
+    const clientIp =
+      req.headers.get("x-vercel-forwarded-for") ||
+      req.headers.get("cf-connecting-ip") ||
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "";
     const { method, params } = body;
 
     if (!verifyPaymeAuth(req)) {
@@ -213,68 +218,36 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_ALREADY_PAID });
         }
 
-        if (
-          order.status === "cancelled" ||
-          order.status === "failed" ||
-          order.status === "refunded" ||
-          order.status === "waiting_transfer" ||
-          order.status !== "pending"
-        ) {
+        // Atomic row-level lock & transaction claim via PostgreSQL RPC
+        const { data: claimRes, error: claimErr } = await svc.rpc("claim_payment_provider_transaction", {
+          p_order_id: orderId,
+          p_provider_trans_id: transId,
+          p_payment_method: "payme",
+          p_provider_create_time: transTime,
+          p_provider_payload: { method: "payme", client_ip: clientIp },
+          p_timeout_ms: PAYME_TIMEOUT_MS,
+        });
+
+        if (claimErr || !claimRes) {
+          console.error("claim_payment_provider_transaction error:", claimErr);
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
         }
 
-        // Check existing transaction
-        if (order.provider_trans_id) {
-          if (order.provider_trans_id === transId) {
-            if (order.provider_state === 1) {
-              const nowMs = Date.now();
-              if (nowMs - Number(order.provider_create_time || 0) > PAYME_TIMEOUT_MS) {
-                await svc
-                  .from("billing_orders")
-                  .update({
-                    provider_state: -1,
-                    provider_cancel_reason: 4,
-                    provider_cancel_time: nowMs,
-                    status: "cancelled",
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", order.id);
-
-                return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
-              }
-
-              return NextResponse.json({
-                id: reqId,
-                result: {
-                  create_time: Number(order.provider_create_time || transTime),
-                  transaction: order.provider_trans_id,
-                  state: 1,
-                },
-              });
-            }
-
-            return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
-          }
-
-          // Another transaction in progress
+        const outcome = claimRes.outcome;
+        if (outcome === "not_found") {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_NOT_FOUND });
+        }
+        if (outcome === "already_paid") {
+          return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_ALREADY_PAID });
+        }
+        if (outcome === "conflict" || outcome === "wrong_method" || outcome === "invalid_status" || outcome === "timed_out") {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
         }
-
-        // Update order with transaction details
-        await svc
-          .from("billing_orders")
-          .update({
-            provider_trans_id: transId,
-            provider_create_time: transTime,
-            provider_state: 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", order.id);
 
         return NextResponse.json({
           id: reqId,
           result: {
-            create_time: transTime,
+            create_time: Number(claimRes.provider_create_time || transTime),
             transaction: transId,
             state: 1,
           },

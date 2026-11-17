@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceClient } from "@/lib/supabase/service";
-import { resolveEffectiveSubscription } from "@/lib/ai/subscription-guard";
+import { resolveEffectiveSubscription, checkRateLimitDistributed } from "@/lib/ai/subscription-guard";
 import { UUID_REGEX } from "@/lib/ai/agent-types";
 import { getRequestLocale } from "@/lib/i18n/server-locale";
 import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
@@ -14,6 +14,7 @@ const b2bMetadataSchema = z.object({
 
 function isSandboxConfirmEnabled(): boolean {
   return (
+    process.env.NODE_ENV !== "production" &&
     process.env.ALLOW_SANDBOX_CONFIRM === "true" &&
     process.env.PAYMENT_LIVE_STRICT !== "true"
   );
@@ -199,6 +200,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Creating a new checkout order
+    const rateLimit = await checkRateLimitDistributed(`checkout:${user.id}`, 10, 60);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Juda koʻp buyurtma soʻrovi yuborildi. Iltimos ${rateLimit.retryAfterSec} soniyadan keyin urinib koʻring.` },
+        { status: 429 }
+      );
+    }
+
     const {
       planId,
       billingCycle = "monthly",
@@ -302,15 +311,21 @@ export async function POST(req: NextRequest) {
       clickCheckoutUrl = `https://my.click.uz/services/pay?service_id=${clickServiceId}&merchant_id=${clickMerchantId}&amount=${finalAmountUzs}&transaction_param=${orderId}&return_url=${encodedReturnUrl}`;
     }
 
-    // Invoice details for B2B bank transfer / Didox
+    // Invoice details for B2B bank transfer / Didox (configurable via environment variables)
+    const sellerName = process.env.FIRMUS_SELLER_NAME?.trim() || '"FIRMUS SOFT" MChJ';
+    const sellerTin = process.env.FIRMUS_SELLER_TIN?.trim() || "310987654";
+    const sellerAccount = process.env.FIRMUS_SELLER_ACCOUNT?.trim() || "20208000600000000001";
+    const sellerBank = process.env.FIRMUS_SELLER_BANK?.trim() || '"KAPITALBANK" ATB Toshkent shahar filiali';
+    const sellerMfo = process.env.FIRMUS_SELLER_MFO?.trim() || "00974";
+
     const invoiceDetails =
       paymentMethod === "bank_transfer_didox"
         ? {
-            sellerName: '"FIRMUS SOFT" MChJ',
-            sellerTin: "310987654",
-            sellerAccount: "20208000600000000001",
-            sellerBank: '"KAPITALBANK" ATB Toshkent shahar filiali',
-            sellerMfo: "00974",
+            sellerName,
+            sellerTin,
+            sellerAccount,
+            sellerBank,
+            sellerMfo,
             invoiceNumber: `INV-${orderId}`,
             buyerTin: validatedB2bMetadata?.tinStir || "",
             buyerName: validatedB2bMetadata?.companyName || "",

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { activateUserProTrial } from "@/lib/ai/subscription-guard";
+import { activateUserProTrial, checkRateLimitDistributed } from "@/lib/ai/subscription-guard";
 import {
   canonicalizeEmail,
   isDisposableEmailDomain,
@@ -14,23 +14,32 @@ function sha256(value: string): string {
 }
 
 function extractClientIp(req: NextRequest): string {
+  const isProd = process.env.NODE_ENV === "production";
+
+  // In production, trust only edge platform headers (un-spoofable by the client)
+  const vercel = req.headers.get("x-vercel-forwarded-for")?.trim();
+  if (vercel) return vercel.split(",")[0].trim();
+
   const cf = req.headers.get("cf-connecting-ip")?.trim();
   if (cf) return cf;
 
-  const vercel = req.headers.get("x-vercel-forwarded-for")?.trim();
-  if (vercel) return vercel;
+  const netlify = req.headers.get("x-nf-client-connection-ip")?.trim();
+  if (netlify) return netlify;
 
-  const real = req.headers.get("x-real-ip")?.trim();
-  if (real) return real;
+  // In development / test, allow fallback to standard headers
+  if (!isProd) {
+    const real = req.headers.get("x-real-ip")?.trim();
+    if (real) return real;
 
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const parts = forwarded
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (parts.length > 0) {
-      return parts[0];
+    const forwarded = req.headers.get("x-forwarded-for");
+    if (forwarded) {
+      const parts = forwarded
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (parts.length > 0) {
+        return parts[0];
+      }
     }
   }
 
@@ -49,6 +58,15 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
+    }
+
+    // Rate limit: max 3 trial activation attempts per 5 minutes per user
+    const rateLimit = await checkRateLimitDistributed(`trial:${user.id}`, 3, 300);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Juda koʻp sinov soʻrovi yuborildi. Iltimos ${rateLimit.retryAfterSec} soniyadan keyin qayta urinib koʻring.` },
+        { status: 429 }
+      );
     }
 
     if (!user.email_confirmed_at) {

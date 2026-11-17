@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { agentExecuteRequestSchema } from "@/lib/ai/agent-types";
 import { isMutatingRole, resolveUserEntityRole } from "@/lib/ai/firmus-agent";
+import { verifyAiProposalToken } from "@/lib/ai/proposal-token";
 import { getRequestLocale } from "@/lib/i18n/server-locale";
 import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
 
@@ -31,6 +32,22 @@ export async function POST(req: NextRequest) {
     }
 
     const { entityId, decision, modelUsed, proposal } = parsed.data;
+
+    const token = parsed.data.proposalToken || (proposal as any).proposalToken;
+    const verifyRes = verifyAiProposalToken(token, {
+      userId: user.id,
+      entityId,
+      proposalType: proposal.type,
+    });
+
+    if (!verifyRes.ok) {
+      return NextResponse.json(
+        { error: verifyRes.error || "AI taklif imzosi yaroqsiz." },
+        { status: 400 }
+      );
+    }
+
+    const isAiVerified = verifyRes.isAiVerified;
 
     const { data: entity } = await supabase
       .from("business_entities")
@@ -82,8 +99,8 @@ export async function POST(req: NextRequest) {
           actor_user_id: user.id,
           action_type: proposal.type,
           target_id: resolvedTargetId,
-          summary: `${proposal.title} — rad etildi`,
-          payload: proposal,
+          summary: `${proposal.title} — rad etildi (${isAiVerified ? "AI taklifi" : "Qoʻlda"})`,
+          payload: { ...proposal, is_ai_verified: isAiVerified },
           model_used: modelUsed,
           decision: "rejected",
         });
@@ -268,8 +285,8 @@ export async function POST(req: NextRequest) {
         actor_user_id: user.id,
         action_type: proposal.type,
         target_id: resolvedTargetId,
-        summary: proposal.title,
-        payload: proposal,
+        summary: `${proposal.title} (${isAiVerified ? "AI taklifi tasdiqlandi" : "Bevosita bajarildi"})`,
+        payload: { ...proposal, is_ai_verified: isAiVerified },
         model_used: modelUsed,
         decision: "approved",
       });
@@ -286,8 +303,8 @@ export async function POST(req: NextRequest) {
         actor_user_id: user.id,
         action_type: proposal.type,
         target_id: resolvedTargetId,
-        summary: proposal.title,
-        payload: proposal,
+        summary: `${proposal.title} (${isAiVerified ? "AI taklifi xatosi" : "Xatolik"})`,
+        payload: { ...proposal, is_ai_verified: isAiVerified },
         model_used: modelUsed,
         decision: "failed",
         error_message: execErr?.message || msg.unknownError,

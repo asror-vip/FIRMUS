@@ -1,15 +1,16 @@
 # FIRMUS — AI-Powered Business & Accounting Automation SaaS
 
-FIRMUS is an enterprise-grade business automation and accounting SaaS platform engineered for the Uzbekistan market (21-son BHMS & Tax Code). It delivers end-to-end automation of financial operations, double-entry ledger integrity, tax calculations, and primary document workflows (Didox EDO, E-IMZO CAPIWS, and 1C:Enterprise export/import).
+FIRMUS is an accounting automation and financial operations SaaS platform engineered for Uzbekistan (NSBU / 21-BHMS & Tax Code). It combines deterministic double-entry accounting, Bank-to-1C reconciliation, AI document scanning and chat assistance, Payme/Click subscription billing, and 1C:Enterprise / Didox integration bridges.
 
 ---
 
 ## Architecture At A Glance
 
-- **Full-Stack Web & API**: TypeScript, Next.js App Router (Route Handlers + Server Components), React, Tailwind CSS, shadcn/ui, Zod.
-- **Database, Auth, RLS & Ledger RPCs**: Supabase PostgreSQL (`NUMERIC(19, 4)`, Row-Level Security, atomic PL/pgSQL RPCs), Supabase Auth (Email, Google OAuth, Eskiz.uz SMS OTP), private Supabase Storage.
-- **AI Agent Orchestration**: Configurable Gemini model (`GEMINI_MODEL`, defaulting to free-tier `gemini-3.8-flash` with fallback to `gemini-3.5-flash-lite` and deterministic 21-BHMS guard when no API key is configured), strict Function Calling (`propose_*`), Human-in-the-Loop approval execution (`/api/ai-copilot/execute`), PII depersonalization, and immutable `ai_action_logs`.
-- **Financial Core**: Deterministic double-entry ledger with `NUMERIC(19, 4)` exact precision, idempotency keys, storno reversals (`reverse_journal_entry`), atomic period closing (`close_accounting_period`), and immutable posted history.
+- **Frontend & Full-Stack Runtime**: Next.js 15 App Router, React 19, TypeScript, Tailwind CSS, Radix UI / shadcn components, Zod v4.
+- **Database, Auth & Zero-Trust RPCs**: Supabase PostgreSQL (`NUMERIC(19, 4)` exact decimal precision, Row-Level Security, `SECURITY DEFINER` atomic RPCs, distributed rate limiting, `integration_connections`, and `onec_draft_queue`), Supabase Auth (Google OAuth and Email/Password).
+- **Gemini AI Engine**: Chat assistant (`/api/ai-copilot`), Vision Invoice/Receipt/Contract scanner (`/api/ai-document-scan`), AI reconciliation categorization (`/api/ai-reconcile`), PII depersonalization, and HMAC-signed proposal confirmation tokens (`/api/ai-copilot/execute`).
+- **Billing & Anti-Abuse**: Payme & Click atomic payment callbacks (`/api/payments/payme`, `/api/payments/click`), subscription checkout (`/api/subscription/checkout`), and 7-day Pro Trial anti-abuse guards (`/api/subscription/trial`).
+- **Bank <-> 1C Reconciliation & Integrations**: Multi-format statement parser (Excel/CSV/TXT `1CClientBankExchange`), deterministic & AI matching engine, `kl_to_1c.txt` / EnterpriseData XML export, online 1C OData & local `.epf` bridge pairing, and Didox EDO configuration.
 
 ---
 
@@ -18,34 +19,41 @@ FIRMUS is an enterprise-grade business automation and accounting SaaS platform e
 ```text
 firmus/
 ├── app/
-│   ├── (app)/                       # Lean core: dashboard, /reconcile (Bank<->1C Sverka), accounting, transactions, ai-auditor, tax, finance, settings
-│   ├── (auth)/                      # Login (Google-first & Email), register, forgot-password
-│   ├── api/                         # Route Handlers (ai-copilot, ai-copilot/execute, ai-reconcile, health)
-│   ├── privacy/ & terms/            # O'RQ-547 Zero-PII privacy & terms pages
-├── components/                      # Reusable UI, navigation shell, Human-in-the-Loop AI Drawer
+│   ├── (app)/                  # Authenticated app routes: /, /reconcile, /assistant, /billing, /settings, ERP modules
+│   ├── (auth)/                 # Login, register, forgot-password, reset-password
+│   ├── (onboarding)/           # Workspace & company onboarding
+│   ├── api/                    # Next.js Route Handlers (AI, profile, integrations, billing, payments, health)
+│   ├── privacy/ & terms/       # ZRU-547 privacy policy and terms of service
+├── components/                 # Shell navigation, UI primitives (Radix/shadcn), AI Drawer, shared widgets
 ├── lib/
-│   ├── ai/                          # FIRMUS 21-BHMS AI Agent engine, Zod tool schemas & guardrails
-│   ├── services/                    # reconcile-engine.ts, supabase-service.ts, bank-import.ts, one-c-export.ts
-│   ├── utils/                       # Exact money rounding, VAT 12% split, payroll math, card/PINFL PII masking
-│   └── validations/                 # Zod v4 schemas
-├── archive/optional-modules/        # Archived extended ERP pages/APIs (banking, docs, HR, contracts, SMS OTP, mocks) for future restore
+│   ├── ai/                     # FIRMUS 21-BHMS AI agent, subscription guard, HMAC proposal tokens
+│   ├── config/                 # Feature flags & plan/model specifications
+│   ├── context/                # AppStateProvider (workspace, entity, subscription, locale)
+│   ├── i18n/                   # Localized dictionaries (uz, ru, en) and domain translations
+│   ├── services/               # Reconcile engine, 1C export & OData/.epf connector, bank import, tax calculator
+│   ├── supabase/               # Browser, server, and service-role Supabase clients
+│   ├── utils/                  # Finance rounding, PII depersonalization, secret encryption, validation helpers
+│   └── validations/            # Zod v4 schemas
+├── scripts/                    # Database migration runner (run-sql.mjs)
 ├── supabase/
-│   └── migrations/                  # Versioned PostgreSQL migrations (RLS, atomic ledger RPCs, Storage, AI audit logs)
-├── scripts/                         # Security RLS, accounting hardening & full production E2E verification scripts
-├── tests/unit/                      # Vitest unit tests
-└── docs/                            # Product brief, updated Next.js roadmap, architecture, DB design & ADRs
+│   └── migrations/             # Versioned PostgreSQL migrations (RLS, ledger RPCs, billing, integrations)
+└── tests/unit/                 # Vitest unit test suite
 ```
 
 ---
 
-## Documentation Index
+## Development & Verification
 
-- [Project Brief](file:///d:/Desktop/project/docs/product/PROJECT_BRIEF.md) — Executive summary, vision, target audiences, core principles.
-- [System Architecture](file:///d:/Desktop/project/docs/architecture/ARCHITECTURE.md) — Next.js App Router + Supabase PostgreSQL + Gemini AI Agent architecture.
-- [Database Design](file:///d:/Desktop/project/docs/architecture/DATABASE_DESIGN.md) — Full ERD, PostgreSQL tables, exact decimal math, RLS & AI audit logs.
-- [Security Architecture](file:///d:/Desktop/project/docs/security/SECURITY.md) — Zero-trust E-IMZO, RLS isolation, Eskiz SMS OTP, ZRU-547 compliance.
-- [Implementation Roadmap](file:///d:/Desktop/project/docs/product/ROADMAP.md) — Phase 0 to Phase 8 execution plan and live status.
-- [ADR 0001 — Next.js + Supabase Modular Architecture](file:///d:/Desktop/project/docs/architecture/adr/0001-modular-monolith-go-chi.md) — Architectural pivot from early Go draft to Next.js App Router + Supabase RPCs.
-- [ADR 0002 — Multi-Tenant Isolation](file:///d:/Desktop/project/docs/architecture/adr/0002-multi-tenant-data-isolation.md) — Dual-layer server + RLS enforcement.
-- [ADR 0003 — Deterministic Accounting Ledger](file:///d:/Desktop/project/docs/architecture/adr/0003-deterministic-accounting-ledger.md) — `NUMERIC(19, 4)` + PostgreSQL immutability triggers.
-- [ADR 0004 — AI Agent Orchestration](file:///d:/Desktop/project/docs/architecture/adr/0004-ai-orchestration-gpt-6-luna.md) — Gemini Function Calling + Human-in-the-Loop execution boundary.
+```bash
+npm install
+npm run dev
+```
+
+Verification commands:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```

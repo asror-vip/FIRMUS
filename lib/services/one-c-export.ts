@@ -1,13 +1,25 @@
+import { getTashkentTodayIso } from "@/lib/format/date";
+
 /**
  * 1C:Enterprise Exporter for Uzbekistan Accounting
  * Generates:
  * 1. 1CClientBankExchange (kl_to_1c.txt) for banking statements import into 1C
- * 2. EnterpriseData XML for accounting journal entries / double-entry ledger
+ * 2. EnterpriseData XML for accounting journal entries / double-entry ledger (strictly Draft / Posted=false)
  */
 
 function sanitizeClientBankField(val?: string | null): string {
   if (!val) return "";
   return String(val).replace(/[\r\n]+/g, " ").trim();
+}
+
+function getTashkentTimeString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Tashkent",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 export function generate1CClientBankText(
@@ -34,23 +46,29 @@ export function generate1CClientBankText(
     account: "",
     bank: "",
     openingBalance: 0,
-  }
+  },
+  options: {
+    encoding?: "utf-8" | "windows-1251";
+  } = {}
 ): string {
-  const today = new Date().toISOString().split("T")[0].split("-").reverse().join(".");
-  const startDate = transactions[transactions.length - 1]?.date.split("-").reverse().join(".") || today;
-  const endDate = transactions[0]?.date.split("-").reverse().join(".") || today;
+  const today = getTashkentTodayIso().split("-").reverse().join(".");
+  const startDate =
+    sanitizeClientBankField(transactions[transactions.length - 1]?.date.split("-").reverse().join(".")) || today;
+  const endDate =
+    sanitizeClientBankField(transactions[0]?.date.split("-").reverse().join(".")) || today;
   const openingBal = Number(entityInfo.openingBalance || 0).toFixed(2);
   const safeAccount = sanitizeClientBankField(entityInfo.account);
   const safeEntityName = sanitizeClientBankField(entityInfo.name);
   const safeEntityInn = sanitizeClientBankField(entityInfo.inn);
+  const encodingLabel = options.encoding === "windows-1251" ? "Windows" : "UTF-8";
 
   let txt = `1CClientBankExchange\r\n`;
   txt += `ВерсияФормата=1.02\r\n`;
-  txt += `Кодировка=UTF-8\r\n`;
+  txt += `Кодировка=${encodingLabel}\r\n`;
   txt += `Отправитель=FIRMUS AI Automation Cloud\r\n`;
   txt += `Получатель=1С:Предприятие 8.3\r\n`;
   txt += `ДатаСоздания=${today}\r\n`;
-  txt += `ВремяСоздания=${new Date().toTimeString().split(" ")[0]}\r\n`;
+  txt += `ВремяСоздания=${getTashkentTimeString()}\r\n`;
   txt += `ДатаНачала=${startDate}\r\n`;
   txt += `ДатаКонца=${endDate}\r\n`;
   txt += `РасчСчет=${safeAccount}\r\n`;
@@ -62,16 +80,17 @@ export function generate1CClientBankText(
   txt += `КонецРасчСчет\r\n`;
 
   transactions.forEach((tx, idx) => {
-    const formattedDate = sanitizeClientBankField(tx.date.split("-").reverse().join("."));
+    const formattedDate = sanitizeClientBankField(tx.date.split("-").reverse().join(".")) || today;
     const num = sanitizeClientBankField(tx.documentNumber || String(idx + 101));
     const counterparty = sanitizeClientBankField(tx.counterparty);
     const counterpartyStir = sanitizeClientBankField(tx.counterpartyStir || "");
     const description = sanitizeClientBankField(tx.description);
+    const amountStr = Number(tx.amount || 0).toFixed(2);
 
     txt += `СекцияДокумент=Платежное поручение\r\n`;
     txt += `Номер=${num}\r\n`;
     txt += `Дата=${formattedDate}\r\n`;
-    txt += `Сумма=${tx.amount.toFixed(2)}\r\n`;
+    txt += `Сумма=${amountStr}\r\n`;
 
     if (tx.type === "income") {
       // Payer is Counterparty, Receiver is Us
@@ -96,6 +115,8 @@ export function generate1CClientBankText(
     txt += `Очередность=1\r\n`;
     txt += `КонецДокумента\r\n`;
   });
+
+  txt += `КонецФайла\r\n`;
 
   return txt;
 }
@@ -126,19 +147,21 @@ export function generate1CEnterpriseDataXml(
   journalEntries.forEach((je) => {
     const entryId = escapeXml(String(je.entryNumber || ""));
     const dateStr = escapeXml(String(je.date || ""));
+    const totalDebit = Number(je.totalDebit || 0);
     xml += `    <Operation id="${entryId}">\n`;
     xml += `      <Number>${entryId}</Number>\n`;
     xml += `      <Date>${dateStr}</Date>\n`;
+    xml += `      <Posted>false</Posted>\n`;
     xml += `      <Comment>${escapeXml(je.description || "")}</Comment>\n`;
-    xml += `      <Amount>${je.totalDebit}</Amount>\n`;
+    xml += `      <Amount>${totalDebit}</Amount>\n`;
     xml += `      <Lines>\n`;
 
     je.lines.forEach((l, idx) => {
       xml += `        <Line num="${idx + 1}">\n`;
       xml += `          <AccountCode>${escapeXml(String(l.accountCode || ""))}</AccountCode>\n`;
       xml += `          <AccountName>${escapeXml(String(l.accountName || ""))}</AccountName>\n`;
-      xml += `          <Debit>${l.debit}</Debit>\n`;
-      xml += `          <Credit>${l.credit}</Credit>\n`;
+      xml += `          <Debit>${Number(l.debit || 0)}</Debit>\n`;
+      xml += `          <Credit>${Number(l.credit || 0)}</Credit>\n`;
       xml += `          <Memo>${escapeXml(String(l.memo || ""))}</Memo>\n`;
       xml += `        </Line>\n`;
     });

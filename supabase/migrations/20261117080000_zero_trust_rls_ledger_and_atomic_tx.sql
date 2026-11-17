@@ -557,7 +557,7 @@ BEGIN
 
     IF v_user_id IS NOT NULL THEN
         IF p_business_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
         END IF;
 
         v_user_role := public.get_auth_user_role(v_workspace_id, p_business_entity_id);
@@ -606,7 +606,7 @@ BEGIN
     END LOOP;
 
     IF v_total_debit <> v_total_credit THEN
-        RAISE EXCEPTION 'Balanssiz provodka rad etildi: Debet (%s) va Kredit (%s) summalari teng emas!',
+        RAISE EXCEPTION 'Balanssiz provodka rad etildi: Debet (%) va Kredit (%) summalari teng emas!',
             v_total_debit, v_total_credit;
     END IF;
 
@@ -926,7 +926,7 @@ BEGIN
 
     IF v_user_id IS NOT NULL THEN
         IF p_business_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
         END IF;
 
         v_user_role := public.get_auth_user_role(v_workspace_id, p_business_entity_id);
@@ -1163,7 +1163,7 @@ BEGIN
 
     IF v_user_id IS NOT NULL THEN
         IF p_business_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) ma''lumotlariga ruxsatga ega emassiz', p_business_entity_id;
         END IF;
 
         v_user_role := public.get_auth_user_role(v_workspace_id, p_business_entity_id);
@@ -1310,7 +1310,7 @@ BEGIN
 
     IF v_user_id IS NOT NULL THEN
         IF v_tx.business_entity_id NOT IN (SELECT public.get_auth_user_entities()) THEN
-            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%s) tranzaksiyasini o''zgartira olmaysiz', v_tx.business_entity_id;
+            RAISE EXCEPTION 'Kirish taqiqlangan: siz bu korxona (%) tranzaksiyasini o''zgartira olmaysiz', v_tx.business_entity_id;
         END IF;
 
         v_user_role := public.get_auth_user_role(v_workspace_id, v_tx.business_entity_id);

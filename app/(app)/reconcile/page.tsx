@@ -70,6 +70,7 @@ import {
   BookmarkCheck,
   Trash2,
   FolderOpen,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -149,6 +150,7 @@ function ReconcileContent() {
   // Paste dialog state
   const [pasteTarget, setPasteTarget] = useState<"bank" | "onec" | null>(null);
   const [pasteText, setPasteText] = useState("");
+  const [isPushingToOneCQueue, setIsPushingToOneCQueue] = useState(false);
 
   const loadHistory = useCallback(async () => {
     if (!currentEntity?.id) {
@@ -594,6 +596,56 @@ function ReconcileContent() {
     toast.success(d.toasts.exportedCsv);
   };
 
+  const handlePushTo1CDraftQueue = async () => {
+    if (!currentEntity?.id) {
+      toast.error(d.toasts.connectEntityToPost);
+      return;
+    }
+    const { targetRows } = getRowsForExport();
+    if (targetRows.length === 0) {
+      toast.error(d.toasts.noExportData);
+      return;
+    }
+    setIsPushingToOneCQueue(true);
+    try {
+      const drafts = targetRows.map((r, i) => ({
+        sourceKind: "bank_reconcile",
+        docType: r.type === "income" ? "bank_receipt" : "bank_payment",
+        docDate: r.date,
+        counterpartyName: sanitizeStringForAi(r.counterparty || "Nomaʼlum").trim(),
+        counterpartyStir: r.counterpartyStir,
+        amount: Math.abs(r.bankAmount || r.oneCAmount || 0),
+        debitAccount: r.type === "income" ? "5110" : (r.suggestedAccountCode || "6010"),
+        creditAccount: r.type === "income" ? (r.suggestedAccountCode || "4010") : "5110",
+        description: sanitizeStringForAi(`${r.counterparty} — ${r.bankItem?.description || r.explanation || ""}`).slice(0, 250),
+        idempotencyKey: `rec-${currentEntity.id}-${r.date}-${i}-${Math.abs(r.bankAmount || r.oneCAmount || 0)}`,
+      }));
+
+      const res = await fetch("/api/integrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "queue_reconcile_draft",
+          entityId: currentEntity.id,
+          drafts,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || "Qoralamalar navbatiga qoʻshishda xatolik");
+      }
+
+      toast.success(
+        `${drafts.length} ta operatsiya 1C Qoralamalar navbatiga qoʻshildi. Integratsiyalar boʻlimidan 1C ga uzatishingiz mumkin.`
+      );
+    } catch (err: any) {
+      toast.error(err?.message || "Xatolik yuz berdi");
+    } finally {
+      setIsPushingToOneCQueue(false);
+    }
+  };
+
   const handlePostSelectedToLedger = async () => {
     if (!currentEntity?.id) {
       toast.error(d.toasts.connectEntityToPost);
@@ -995,6 +1047,21 @@ function ReconcileContent() {
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleDownloadCsv}>
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 {d.exportCsvBtn}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-8 gap-1.5 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                disabled={isPushingToOneCQueue}
+                onClick={handlePushTo1CDraftQueue}
+                title="1C Qoralamalar navbatiga qoʻshish"
+              >
+                {isPushingToOneCQueue ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+                1C Qoralama
               </Button>
               {currentEntity?.id && (
                 <Button

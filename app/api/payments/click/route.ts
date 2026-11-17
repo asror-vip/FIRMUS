@@ -150,16 +150,42 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Update order state
-      await svc
-        .from("billing_orders")
-        .update({
-          provider_trans_id: String(clickTransId),
-          provider_state: 1,
-          provider_payload: payload,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", order.id);
+      // Atomic row lock & transaction claim
+      const { data: claimRes, error: claimErr } = await svc.rpc("claim_payment_provider_transaction", {
+        p_order_id: merchantTransId,
+        p_provider_trans_id: String(clickTransId),
+        p_payment_method: "click",
+        p_provider_create_time: Date.now(),
+        p_provider_payload: payload,
+        p_timeout_ms: 0,
+      });
+
+      if (claimErr || !claimRes) {
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          error: -9,
+          error_note: "Tranzaksiyani band qilishda xatolik",
+        });
+      }
+
+      const outcome = claimRes.outcome;
+      if (outcome === "already_paid") {
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          error: -4,
+          error_note: "Buyurtma allaqachon toʻlangan",
+        });
+      }
+      if (outcome === "conflict" || outcome === "wrong_method" || outcome === "invalid_status") {
+        return NextResponse.json({
+          click_trans_id: clickTransId,
+          merchant_trans_id: merchantTransId,
+          error: -9,
+          error_note: "Buyurtma boshqa tranzaksiya tomonidan band qilingan",
+        });
+      }
 
       return NextResponse.json({
         click_trans_id: clickTransId,
