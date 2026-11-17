@@ -951,10 +951,10 @@ function AssistantContent() {
 
         <Link
           href="/billing"
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 hover:bg-muted/70 px-3 py-1 text-xs transition-colors self-start sm:self-auto"
+          className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 px-3 py-1 text-xs transition-colors self-start sm:self-auto text-violet-200"
         >
-          <Sparkles className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-          <span className="font-medium text-foreground">
+          <Sparkles className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+          <span className="font-medium">
             {subscription.isTrialActive
               ? d.header.trialActive
               : subscription.trialAvailable
@@ -1010,7 +1010,7 @@ function AssistantContent() {
                   className={cn(
                     "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors shrink-0",
                     isSelected
-                      ? "bg-indigo-600 text-white shadow-sm"
+                      ? "bg-violet-600 text-white shadow-[0_0_12px_rgba(139,92,246,0.3)]"
                       : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
@@ -1037,7 +1037,7 @@ function AssistantContent() {
               e.preventDefault();
               handleDropImageToChat(e.dataTransfer?.files?.[0]);
             }}
-            className={`overflow-hidden ${isDraggingOverChat ? "border-indigo-500 ring-2 ring-indigo-500/30" : ""}`}
+            className={`overflow-hidden ${isDraggingOverChat ? "border-violet-500 ring-2 ring-violet-500/30" : ""}`}
           >
             <div className="flex flex-col md:flex-row min-h-[520px] md:h-[calc(100vh-210px)]">
               {/* Collapsible Chat History Sidebar */}
@@ -1243,7 +1243,7 @@ function AssistantContent() {
                   className="w-full h-24 border-dashed flex flex-col gap-1.5"
                   onClick={() => scanFileRef.current?.click()}
                 >
-                  <Upload className="h-5 w-5 text-indigo-600" />
+                  <Upload className="h-5 w-5 text-violet-400" />
                   <span>
                     {scanFileName ||
                       (subscription.limits.pdfAllowed ? d.scan.selectFilePdf : d.scan.selectFileImage)}
@@ -1256,7 +1256,7 @@ function AssistantContent() {
                 )}
                 <Button
                   type="button"
-                  className="w-full gap-1.5"
+                  className="w-full gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                   disabled={isScanning || !scanBase64}
                   onClick={handleRunScan}
                 >
@@ -1302,13 +1302,13 @@ function AssistantContent() {
                       </div>
                       <div>
                         <span className="text-[10px] text-muted-foreground">{d.scan.fields.vat12}</span>
-                        <div className="font-mono font-semibold text-emerald-600">
+                        <div className="font-mono font-semibold text-violet-400">
                           <Money amount={scanResult.vatAmount} />
                         </div>
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 space-y-1">
+                    <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3 space-y-1">
                       <div className="font-semibold text-foreground">
                         {d.scan.entryPrefix}: {d.calc.debitAbbr} {scanResult.suggestedDebitCode} / {d.calc.creditAbbr} {scanResult.suggestedCreditCode}
                         {scanResult.vatAmount > 0 ? ` (+ ${d.scan.vatTag} ${scanResult.vatAccountCode})` : ""}
@@ -1370,8 +1370,7 @@ function AssistantContent() {
                       {FEATURES.fullAccountingErp && (
                         <Button
                           size="sm"
-                          variant="success"
-                          className="flex-1 h-8 text-xs gap-1.5"
+                          className="flex-1 h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                           disabled={isPostingDoc || scanResult.totalAmount <= 0}
                           onClick={handlePostScannedToLedger}
                         >
@@ -1528,7 +1527,7 @@ function AssistantContent() {
                   </div>
                   <div className="flex justify-between border-t border-border pt-1.5">
                     <span className="font-semibold">{d.calc.payroll.netLabel}</span>
-                    <span className="font-mono font-bold text-emerald-600"><Money amount={payrollCalc.net} /></span>
+                    <span className="font-mono font-bold text-violet-400"><Money amount={payrollCalc.net} /></span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{d.calc.payroll.socialTaxLabel}</span>
@@ -1598,7 +1597,7 @@ function AssistantContent() {
                     </div>
                     <div>
                       <div className="text-[10px] text-muted-foreground">{d.calc.vat.vatLabel}</div>
-                      <div className="font-mono font-bold text-indigo-600"><Money amount={vatCalc.vat12} /></div>
+                      <div className="font-mono font-bold text-violet-400"><Money amount={vatCalc.vat12} /></div>
                     </div>
                     <div>
                       <div className="text-[10px] text-muted-foreground">{d.calc.vat.totalLabel}</div>
@@ -1640,7 +1639,7 @@ function AssistantContent() {
                     />
                     <div className="flex justify-between text-[11px]">
                       <span className="text-muted-foreground">{d.calc.other.vacationNetLabel}</span>
-                      <span className="font-mono font-bold text-emerald-600"><Money amount={vacationCalc.netVacation} /></span>
+                      <span className="font-mono font-bold text-violet-400"><Money amount={vacationCalc.netVacation} /></span>
                     </div>
                   </div>
                 </CardContent>
@@ -1718,8 +1717,8 @@ function AssistantContent() {
                   <>
                     <div className="font-medium text-foreground">{contractResult.provodkaExplanation}</div>
                     {!Array.isArray(contractResult.risks) || contractResult.risks.length === 0 ? (
-                      <div className="flex items-center gap-2 text-emerald-600 rounded-lg bg-emerald-500/10 p-3">
-                        <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <div className="flex items-center gap-2 text-violet-300 rounded-lg bg-violet-500/10 p-3">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-400" />
                         <span>{d.contract.noRisksFound}</span>
                       </div>
                     ) : (
@@ -1749,7 +1748,7 @@ function AssistantContent() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <History className="h-4 w-4 text-indigo-500" />
+                    <History className="h-4 w-4 text-violet-400" />
                     {d.history.title} ({allHistoryCount})
                   </CardTitle>
                   <CardDescription className="text-xs">
@@ -1820,7 +1819,7 @@ function AssistantContent() {
             <CardContent className="p-0 overflow-x-auto">
               {!isContextReady || isLoadingHistory ? (
                 <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                  <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
                   {d.history.loading}
                 </div>
               ) : !currentEntity?.id || allHistory.length === 0 ? (

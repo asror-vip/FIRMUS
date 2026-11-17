@@ -195,7 +195,7 @@ export function ChatImageInputBar({
             isBusy
               ? "bg-foreground text-background hover:opacity-85 shadow-sm"
               : canSend
-              ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm hover:scale-105 active:scale-95"
+              ? "bg-violet-600 text-white hover:bg-violet-500 shadow-[0_0_12px_rgba(139,92,246,0.35)] hover:scale-105 active:scale-95"
               : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
           )}
         >

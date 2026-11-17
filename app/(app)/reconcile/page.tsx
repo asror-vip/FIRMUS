@@ -4,9 +4,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback, Suspense } fr
 import { useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -796,210 +794,264 @@ function ReconcileContent() {
 
       <QuickEntityBanner />
 
-      {/* Two Upload Zones */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="border-dashed">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">{d.bankSectionTitle}</CardTitle>
-            <CardDescription className="text-xs">
+      {/* Two Upload Zones - Unified Segmented Panel */}
+      <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm divide-y md:divide-y-0 md:divide-x divide-border/60 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+        {/* Bank Statement Upload Segment */}
+        <div className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                {d.bankSectionTitle}
+              </span>
+              {bankItems.length > 0 && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+                  {bankItems.length} {d.operationsCountSuffix}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
               {d.bankFormatsHint}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2.5 text-xs">
-            <input
-              ref={bankInputRef}
-              type="file"
-              accept=".xlsx,.xls,.txt,.csv,.tsv"
-              className="hidden"
-              onChange={(e) => {
-                handleUploadFile("bank", e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
+            </p>
+          </div>
+
+          <input
+            ref={bankInputRef}
+            type="file"
+            accept=".xlsx,.xls,.txt,.csv,.tsv"
+            className="hidden"
+            onChange={(e) => {
+              handleUploadFile("bank", e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => bankInputRef.current?.click()}
+            className="w-full h-16 rounded-lg border border-dashed border-border/70 hover:border-violet-500/50 bg-muted/20 hover:bg-violet-500/5 transition-all flex flex-col items-center justify-center gap-1 group text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Upload className="h-4 w-4 text-violet-400 group-hover:scale-110 transition-transform" />
+            <span className="truncate max-w-[280px] font-medium">{bankFileName || d.bankUploadPrompt}</span>
+          </button>
+
+          <div className="flex items-center justify-between gap-2 pt-1">
             <Button
               type="button"
-              variant="outline"
-              className="w-full h-16 border-dashed flex flex-col gap-1"
-              onClick={() => bankInputRef.current?.click()}
+              variant="ghost"
+              size="sm"
+              className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-violet-300 hover:bg-violet-500/10"
+              onClick={() => {
+                setPasteTarget("bank");
+                setPasteText("");
+              }}
             >
-              <Upload className="h-4 w-4 text-indigo-600" />
-              <span>{bankFileName || d.bankUploadPrompt}</span>
+              <ClipboardPaste className="h-3 w-3" />
+              {d.pasteFromTableBtn}
             </Button>
-            <div className="flex items-center justify-between gap-2">
+          </div>
+        </div>
+
+        {/* 1C Export Upload Segment */}
+        <div className="p-4 sm:p-5 flex flex-col justify-between space-y-3">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                {d.oneCSectionTitle}
+              </span>
+              {oneCItems.length > 0 && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+                  {oneCItems.length} {d.recordsCountSuffix}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {d.oneCFormatsHint}
+            </p>
+          </div>
+
+          <input
+            ref={oneCInputRef}
+            type="file"
+            accept=".xlsx,.xls,.xml,.txt,.csv,.tsv"
+            className="hidden"
+            onChange={(e) => {
+              handleUploadFile("onec", e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => oneCInputRef.current?.click()}
+            className="w-full h-16 rounded-lg border border-dashed border-border/70 hover:border-violet-500/50 bg-muted/20 hover:bg-violet-500/5 transition-all flex flex-col items-center justify-center gap-1 group text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Upload className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
+            <span className="truncate max-w-[280px] font-medium">{oneCFileName || d.oneCUploadPrompt}</span>
+          </button>
+
+          <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-purple-300 hover:bg-violet-500/10"
+              onClick={() => {
+                setPasteTarget("onec");
+                setPasteText("");
+              }}
+            >
+              <ClipboardPaste className="h-3 w-3" />
+              {d.pasteBtn}
+            </Button>
+            {FEATURES.fullAccountingErp && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setPasteTarget("bank");
-                  setPasteText("");
-                }}
+                className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-violet-300 hover:bg-violet-500/10"
+                onClick={handleLoadDbAs1C}
               >
-                <ClipboardPaste className="h-3 w-3" />
-                {d.pasteFromTableBtn}
+                <Database className="h-3 w-3" />
+                {d.siteDbBtn}
               </Button>
-              {bankItems.length > 0 && (
-                <Badge variant="outline" className="text-[10px]">
-                  {bankItems.length} {d.operationsCountSuffix}
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-dashed">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">{d.oneCSectionTitle}</CardTitle>
-            <CardDescription className="text-xs">
-              {d.oneCFormatsHint}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2.5 text-xs">
-            <input
-              ref={oneCInputRef}
-              type="file"
-              accept=".xlsx,.xls,.xml,.txt,.csv,.tsv"
-              className="hidden"
-              onChange={(e) => {
-                handleUploadFile("onec", e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-16 border-dashed flex flex-col gap-1"
-              onClick={() => oneCInputRef.current?.click()}
-            >
-              <Upload className="h-4 w-4 text-emerald-600" />
-              <span>{oneCFileName || d.oneCUploadPrompt}</span>
-            </Button>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setPasteTarget("onec");
-                    setPasteText("");
-                  }}
-                >
-                  <ClipboardPaste className="h-3 w-3" />
-                  {d.pasteBtn}
-                </Button>
-                {FEATURES.fullAccountingErp && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-[11px] h-7 px-2 gap-1 text-muted-foreground hover:text-foreground"
-                    onClick={handleLoadDbAs1C}
-                  >
-                    <Database className="h-3 w-3" />
-                    {d.siteDbBtn}
-                  </Button>
-                )}
-              </div>
-              {oneCItems.length > 0 && (
-                <Badge variant="outline" className="text-[10px]">
-                  {oneCItems.length} {d.recordsCountSuffix}
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Results & Actions */}
       {summary && (
         <>
-          {/* Count KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Card className="cursor-pointer hover:border-emerald-500/50" onClick={() => setActiveTab("matched")}>
-              <CardContent className="pt-4 pb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">{d.kpiMatched}</p>
-                  <p className="text-xl font-bold text-emerald-600">{summary.matchedCount}</p>
-                </div>
-                <CheckCircle2 className="h-6 w-6 text-emerald-500/70" />
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer hover:border-amber-500/50" onClick={() => setActiveTab("amount_mismatch")}>
-              <CardContent className="pt-4 pb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">{d.kpiMismatch}</p>
-                  <p className="text-xl font-bold text-amber-600">{summary.mismatchCount}</p>
-                </div>
-                <AlertTriangle className="h-6 w-6 text-amber-500/70" />
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer hover:border-rose-500/50" onClick={() => setActiveTab("bank_only")}>
-              <CardContent className="pt-4 pb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">{d.kpiBankOnly}</p>
-                  <p className="text-xl font-bold text-rose-600">{summary.bankOnlyCount}</p>
-                </div>
-                <XCircle className="h-6 w-6 text-rose-500/70" />
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer hover:border-indigo-500/50" onClick={() => setActiveTab("one_c_only")}>
-              <CardContent className="pt-4 pb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">{d.kpiOneCOnly}</p>
-                  <p className="text-xl font-bold text-indigo-600">{summary.oneCOnlyCount}</p>
-                </div>
-                <AlertTriangle className="h-6 w-6 text-indigo-500/70" />
-              </CardContent>
-            </Card>
+          {/* Continuous Datara Metric Ribbon */}
+          <div className="rounded-xl border border-border/60 bg-card/40 backdrop-blur-sm divide-y sm:divide-y-0 sm:divide-x divide-border/60 grid grid-cols-2 lg:grid-cols-4 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setActiveTab("matched")}
+              className={`p-4 sm:p-5 text-left transition-colors flex flex-col justify-between ${
+                activeTab === "matched" ? "bg-violet-500/10" : "hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center justify-between text-muted-foreground mb-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+                  {d.kpiMatched}
+                </span>
+                <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+                {summary.matchedCount}
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+                <CheckCircle2 className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                <span className="truncate">{d.statusMatched}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("amount_mismatch")}
+              className={`p-4 sm:p-5 text-left transition-colors flex flex-col justify-between ${
+                activeTab === "amount_mismatch" ? "bg-violet-500/10" : "hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center justify-between text-muted-foreground mb-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+                  {d.kpiMismatch}
+                </span>
+                <span className="h-2 w-2 rounded-full bg-purple-300 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+                {summary.mismatchCount}
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+                <AlertTriangle className="h-3.5 w-3.5 text-purple-300 shrink-0" />
+                <span className="truncate">{d.statusMismatch}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("bank_only")}
+              className={`p-4 sm:p-5 text-left transition-colors flex flex-col justify-between ${
+                activeTab === "bank_only" ? "bg-violet-500/10" : "hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center justify-between text-muted-foreground mb-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+                  {d.kpiBankOnly}
+                </span>
+                <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+                {summary.bankOnlyCount}
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+                <XCircle className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                <span className="truncate">{d.statusBankOnly}</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("one_c_only")}
+              className={`p-4 sm:p-5 text-left transition-colors flex flex-col justify-between ${
+                activeTab === "one_c_only" ? "bg-violet-500/10" : "hover:bg-muted/30"
+              }`}
+            >
+              <div className="flex items-center justify-between text-muted-foreground mb-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
+                  {d.kpiOneCOnly}
+                </span>
+                <span className="h-2 w-2 rounded-full bg-purple-400/80 shadow-[0_0_8px_rgba(168,85,247,0.4)]" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
+                {summary.oneCOnlyCount}
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+                <AlertTriangle className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                <span className="truncate">{d.statusOneCOnly}</span>
+              </div>
+            </button>
           </div>
 
-          {/* Bank vs 1C Turnover Summary Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-            <Card className="bg-muted/20">
-              <CardContent className="py-3 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">{d.totalIncomeLabel}</p>
-                  <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
-                    <span className="text-emerald-600">
-                      <Money amount={summary.bankTotalIncome} />
-                    </span>
-                    <span className="text-muted-foreground">/</span>
-                    <span>
-                      <Money amount={summary.oneCTotalIncome} />
-                    </span>
-                  </div>
+          {/* Bank vs 1C Turnover Summary Segmented Ribbon */}
+          <div className="rounded-xl border border-border/50 bg-card/25 backdrop-blur-sm divide-y md:divide-y-0 md:divide-x divide-border/50 grid grid-cols-1 md:grid-cols-2 overflow-hidden text-xs">
+            <div className="p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[11px] text-muted-foreground">{d.totalIncomeLabel}</p>
+                <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
+                  <span className="text-violet-400">
+                    <Money amount={summary.bankTotalIncome} />
+                  </span>
+                  <span className="text-muted-foreground">/</span>
+                  <span className="text-muted-foreground">
+                    <Money amount={summary.oneCTotalIncome} />
+                  </span>
                 </div>
-                <Badge variant={incomeDiff === 0 ? "success" : "warning"} className="font-mono text-[10px]">
-                  {incomeDiff === 0
-                    ? d.incomeMatchedZero
-                    : `${d.diffPrefix}: ${incomeDiff > 0 ? "+" : ""}${incomeDiff.toLocaleString(intlLocale)}`}
-                </Badge>
-              </CardContent>
-            </Card>
-            <Card className="bg-muted/20">
-              <CardContent className="py-3 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">{d.totalExpenseLabel}</p>
-                  <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
-                    <span className="text-rose-600">
-                      <Money amount={summary.bankTotalExpense} />
-                    </span>
-                    <span className="text-muted-foreground">/</span>
-                    <span>
-                      <Money amount={summary.oneCTotalExpense} />
-                    </span>
-                  </div>
+              </div>
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+                {incomeDiff === 0
+                  ? d.incomeMatchedZero
+                  : `${d.diffPrefix}: ${incomeDiff > 0 ? "+" : ""}${incomeDiff.toLocaleString(intlLocale)}`}
+              </span>
+            </div>
+
+            <div className="p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[11px] text-muted-foreground">{d.totalExpenseLabel}</p>
+                <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
+                  <span className="text-purple-300">
+                    <Money amount={summary.bankTotalExpense} />
+                  </span>
+                  <span className="text-muted-foreground">/</span>
+                  <span className="text-muted-foreground">
+                    <Money amount={summary.oneCTotalExpense} />
+                  </span>
                 </div>
-                <Badge variant={expenseDiff === 0 ? "success" : "warning"} className="font-mono text-[10px]">
-                  {expenseDiff === 0
-                    ? d.expenseMatchedZero
-                    : `${d.diffPrefix}: ${expenseDiff > 0 ? "+" : ""}${expenseDiff.toLocaleString(intlLocale)}`}
-                </Badge>
-              </CardContent>
-            </Card>
+              </div>
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 font-medium">
+                {expenseDiff === 0
+                  ? d.expenseMatchedZero
+                  : `${d.diffPrefix}: ${expenseDiff > 0 ? "+" : ""}${expenseDiff.toLocaleString(intlLocale)}`}
+              </span>
+            </div>
           </div>
 
           {/* Action & Filter Toolbar */}
@@ -1029,7 +1081,7 @@ function ReconcileContent() {
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
-                className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white gap-1.5 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                 disabled={isAiChecking}
                 onClick={handleAiVerify}
               >
@@ -1074,7 +1126,7 @@ function ReconcileContent() {
                   {isSavingBatch ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <BookmarkCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    <BookmarkCheck className="h-3.5 w-3.5 text-violet-400" />
                   )}
                   {activeBatchId ? d.savedBtn : d.saveToHistoryBtn}
                 </Button>
@@ -1082,8 +1134,7 @@ function ReconcileContent() {
               {FEATURES.fullAccountingErp && selectedIds.length > 0 && (
                 <Button
                   size="sm"
-                  variant="success"
-                  className="text-xs h-8 gap-1.5"
+                  className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
                   disabled={isPostingLedger}
                   onClick={handlePostSelectedToLedger}
                 >
@@ -1095,15 +1146,15 @@ function ReconcileContent() {
           </div>
 
           {aiModeNote && (
-            <div className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1.5">
+            <div className="text-[11px] text-violet-400 font-medium flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               {aiModeNote}
             </div>
           )}
 
           {/* Diff Table */}
-          <Card>
-            <CardContent className="p-0 overflow-x-auto">
+          <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+            <div className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1154,10 +1205,26 @@ function ReconcileContent() {
                           />
                         </TableCell>
                         <TableCell>
-                          {row.status === "matched" && <Badge variant="success" className="text-[10px]">{d.statusMatched}</Badge>}
-                          {row.status === "amount_mismatch" && <Badge variant="warning" className="text-[10px]">{d.statusMismatch}</Badge>}
-                          {row.status === "bank_only" && <Badge variant="destructive" className="text-[10px]">{d.statusBankOnly}</Badge>}
-                          {row.status === "one_c_only" && <Badge variant="outline" className="text-[10px]">{d.statusOneCOnly}</Badge>}
+                          {row.status === "matched" && (
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+                              {d.statusMatched}
+                            </span>
+                          )}
+                          {row.status === "amount_mismatch" && (
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 font-medium">
+                              {d.statusMismatch}
+                            </span>
+                          )}
+                          {row.status === "bank_only" && (
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-400/30 bg-violet-500/15 text-violet-200 font-medium">
+                              {d.statusBankOnly}
+                            </span>
+                          )}
+                          {row.status === "one_c_only" && (
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-border/60 bg-muted/40 text-muted-foreground font-medium">
+                              {d.statusOneCOnly}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="font-mono text-[11px] whitespace-nowrap">{row.date}</TableCell>
                         <TableCell className="font-medium min-w-[160px]">
@@ -1168,7 +1235,7 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell className="text-right font-mono whitespace-nowrap">
                           {row.bankAmount > 0 ? (
-                            <span className={row.type === "income" ? "text-emerald-600" : "text-foreground"}>
+                            <span className={row.type === "income" ? "text-violet-400" : "text-foreground"}>
                               <Money amount={row.bankAmount} />
                             </span>
                           ) : (
@@ -1198,7 +1265,7 @@ function ReconcileContent() {
                             onClick={() => handleToggleRowVat(row.id)}
                             className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
                               row.vatIncluded
-                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                ? "border-violet-500/30 bg-violet-500/10 text-violet-300"
                                 : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
                             }`}
                             title={d.vatToggleTitle}
@@ -1208,7 +1275,7 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell className="max-w-[280px] text-[11px] text-muted-foreground">
                           <div className="flex items-start gap-1">
-                            {row.aiVerified && <Sparkles className="h-3 w-3 text-indigo-500 shrink-0 mt-0.5" />}
+                            {row.aiVerified && <Sparkles className="h-3 w-3 text-violet-400 shrink-0 mt-0.5" />}
                             <span>{row.explanation}</span>
                           </div>
                         </TableCell>
@@ -1224,21 +1291,20 @@ function ReconcileContent() {
                 itemLabel={d.rowItemLabel}
                 onPageChange={setRowsPage}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </>
       )}
 
       {/* Saved Batch History organized by Month (10 per page from DB) */}
       {currentEntity?.id && (
-        <div ref={historyCardRef} id="reconcile-history">
-        <Card>
-          <CardHeader className="pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div ref={historyCardRef} id="reconcile-history" className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
+          <div className="p-4 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/40">
             <div className="flex items-center gap-2">
-              <History className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-semibold">
+              <History className="h-4 w-4 text-violet-400" />
+              <span className="text-sm font-semibold text-foreground">
                 {d.historyTitle} ({savedBatchesCount})
-              </CardTitle>
+              </span>
             </div>
             {historyMonths.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -1271,11 +1337,11 @@ function ReconcileContent() {
                   ))}
               </div>
             )}
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
+          </div>
+          <div className="p-0 overflow-x-auto">
             {isLoadingHistory ? (
               <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
                 {d.historyLoading}
               </div>
             ) : savedBatches.length === 0 ? (
@@ -1285,23 +1351,23 @@ function ReconcileContent() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>{d.histColMonth}</TableHead>
-                    <TableHead>{d.histColFiles}</TableHead>
-                    <TableHead className="text-right">{d.histColRows}</TableHead>
-                    <TableHead className="text-right">{d.histColBankIncome}</TableHead>
-                    <TableHead className="text-right">{d.histColBankExpense}</TableHead>
-                    <TableHead>{d.histColStatus}</TableHead>
-                    <TableHead className="text-right">{d.histColAction}</TableHead>
+                  <TableRow className="border-border/40 hover:bg-transparent">
+                    <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.histColMonth}</TableHead>
+                    <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.histColFiles}</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.histColRows}</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.histColBankIncome}</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.histColBankExpense}</TableHead>
+                    <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{d.histColStatus}</TableHead>
+                    <TableHead className="text-right text-[11px] uppercase font-medium text-muted-foreground">{d.histColAction}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {savedBatches.map((b) => (
-                      <TableRow key={b.id} className="text-xs">
-                        <TableCell className="font-mono text-[11px] whitespace-nowrap">{b.periodMonth}</TableCell>
+                      <TableRow key={b.id} className="text-xs border-border/30 hover:bg-muted/30 transition-colors">
+                        <TableCell className="font-mono text-[11px] text-muted-foreground whitespace-nowrap">{b.periodMonth}</TableCell>
                         <TableCell className="font-medium max-w-[260px] truncate">{b.title}</TableCell>
                         <TableCell className="text-right font-mono">{b.rowCount}</TableCell>
-                        <TableCell className="text-right font-mono text-emerald-600">
+                        <TableCell className="text-right font-mono text-violet-400">
                           <Money amount={b.totalIncome} />
                         </TableCell>
                         <TableCell className="text-right font-mono">
@@ -1309,9 +1375,9 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell>
                           {b.status === "posted_to_ledger" ? (
-                            <Badge variant="success" className="text-[10px]">{d.histStatusPosted}</Badge>
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300">{d.histStatusPosted}</span>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">{d.histStatusReviewed}</Badge>
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-border/60 bg-muted/40 text-muted-foreground">{d.histStatusReviewed}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
@@ -1320,7 +1386,7 @@ function ReconcileContent() {
                               type="button"
                               size="sm"
                               variant="outline"
-                              className="h-7 text-[11px] gap-1 px-2"
+                              className="h-7 text-[11px] gap-1 px-2 border-border/60 hover:bg-violet-500/10 hover:text-violet-300"
                               disabled={openingBatchId === b.id}
                               onClick={() => handleOpenBatch(b)}
                             >
@@ -1356,8 +1422,7 @@ function ReconcileContent() {
               itemLabel={d.historyItemLabel}
               onPageChange={setHistoryPage}
             />
-          </CardContent>
-        </Card>
+          </div>
         </div>
       )}
 

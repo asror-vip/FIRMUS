@@ -21,12 +21,12 @@ export function AiEmptyHero({
     <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="relative mb-4 flex items-center justify-center">
         <div
-          className={`absolute rounded-full bg-gradient-to-tr from-indigo-500/30 via-violet-500/25 to-cyan-400/25 blur-xl animate-pulse ${
+          className={`absolute rounded-full bg-gradient-to-tr from-violet-600/30 via-purple-600/25 to-violet-400/25 blur-xl animate-pulse ${
             compact ? "h-14 w-14" : "h-20 w-20"
           }`}
         />
         <div
-          className={`ai-orb-float relative flex items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/25 ring-1 ring-white/20 ${
+          className={`ai-orb-float relative flex items-center justify-center rounded-2xl bg-gradient-to-tr from-violet-600 via-purple-600 to-violet-500 text-white shadow-lg shadow-violet-500/25 ring-1 ring-white/20 ${
             compact ? "h-10 w-10" : "h-12 w-12"
           }`}
         >
@@ -54,7 +54,7 @@ export function AiThinkingBubble() {
       className="flex items-start gap-2.5 max-w-[85%] animate-in fade-in duration-200"
       aria-label={d.shared.aiChatVisuals.thinkingLabel}
     >
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-sm">
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-purple-500 text-white shadow-sm">
         <Sparkles className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: "2.8s" }} />
       </div>
       <div className="flex-1 space-y-2 py-1.5 min-w-[180px] sm:min-w-[240px]">

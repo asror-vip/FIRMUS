@@ -60,7 +60,7 @@ export function AiModelSelector({ compact = false }: { compact?: boolean }) {
                 <Sparkles
                   className={cn(
                     "h-2.5 w-2.5 shrink-0",
-                    isSelected ? "text-indigo-500" : "text-muted-foreground/70"
+                    isSelected ? "text-violet-400" : "text-muted-foreground/70"
                   )}
                 />
               )}
