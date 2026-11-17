@@ -1,7 +1,135 @@
 import { roundMoney } from "@/lib/utils/finance";
+import { getTashkentTodayIso } from "@/lib/format/date";
 
 export const LEX_UZ_TAX_CODE_URL = "https://lex.uz/docs/4674902";
 export const LEX_UZ_BHMS21_URL = "https://lex.uz/docs/-7315183";
+
+export interface UzTaxRulesVersion {
+  versionId: string;
+  effectiveYear: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  vatRate: number;
+  jshdsRate: number;
+  inpsRate: number;
+  socialTaxRate: number;
+  corporateTaxRate: number;
+  dividendResidentRate: number;
+  dividendNonResidentRate: number;
+  turnoverRates: {
+    trade: number;
+    services: number;
+    catering: number;
+    ecommerce: number;
+    export: number;
+  };
+  articles: {
+    payroll: string;
+    vat: string;
+    turnover: string;
+    corporate: string;
+    dividendResident: string;
+    dividendNonResident: string;
+  };
+}
+
+export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
+  "2025": {
+    versionId: "UZ-SK-2025.1",
+    effectiveYear: 2025,
+    effectiveFrom: "2025-01-01",
+    effectiveTo: "2025-12-31",
+    vatRate: 0.12,
+    jshdsRate: 0.12,
+    inpsRate: 0.001,
+    socialTaxRate: 0.12,
+    corporateTaxRate: 0.15,
+    dividendResidentRate: 0.05,
+    dividendNonResidentRate: 0.1,
+    turnoverRates: {
+      trade: 0.04,
+      services: 0.04,
+      catering: 0.04,
+      ecommerce: 0.02,
+      export: 0.0,
+    },
+    articles: {
+      payroll: "Soliq kodeksi 381-modda (JShDS 12%) va 405-modda (Ijtimoiy soliq 12%)",
+      vat: "Soliq kodeksi 258-modda (QQS stavkasi 12%)",
+      turnover: "Soliq kodeksi 467-modda (Aylanmadan olinadigan soliq 4%)",
+      corporate: "Soliq kodeksi 337-modda (Foyda soligʻi asosiy stavkasi 15%)",
+      dividendResident: "Soliq kodeksi 381-modda (Oʻzbekiston rezidentlari dividendlariga 5% soliq stavkasi)",
+      dividendNonResident: "Soliq kodeksi 353-modda (Norezidentlar dividendlariga 10% soliq stavkasi)",
+    },
+  },
+  "2026": {
+    versionId: "UZ-SK-2026.1",
+    effectiveYear: 2026,
+    effectiveFrom: "2026-01-01",
+    effectiveTo: null,
+    vatRate: 0.12,
+    jshdsRate: 0.12,
+    inpsRate: 0.001,
+    socialTaxRate: 0.12,
+    corporateTaxRate: 0.15,
+    dividendResidentRate: 0.05,
+    dividendNonResidentRate: 0.1,
+    turnoverRates: {
+      trade: 0.04,
+      services: 0.04,
+      catering: 0.04,
+      ecommerce: 0.02,
+      export: 0.0,
+    },
+    articles: {
+      payroll: "Soliq kodeksi 381-modda (JShDS 12%) va 405-modda (Ijtimoiy soliq 12%)",
+      vat: "Soliq kodeksi 258-modda (QQS stavkasi 12%)",
+      turnover: "Soliq kodeksi 467-modda (Aylanmadan olinadigan soliq 4%)",
+      corporate: "Soliq kodeksi 337-modda (Foyda soligʻi asosiy stavkasi 15%)",
+      dividendResident: "Soliq kodeksi 381-modda (Oʻzbekiston rezidentlari dividendlariga 5% soliq stavkasi)",
+      dividendNonResident: "Soliq kodeksi 353-modda (Norezidentlar dividendlariga 10% soliq stavkasi)",
+    },
+  },
+};
+
+export function resolveUzTaxRules(dateOrYear?: string | number): UzTaxRulesVersion {
+  const defaultYear = getTashkentTodayIso().slice(0, 4);
+  if (dateOrYear === undefined || dateOrYear === null || String(dateOrYear).trim() === "") {
+    return UZ_TAX_RULES_VERSIONS[defaultYear] ?? UZ_TAX_RULES_VERSIONS["2026"];
+  }
+
+  const raw = typeof dateOrYear === "number" ? String(Math.trunc(dateOrYear)) : String(dateOrYear).trim();
+
+  if (UZ_TAX_RULES_VERSIONS[raw]) {
+    return UZ_TAX_RULES_VERSIONS[raw];
+  }
+
+  const versionMatch = Object.values(UZ_TAX_RULES_VERSIONS).find((v) => v.versionId === raw);
+  if (versionMatch) {
+    return versionMatch;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const isoDate = raw.slice(0, 10);
+    const byDate = Object.values(UZ_TAX_RULES_VERSIONS).find(
+      (v) => isoDate >= v.effectiveFrom && (v.effectiveTo === null || isoDate <= v.effectiveTo)
+    );
+    if (byDate) return byDate;
+  }
+
+  const yearMatch = raw.match(/\b(20\d{2})\b/);
+  if (yearMatch) {
+    const yr = Number(yearMatch[1]);
+    if (UZ_TAX_RULES_VERSIONS[String(yr)]) {
+      return UZ_TAX_RULES_VERSIONS[String(yr)];
+    }
+    if (yr <= 2025) {
+      return UZ_TAX_RULES_VERSIONS["2025"];
+    }
+  }
+
+  return UZ_TAX_RULES_VERSIONS[defaultYear] ?? UZ_TAX_RULES_VERSIONS["2026"];
+}
 
 export interface ProvodkaLine {
   debitCode: string;
@@ -18,6 +146,8 @@ export interface PayrollCalculationResult {
   jshdsBudget: number;
   socialTax12: number;
   totalEmployerCost: number;
+  taxRuleVersion: string;
+  effectiveYear: number;
   taxArticleRef: string;
   lexUrl: string;
   provodka: ProvodkaLine[];
@@ -26,22 +156,26 @@ export interface PayrollCalculationResult {
 export function calculatePayrollUz(params: {
   amount: number;
   direction: "gross_to_net" | "net_to_gross";
+  taxYear?: number | string;
+  effectiveDate?: string;
 }): PayrollCalculationResult {
+  const rules = resolveUzTaxRules(params?.effectiveDate ?? params?.taxYear);
   const rawAmount = Number.isFinite(params?.amount) ? params.amount : 0;
   const input = Math.max(0, roundMoney(rawAmount));
+  const netRatio = 1 - rules.jshdsRate;
   const gross =
     params.direction === "net_to_gross"
-      ? roundMoney(input / 0.88)
+      ? roundMoney(input / netRatio)
       : input;
   const net =
     params.direction === "net_to_gross"
       ? input
-      : roundMoney(gross - roundMoney(gross * 0.12));
+      : roundMoney(gross - roundMoney(gross * rules.jshdsRate));
 
   const jshds12 = roundMoney(gross - net);
-  const inps01 = roundMoney(gross * 0.001);
+  const inps01 = roundMoney(gross * rules.inpsRate);
   const jshdsBudget = roundMoney(Math.max(0, jshds12 - inps01));
-  const socialTax12 = roundMoney(gross * 0.12);
+  const socialTax12 = roundMoney(gross * rules.socialTaxRate);
   const totalEmployerCost = roundMoney(gross + socialTax12);
 
   return {
@@ -52,7 +186,9 @@ export function calculatePayrollUz(params: {
     jshdsBudget,
     socialTax12,
     totalEmployerCost,
-    taxArticleRef: "Soliq kodeksi 381-modda (JShDS 12%) va 405-modda (Ijtimoiy soliq 12%)",
+    taxRuleVersion: rules.versionId,
+    effectiveYear: rules.effectiveYear,
+    taxArticleRef: rules.articles.payroll,
     lexUrl: LEX_UZ_TAX_CODE_URL,
     provodka: [
       { debitCode: "9420", creditCode: "6710", amount: gross, description: "Ish haqi hisoblandi (Brutto)" },
@@ -67,6 +203,8 @@ export interface VatCalculationResult {
   net: number;
   vat12: number;
   total: number;
+  taxRuleVersion: string;
+  effectiveYear: number;
   taxArticleRef: string;
   lexUrl: string;
   saleProvodka: ProvodkaLine[];
@@ -76,7 +214,11 @@ export interface VatCalculationResult {
 export function calculateVatUz(params: {
   amount: number;
   mode: "included" | "excluded";
+  taxYear?: number | string;
+  effectiveDate?: string;
 }): VatCalculationResult {
+  const rules = resolveUzTaxRules(params?.effectiveDate ?? params?.taxYear);
+  const vatPct = Math.round(rules.vatRate * 100);
   const rawAmount = Number.isFinite(params?.amount) ? params.amount : 0;
   const input = Math.max(0, roundMoney(rawAmount));
   let net: number;
@@ -85,11 +227,11 @@ export function calculateVatUz(params: {
 
   if (params.mode === "included") {
     total = input;
-    vat12 = roundMoney((total * 12) / 112);
+    vat12 = roundMoney((total * vatPct) / (100 + vatPct));
     net = roundMoney(total - vat12);
   } else {
     net = input;
-    vat12 = roundMoney(net * 0.12);
+    vat12 = roundMoney(net * rules.vatRate);
     total = roundMoney(net + vat12);
   }
 
@@ -97,26 +239,47 @@ export function calculateVatUz(params: {
     net,
     vat12,
     total,
-    taxArticleRef: "Soliq kodeksi 258-modda (QQS stavkasi 12%)",
+    taxRuleVersion: rules.versionId,
+    effectiveYear: rules.effectiveYear,
+    taxArticleRef: rules.articles.vat,
     lexUrl: LEX_UZ_TAX_CODE_URL,
     saleProvodka: [
       { debitCode: "4010", creditCode: "9030", amount: net, description: "Sotuv daromadi (QQSsiz)" },
-      { debitCode: "4010", creditCode: "6410", amount: vat12, description: "Chiquvchi QQS 12% budjetga" },
+      { debitCode: "4010", creditCode: "6410", amount: vat12, description: `Chiquvchi QQS ${vatPct}% budjetga` },
     ],
     purchaseProvodka: [
       { debitCode: "6010", creditCode: "5110", amount: total, description: "Yetkazib beruvchiga jami toʻlov" },
-      { debitCode: "4410", creditCode: "6010", amount: vat12, description: "Kiruvchi QQS 12% hisobga (zachyot)" },
+      { debitCode: "4410", creditCode: "6010", amount: vat12, description: `Kiruvchi QQS ${vatPct}% hisobga (zachyot)` },
     ],
   };
+}
+
+export interface TurnoverTaxCalculationResult {
+  revenue: number;
+  ratePercent: number;
+  tax: number;
+  netAfterTax: number;
+  taxRuleVersion: string;
+  effectiveYear: number;
+  taxArticleRef: string;
+  lexUrl: string;
+  provodka: ProvodkaLine[];
 }
 
 export function calculateTurnoverTaxUz(params: {
   revenue: number;
   ratePercent?: number;
-}) {
+  category?: keyof UzTaxRulesVersion["turnoverRates"];
+  taxYear?: number | string;
+  effectiveDate?: string;
+}): TurnoverTaxCalculationResult {
+  const rules = resolveUzTaxRules(params?.effectiveDate ?? params?.taxYear);
   const rawRevenue = Number.isFinite(params?.revenue) ? params.revenue : 0;
   const revenue = Math.max(0, roundMoney(rawRevenue));
-  const rate = Number.isFinite(params?.ratePercent) ? params.ratePercent! : 4;
+  const defaultRatePct = params?.category && params.category in rules.turnoverRates
+    ? roundMoney(rules.turnoverRates[params.category] * 100)
+    : roundMoney(rules.turnoverRates.trade * 100);
+  const rate = Number.isFinite(params?.ratePercent) ? params.ratePercent! : defaultRatePct;
   const tax = roundMoney(revenue * (rate / 100));
   const netAfterTax = roundMoney(revenue - tax);
   return {
@@ -124,7 +287,9 @@ export function calculateTurnoverTaxUz(params: {
     ratePercent: rate,
     tax,
     netAfterTax,
-    taxArticleRef: "Soliq kodeksi 467-modda (Aylanmadan olinadigan soliq 4%)",
+    taxRuleVersion: rules.versionId,
+    effectiveYear: rules.effectiveYear,
+    taxArticleRef: rules.articles.turnover,
     lexUrl: LEX_UZ_TAX_CODE_URL,
     provodka: [
       { debitCode: "9430", creditCode: "6410", amount: tax, description: `Aylanmadan soliq (${rate}%) hisoblandi` },

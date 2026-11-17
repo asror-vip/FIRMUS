@@ -155,18 +155,33 @@ export function AppStateProvider({
 
   const syncRoleForWorkspace = useCallback(async (authUser: any, wsId: string) => {
     if (!FEATURES.teamMode || !authUser || !wsId) return;
+    const { data: rpcRole, error: rpcErr } = await supabase.rpc("get_auth_user_role", {
+      target_workspace_id: wsId,
+    });
+    if (!rpcErr && typeof rpcRole === "string" && rpcRole.trim()) {
+      setCurrentRole(rpcRole.trim() as UserRole);
+      return;
+    }
+
+    const { data: ws } = await supabase
+      .from("workspaces")
+      .select("owner_user_id")
+      .eq("id", wsId)
+      .maybeSingle();
+    if (ws?.owner_user_id === authUser.id) {
+      setCurrentRole("workspace_owner");
+      return;
+    }
+
     const { data: member } = await supabase
       .from("team_members")
       .select("role")
       .eq("workspace_id", wsId)
-      .or(`user_id.eq.${authUser.id},email.ilike.${authUser.email || ""}`)
+      .eq("user_id", authUser.id)
+      .eq("status", "active")
       .maybeSingle();
 
-    if (member?.role) {
-      setCurrentRole(member.role as UserRole);
-    } else if (authUser.user_metadata?.role) {
-      setCurrentRole(authUser.user_metadata.role as UserRole);
-    }
+    setCurrentRole((member?.role as UserRole) || "viewer");
   }, []);
 
   const ensureSoloContext = useCallback(async (authUser: any) => {

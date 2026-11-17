@@ -127,10 +127,13 @@ export const enTranslations: Translations = {
   },
   roles: {
     workspace_owner: "Workspace Owner",
+    workspace_admin: "Workspace Admin",
     chief_accountant: "Chief Accountant",
     accountant: "Accountant",
     auditor: "Auditor (Read-Only)",
     company_director: "Managing Director",
+    admin: "Admin",
+    director: "Director",
     viewer: "Viewer",
   },
   aiDrawer: {

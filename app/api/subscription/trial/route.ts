@@ -30,7 +30,7 @@ function extractClientIp(req: NextRequest): string {
       .map((s) => s.trim())
       .filter(Boolean);
     if (parts.length > 0) {
-      return parts[parts.length - 1];
+      return parts[0];
     }
   }
 
@@ -49,6 +49,18 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
+    }
+
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        {
+          error: localizeServerError(
+            "Bepul sinov muddatini faollashtirish uchun avval elektron pochtangizni tasdiqlang.",
+            locale
+          ),
+        },
+        { status: 403 }
+      );
     }
 
     if (user.email && isDisposableEmailDomain(user.email)) {
@@ -76,10 +88,18 @@ export async function POST(req: NextRequest) {
     const rawIp = extractClientIp(req);
     const ipHash = rawIp ? sha256(`ip:${rawIp}`) : undefined;
 
+    const resolvedDeviceHash = /^[a-f0-9]{32,64}$/i.test(deviceHash)
+      ? deviceHash.toLowerCase()
+      : sha256(
+          `device-fallback:${req.headers.get("user-agent") || "unknown"}:${
+            req.headers.get("accept-language") || ""
+          }:${rawIp || "no-ip"}`
+        );
+
     const { snapshot } = await activateUserProTrial({
       userId: user.id,
       canonicalEmailHash,
-      deviceHash: /^[a-f0-9]{32,64}$/i.test(deviceHash) ? deviceHash : undefined,
+      deviceHash: resolvedDeviceHash,
       ipHash,
     });
 

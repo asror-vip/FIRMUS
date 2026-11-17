@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { depersonalizeForAi } from "@/lib/utils/privacy";
 import { roundMoney, splitVatInclusive } from "@/lib/utils/finance";
+import { getTashkentTodayIso } from "@/lib/format/date";
 import {
   calculatePayrollUz,
   calculateVatUz,
@@ -23,6 +24,8 @@ import {
 export const MUTATING_AGENT_ROLES = new Set([
   "workspace_owner",
   "workspace_admin",
+  "admin",
+  "director",
   "chief_accountant",
   "accountant",
   "company_director",
@@ -43,11 +46,49 @@ function formatUzs(val: number): string {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getTashkentTodayIso();
 }
 
 export function isMutatingRole(role: string): boolean {
   return MUTATING_AGENT_ROLES.has(role);
+}
+
+function resolveMemberRoleForEntity(
+  member: Record<string, any> | null,
+  entityId: string
+): string | null {
+  if (!member?.role) return null;
+
+  const accessField = member.entity_access;
+  if (typeof accessField === "string") {
+    if (accessField === "none") return "viewer";
+    if (accessField !== "all" && accessField !== entityId && UUID_REGEX.test(accessField)) {
+      return "viewer";
+    }
+  } else if (Array.isArray(accessField)) {
+    if (accessField.length > 0 && !accessField.includes(entityId)) {
+      return "viewer";
+    }
+  } else if (accessField && typeof accessField === "object") {
+    const ids = Array.isArray(accessField.entity_ids)
+      ? accessField.entity_ids
+      : Array.isArray(accessField.entityIds)
+      ? accessField.entityIds
+      : null;
+    if (ids && ids.length > 0 && !ids.includes(entityId)) {
+      return "viewer";
+    }
+    if (accessField.restricted === true && (!ids || !ids.includes(entityId))) {
+      return "viewer";
+    }
+  }
+
+  const assignedIds = member.assigned_entity_ids;
+  if (Array.isArray(assignedIds) && assignedIds.length > 0 && !assignedIds.includes(entityId)) {
+    return "viewer";
+  }
+
+  return String(member.role);
 }
 
 export async function resolveUserEntityRole(
@@ -69,28 +110,30 @@ export async function resolveUserEntityRole(
 
   const { data: memberById } = await supabase
     .from("team_members")
-    .select("role, status")
+    .select("*")
     .eq("workspace_id", entity.workspace_id)
     .eq("user_id", userId)
     .eq("status", "active")
     .maybeSingle();
 
-  if (memberById?.role) {
-    return memberById.role;
+  const resolvedById = resolveMemberRoleForEntity(memberById, entity.id);
+  if (resolvedById) {
+    return resolvedById;
   }
 
   if (userEmail && emailConfirmed) {
     const escapedEmail = userEmail.trim().replace(/[\\%_]/g, "\\$&");
     const { data: memberByEmail } = await supabase
       .from("team_members")
-      .select("role, status")
+      .select("*")
       .eq("workspace_id", entity.workspace_id)
       .ilike("email", escapedEmail)
       .eq("status", "active")
       .maybeSingle();
 
-    if (memberByEmail?.role) {
-      return memberByEmail.role;
+    const resolvedByEmail = resolveMemberRoleForEntity(memberByEmail, entity.id);
+    if (resolvedByEmail) {
+      return resolvedByEmail;
     }
   }
 

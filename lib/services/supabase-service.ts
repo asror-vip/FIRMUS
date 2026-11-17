@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase/client";
 import { splitVatInclusive, calculatePayrollContributions } from "@/lib/utils/finance";
-import { depersonalizeForAi, sanitizeStringForAi } from "@/lib/utils/privacy";
+import { depersonalizeForAi, sanitizeStringForAi, sanitizeStorageText } from "@/lib/utils/privacy";
+import { getTashkentTodayIso } from "@/lib/format/date";
 import {
   cachedQuery,
   cacheKeys,
@@ -8,6 +9,18 @@ import {
 } from "@/lib/cache/query-cache";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isMissingRpcError(err: any): boolean {
+  if (!err) return false;
+  const code = String(err.code || "");
+  const msg = String(err.message || "").toLowerCase();
+  return (
+    code === "PGRST202" ||
+    code === "42883" ||
+    msg.includes("could not find the function") ||
+    msg.includes("does not exist")
+  );
+}
 
 export function isValidUuid(id?: string | null): id is string {
   return Boolean(id && UUID_REGEX.test(id));
@@ -422,17 +435,50 @@ export async function createTransaction(tx: {
       : "Mol yetkazib beruvchilarga toʻlanadigan schyotlar");
 
   const finalStatus = tx.status || "posted";
+  const txDate = tx.date || getTashkentTodayIso();
+  const safeDescription = sanitizeStorageText(tx.description);
+  const safeCounterparty = sanitizeStorageText(tx.counterparty);
 
+  if (typeof supabase.rpc === "function") {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc(
+      "create_transaction_with_journal_atomic",
+      {
+        p_business_entity_id: tx.entityId,
+        p_date: txDate,
+        p_amount: tx.amount,
+        p_type: tx.type,
+        p_counterparty: safeCounterparty,
+        p_counterparty_stir: tx.counterpartyStir || null,
+        p_description: safeDescription,
+        p_status: finalStatus,
+        p_source: tx.source || "manual",
+        p_account_code: corrCode,
+        p_account_name: corrName,
+      }
+    );
+
+    if (!rpcErr && rpcData) {
+      invalidateCachePrefix("tx:", "je:", "tb:", "gl:", "usage:");
+      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      return mapTransactionRow(row);
+    }
+
+    if (rpcErr && !isMissingRpcError(rpcErr)) {
+      throw new Error(rpcErr.message || "Tranzaksiya va provodka xatosi");
+    }
+  }
+
+  // Fallback path for mock unit-test environments without atomic RPCs
   const { data, error } = await supabase
     .from("transactions")
     .insert({
       business_entity_id: tx.entityId,
-      date: tx.date,
+      date: txDate,
       amount: tx.amount,
       type: tx.type,
-      counterparty: tx.counterparty,
+      counterparty: safeCounterparty,
       counterparty_stir: tx.counterpartyStir || null,
-      description: tx.description,
+      description: safeDescription,
       status: finalStatus,
       source: tx.source || "manual",
       account_code: corrCode,
@@ -444,7 +490,7 @@ export async function createTransaction(tx: {
   if (error) throw error;
 
   // Auto-post atomic double-entry to General Ledger strictly if status is posted
-  if (finalStatus === "posted" && tx.amount > 0) {
+  if (finalStatus === "posted" && tx.amount > 0 && typeof supabase.rpc === "function") {
     const debitCode = tx.type === "income" ? "5110" : corrCode;
     const debitName = tx.type === "income" ? "Hisob-kitob schyoti (Milliy valyutada)" : corrName;
     const creditCode = tx.type === "income" ? corrCode : "5110";
@@ -453,8 +499,8 @@ export async function createTransaction(tx: {
     const { error: jeErr } = await supabase.rpc("create_journal_entry_atomic", {
       p_business_entity_id: tx.entityId,
       p_entry_number: `JE-TX-${String(data.id).slice(0, 8).toUpperCase()}`,
-      p_entry_date: tx.date,
-      p_description: `${tx.counterparty}: ${tx.description}`,
+      p_entry_date: txDate,
+      p_description: `${safeCounterparty}: ${safeDescription}`,
       p_source_type: "bank_statement",
       p_source_reference_id: String(data.id),
       p_idempotency_key: `idem-tx-${data.id}`,
@@ -464,14 +510,14 @@ export async function createTransaction(tx: {
           account_name: debitName,
           debit_amount: tx.amount,
           credit_amount: 0,
-          memo: tx.description,
+          memo: safeDescription,
         },
         {
           account_code: creditCode,
           account_name: creditName,
           debit_amount: 0,
           credit_amount: tx.amount,
-          memo: tx.description,
+          memo: safeDescription,
         },
       ],
     });
@@ -504,6 +550,34 @@ export async function updateTransactionStatus(
     throw new Error("Notoʻgʻri tranzaksiya ID");
   }
 
+  if (typeof supabase.rpc === "function") {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc(
+      "update_transaction_status_atomic",
+      {
+        p_tx_id: txId,
+        p_status: status,
+        p_account_code: txDetails?.accountCode || null,
+      }
+    );
+
+    if (!rpcErr) {
+      invalidateCachePrefix("tx:", "je:", "tb:", "gl:");
+      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      return { id: row?.id || txId, status: row?.status || status };
+    }
+
+    if (!isMissingRpcError(rpcErr)) {
+      throw new Error(rpcErr.message || "Bosh kitob provodkasida xatolik");
+    }
+  }
+
+  // Fallback path for mock unit-test environments without atomic RPCs
+  const { data: prevTx } = await supabase
+    .from("transactions")
+    .select("status")
+    .eq("id", txId)
+    .maybeSingle();
+
   const { error: updErr } = await supabase
     .from("transactions")
     .update({ status })
@@ -511,16 +585,24 @@ export async function updateTransactionStatus(
 
   if (updErr) throw updErr;
 
-  if (status === "posted" && isValidUuid(txDetails?.entityId) && txDetails && txDetails.amount > 0) {
+  if (
+    status === "posted" &&
+    isValidUuid(txDetails?.entityId) &&
+    txDetails &&
+    txDetails.amount > 0 &&
+    typeof supabase.rpc === "function"
+  ) {
     const corrCode = txDetails.accountCode || (txDetails.type === "income" ? "4010" : "6010");
     const debitCode = txDetails.type === "income" ? "5110" : corrCode;
     const creditCode = txDetails.type === "income" ? corrCode : "5110";
+    const safeDescription = sanitizeStorageText(txDetails.description);
+    const safeCounterparty = sanitizeStorageText(txDetails.counterparty);
 
     const { error: jeErr } = await supabase.rpc("create_journal_entry_atomic", {
       p_business_entity_id: txDetails.entityId,
       p_entry_number: `JE-APPR-${String(txId).slice(0, 8).toUpperCase()}`,
-      p_entry_date: txDetails.date,
-      p_description: `${txDetails.counterparty}: ${txDetails.description}`,
+      p_entry_date: txDetails.date || getTashkentTodayIso(),
+      p_description: `${safeCounterparty}: ${safeDescription}`,
       p_source_type: "bank_statement",
       p_source_reference_id: String(txId),
       p_idempotency_key: `idem-tx-approve-${txId}`,
@@ -529,18 +611,23 @@ export async function updateTransactionStatus(
           account_code: debitCode,
           debit_amount: txDetails.amount,
           credit_amount: 0,
-          memo: txDetails.description,
+          memo: safeDescription,
         },
         {
           account_code: creditCode,
           debit_amount: 0,
           credit_amount: txDetails.amount,
-          memo: txDetails.description,
+          memo: safeDescription,
         },
       ],
     });
 
-    if (jeErr) throw new Error(`Bosh kitob provodkasida xatolik: ${jeErr.message}`);
+    if (jeErr) {
+      if (prevTx?.status) {
+        await supabase.from("transactions").update({ status: prevTx.status }).eq("id", txId);
+      }
+      throw new Error(`Bosh kitob provodkasida xatolik: ${jeErr.message}`);
+    }
   }
 
   invalidateCachePrefix("tx:", "je:", "tb:", "gl:");
@@ -692,19 +779,19 @@ export async function createDocument(doc: {
     .from("documents")
     .insert({
       business_entity_id: doc.entityId,
-      document_number: doc.documentNumber,
+      document_number: sanitizeStorageText(doc.documentNumber),
       type: doc.type,
-      counterparty: doc.counterparty,
+      counterparty: sanitizeStorageText(doc.counterparty),
       counterparty_stir: doc.counterpartyStir || null,
-      date: doc.date,
+      date: doc.date || getTashkentTodayIso(),
       due_date: doc.dueDate || null,
       amount: doc.amount,
       vat_amount: vatAmount,
       status: "pending_signature",
-      contract_number: doc.contractNumber || null,
+      contract_number: doc.contractNumber ? sanitizeStorageText(doc.contractNumber) : null,
       e_imzo_signed: false,
       file_url: doc.fileUrl || null,
-      file_name: doc.fileName || null,
+      file_name: doc.fileName ? sanitizeStorageText(doc.fileName) : null,
       file_size: doc.fileSize || null,
     })
     .select()
@@ -779,8 +866,10 @@ export async function signDocumentWithEImzo(
     const { error: jeErr } = await supabase.rpc("create_journal_entry_atomic", {
       p_business_entity_id: docInfo.entityId,
       p_entry_number: `JE-ESF-${docInfo.documentNumber}`,
-      p_entry_date: docInfo.date,
-      p_description: `Didox E-SF №${docInfo.documentNumber} (${docInfo.counterparty}) E-IMZO bilan tasdiqlandi`,
+      p_entry_date: docInfo.date || getTashkentTodayIso(),
+      p_description: sanitizeStorageText(
+        `Didox E-SF №${docInfo.documentNumber} (${docInfo.counterparty}) E-IMZO bilan tasdiqlandi`
+      ),
       p_source_type: "didox_invoice",
       p_source_reference_id: docInfo.documentNumber,
       p_idempotency_key: `idem-esf-${documentId}`,
@@ -788,6 +877,14 @@ export async function signDocumentWithEImzo(
     });
 
     if (jeErr) {
+      await supabase
+        .from("documents")
+        .update({
+          status: "pending_signature",
+          e_imzo_signed: false,
+          e_imzo_timestamp: null,
+        })
+        .eq("id", documentId);
       throw new Error(`Hujjat imzolandi, lekin provodkada xatolik: ${jeErr.message}`);
     }
   }
@@ -944,16 +1041,16 @@ export async function createContract(contract: {
     .from("contracts")
     .insert({
       business_entity_id: contract.entityId,
-      number: contract.number,
+      number: sanitizeStorageText(contract.number),
       type: contract.type,
-      counterparty: contract.counterparty,
+      counterparty: sanitizeStorageText(contract.counterparty),
       counterparty_stir: contract.counterpartyStir || null,
       amount: contract.amount,
       start_date: contract.startDate,
       end_date: contract.endDate,
       status: "active",
       auto_renewal: contract.autoRenewal || false,
-      description: contract.description || null,
+      description: contract.description ? sanitizeStorageText(contract.description) : null,
     })
     .select()
     .single();
@@ -1404,12 +1501,6 @@ export async function fetchUserPhoneVerification(userId: string) {
     if (row?.phone && row?.phone_verified_at) {
       return { phone: row.phone, verifiedAt: row.phone_verified_at };
     }
-
-    const { data: authData } = await supabase.auth.getUser();
-    const meta = authData?.user?.user_metadata;
-    if (meta?.phone && meta?.phone_verified_at) {
-      return { phone: String(meta.phone), verifiedAt: String(meta.phone_verified_at) };
-    }
     return null;
   } catch (err) {
     console.error("fetchUserPhoneVerification error:", err);
@@ -1423,7 +1514,7 @@ export async function saveUserPhoneVerification(userId: string, phone: string) {
   }
   const verifiedAt = new Date().toISOString();
 
-  // Persist on team_members rows owned by user AND auth user metadata
+  // Persist exclusively on server-verified team_members rows (never trust user_metadata for verification)
   const { error: tmErr } = await supabase
     .from("team_members")
     .update({
@@ -1433,13 +1524,6 @@ export async function saveUserPhoneVerification(userId: string, phone: string) {
     .eq("user_id", userId);
 
   if (tmErr) throw tmErr;
-
-  const { error: authErr } = await supabase.auth.updateUser({
-    data: { phone, phone_verified_at: verifiedAt },
-  });
-  if (authErr) {
-    console.warn("auth.updateUser metadata warning:", authErr.message);
-  }
 
   return verifiedAt;
 }
@@ -1636,11 +1720,12 @@ export async function createJournalEntryRecord(entry: {
   if (!isValidUuid(entry.entityId)) {
     throw new Error("Korxona ID tanlanmagan");
   }
+  const safeDesc = sanitizeStorageText(entry.description);
   const { data, error } = await supabase.rpc("create_journal_entry_atomic", {
     p_business_entity_id: entry.entityId,
     p_entry_number: entry.entryNumber,
-    p_entry_date: entry.entryDate,
-    p_description: entry.description,
+    p_entry_date: entry.entryDate || getTashkentTodayIso(),
+    p_description: safeDesc,
     p_source_type: entry.sourceType || "manual",
     p_source_reference_id: entry.sourceReferenceId || null,
     p_idempotency_key: entry.idempotencyKey || `idem-${entry.entryNumber}-${Date.now()}`,
@@ -1650,14 +1735,14 @@ export async function createJournalEntryRecord(entry: {
         account_name: entry.debitAccountName,
         debit_amount: entry.amount,
         credit_amount: 0,
-        memo: entry.description,
+        memo: safeDesc,
       },
       {
         account_code: entry.creditAccountCode,
         account_name: entry.creditAccountName,
         debit_amount: 0,
         credit_amount: entry.amount,
-        memo: entry.description,
+        memo: safeDesc,
       },
     ],
   });
@@ -2405,7 +2490,7 @@ export async function saveWorkBatch(input: {
   const periodMonth =
     input.periodMonth && /^\d{4}-\d{2}$/.test(input.periodMonth)
       ? input.periodMonth
-      : new Date().toISOString().slice(0, 7);
+      : getTashkentTodayIso().slice(0, 7);
 
   const { data, error } = await supabase
     .from("work_batches")
@@ -2414,7 +2499,7 @@ export async function saveWorkBatch(input: {
       created_by_user_id: user.id,
       batch_type: input.batchType,
       period_month: periodMonth,
-      title: sanitizeStringForAi(input.title).slice(0, 190),
+      title: sanitizeStringForAi(sanitizeStorageText(input.title)).slice(0, 190),
       bank_file_name: input.bankFileName ? sanitizeStringForAi(input.bankFileName).slice(0, 170) : null,
       onec_file_name: input.oneCFileName ? sanitizeStringForAi(input.oneCFileName).slice(0, 170) : null,
       file_hash: input.fileHash ? String(input.fileHash).slice(0, 64) : null,
@@ -2705,7 +2790,7 @@ export async function fetchWorkspaceUsageSummary(params: {
     return await cachedQuery(
       cacheKeys.usage(params.workspaceId, params.entityId),
       async () => {
-        const periodMonth = new Date().toISOString().slice(0, 7);
+        const periodMonth = getTashkentTodayIso().slice(0, 7);
 
         let batchQuery = supabase
           .from("work_batches")

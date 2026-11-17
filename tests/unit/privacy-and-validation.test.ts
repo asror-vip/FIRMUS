@@ -6,6 +6,7 @@ import {
   maskEmail,
   depersonalizeForAi,
   sanitizeStringForAi,
+  sanitizeStorageText,
 } from "@/lib/utils/privacy";
 import {
   journalEntrySchema,
@@ -76,6 +77,47 @@ describe("Privacy, Eskiz Phone Normalization & Depersonalization", () => {
     expect(sanitizedPii).not.toContain("301948572");
     expect(sanitizedPii).not.toContain("asror@firmus.uz");
     expect(sanitizedPii).not.toContain("AA1234567");
+  });
+
+  it("masks 16-digit cards and 14-digit PINFL/JSHSHIR in nested depersonalizeForAi payloads", () => {
+    const payload = {
+      apiToken: "secret-123",
+      employees: [
+        {
+          fullName: "Karimov Jasur",
+          jshshirNote: "JSHSHIR 31502941234567 bo'yicha oylik",
+          cardNote: "Humo 9860-1234-5678-9012 va Uzcard 8600987654321098 va Visa 4242 4242 4242 4242",
+          salary: 8500000,
+        },
+      ],
+    };
+
+    const sanitized = depersonalizeForAi(payload);
+    expect(sanitized.apiToken).toBe("[REDACTED]");
+    expect(sanitized.employees[0].jshshirNote).toBe("JSHSHIR [PINFL_MASKED] bo'yicha oylik");
+    expect(sanitized.employees[0].jshshirNote).not.toContain("31502941234567");
+    expect(sanitized.employees[0].cardNote).toBe(
+      "Humo [KARTA_MASKED] va Uzcard [KARTA_MASKED] va Visa [KARTA_MASKED]"
+    );
+    expect(sanitized.employees[0].cardNote).not.toContain("9860");
+    expect(sanitized.employees[0].cardNote).not.toContain("8600987654321098");
+    expect(sanitized.employees[0].cardNote).not.toContain("4242");
+    expect(sanitized.employees[0].salary).toBe(8500000);
+  });
+
+  it("masks 16-digit cards and 14-digit PINFL/JSHSHIR in sanitizeStorageText while preserving STIR", () => {
+    const rawText =
+      "STIR 305112233, JSHSHIR 31502941234567, karta 8600 1234 5678 9012 va 9860111122223333, pasport AB 1234567";
+    const cleaned = sanitizeStorageText(rawText);
+
+    expect(cleaned).toContain("STIR 305112233");
+    expect(cleaned).toContain("[JSHSHIR-****]");
+    expect(cleaned).toContain("[KARTA-****]");
+    expect(cleaned).toContain("[PASPORT-****]");
+    expect(cleaned).not.toContain("31502941234567");
+    expect(cleaned).not.toContain("8600 1234 5678 9012");
+    expect(cleaned).not.toContain("9860111122223333");
+    expect(sanitizeStorageText(null)).toBe("");
   });
 });
 

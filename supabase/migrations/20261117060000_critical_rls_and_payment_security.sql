@@ -25,7 +25,7 @@ BEGIN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 2. HIGH #17: Require email_verified in JWT when matching team_members by email
+-- 2. HIGH #17: Require authoritative email_confirmed_at in auth.users when matching team_members by email
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.get_auth_user_workspaces()
 RETURNS SETOF UUID
@@ -36,13 +36,13 @@ AS $$
   FROM public.team_members
   WHERE (
     user_id = auth.uid()
-    OR (
-      NULLIF(LOWER(COALESCE(auth.jwt() ->> 'email', '')), '') IS NOT NULL
-      AND LOWER(email) = LOWER(auth.jwt() ->> 'email')
-      AND (
-        COALESCE((auth.jwt() ->> 'email_verified')::boolean, false) IS TRUE
-        OR COALESCE((auth.jwt() -> 'user_metadata' ->> 'email_verified')::boolean, false) IS TRUE
-      )
+    OR EXISTS (
+      SELECT 1
+      FROM auth.users u
+      WHERE u.id = auth.uid()
+        AND u.email_confirmed_at IS NOT NULL
+        AND u.email IS NOT NULL
+        AND LOWER(u.email) = LOWER(team_members.email)
     )
   )
     AND status = 'active'
@@ -72,13 +72,13 @@ BEGIN
     WHERE workspace_id = target_workspace_id
       AND (
         user_id = auth.uid()
-        OR (
-          NULLIF(LOWER(COALESCE(auth.jwt() ->> 'email', '')), '') IS NOT NULL
-          AND LOWER(email) = LOWER(auth.jwt() ->> 'email')
-          AND (
-            COALESCE((auth.jwt() ->> 'email_verified')::boolean, false) IS TRUE
-            OR COALESCE((auth.jwt() -> 'user_metadata' ->> 'email_verified')::boolean, false) IS TRUE
-          )
+        OR EXISTS (
+          SELECT 1
+          FROM auth.users u
+          WHERE u.id = auth.uid()
+            AND u.email_confirmed_at IS NOT NULL
+            AND u.email IS NOT NULL
+            AND LOWER(u.email) = LOWER(team_members.email)
         )
       )
       AND status = 'active'
@@ -143,7 +143,7 @@ SET search_path = public
 AS $$
 BEGIN
   -- Link only pre-invited team_members rows (user_id IS NULL) after email verification.
-  -- Never read role from raw_user_meta_data and never auto-join uninvited users to any workspace.
+  -- Never read role from client metadata and never auto-join uninvited users to any workspace.
   IF NEW.email_confirmed_at IS NOT NULL AND NEW.email IS NOT NULL THEN
     UPDATE public.team_members
     SET user_id = NEW.id

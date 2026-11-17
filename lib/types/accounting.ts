@@ -1,9 +1,12 @@
 export type UserRole =
   | "workspace_owner"
+  | "workspace_admin"
+  | "company_director"
   | "chief_accountant"
   | "accountant"
   | "auditor"
-  | "company_director"
+  | "admin"
+  | "director"
   | "viewer";
 
 export interface BusinessEntity {

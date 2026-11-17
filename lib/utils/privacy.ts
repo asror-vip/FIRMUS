@@ -45,6 +45,21 @@ export function maskEmail(email?: string | null): string {
 }
 
 /**
+ * Strips/masks sensitive personal data (16-digit bank card numbers, 14-digit PINFL/JSHSHIR,
+ * and passport numbers) before persisting transaction/document/contract text to the database,
+ * while preserving corporate 9-digit STIR/INN and invoice numbers/amounts needed for accounting.
+ */
+export function sanitizeStorageText(input: string | null | undefined): string {
+  if (input === null || input === undefined) return "";
+  const text = String(input);
+  if (!text) return "";
+  return text
+    .replace(/\b(?:8600|9860|5614|6262|4\d{3}|5\d{3})[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, "[KARTA-****]")
+    .replace(/\b\d{14}\b/g, "[JSHSHIR-****]")
+    .replace(/\b[A-Z]{2}\s?\d{7}\b/g, "[PASPORT-****]");
+}
+
+/**
  * Strips 20-digit bank accounts, 16-digit bank card numbers (Uzcard/Humo/Visa/Mastercard),
  * 14-digit PINFLs, +998 phones, passport numbers, email addresses, and corporate STIR tokens from string values.
  */

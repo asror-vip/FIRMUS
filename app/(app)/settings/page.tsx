@@ -62,6 +62,7 @@ function SettingsContent() {
     setLanguage,
     refreshContext,
   } = useAppState();
+  const isReadOnly = currentRole === "viewer" || currentRole === "auditor";
 
   const filterWorkspaceEntities = useCallback(
     (data: any[]) =>
@@ -170,6 +171,7 @@ function SettingsContent() {
 
   const handleCreateEntity = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     const parsed = businessEntitySchema.safeParse({
       legalName: newEntity.legalName,
       tradeName: newEntity.tradeName || undefined,
@@ -215,7 +217,7 @@ function SettingsContent() {
 
   const handleUpdateEntity = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingEntity) return;
+    if (isReadOnly || !editingEntity) return;
     const parsed = businessEntitySchema.safeParse({
       legalName: editingEntity.name,
       tradeName: editingEntity.tradeName || undefined,
@@ -366,7 +368,7 @@ function SettingsContent() {
                   {t.pages.settings.entitiesDesc}
                 </CardDescription>
               </div>
-              {currentRole !== "viewer" && currentRole !== "auditor" && (
+              {!isReadOnly && (
                 <Button
                   size="sm"
                   className="text-xs h-8 bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
@@ -428,7 +430,7 @@ function SettingsContent() {
                         <StatusPill status="active" />
                       </TableCell>
                       <TableCell className="text-right">
-                        {currentRole !== "viewer" && currentRole !== "auditor" && (
+                        {!isReadOnly && (
                           <Button
                             size="sm"
                             variant="outline"

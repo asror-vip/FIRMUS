@@ -127,10 +127,13 @@ export interface Translations {
   };
   roles: {
     workspace_owner: string;
+    workspace_admin: string;
     chief_accountant: string;
     accountant: string;
     auditor: string;
     company_director: string;
+    admin: string;
+    director: string;
     viewer: string;
   };
   aiDrawer: {

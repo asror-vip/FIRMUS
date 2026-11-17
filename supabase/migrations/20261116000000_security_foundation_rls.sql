@@ -143,7 +143,7 @@ USING (
 );
 
 -- 7. MACRO FOR ALL ENTITY-BOUND CHILD TABLES
--- Tables: transactions, documents, contracts, inventory_items, employees, tax_records, tax_deadlines, integrations, sync_logs, exceptions, bank_accounts, chart_of_accounts, journal_entries
+-- Tables: transactions, documents, contracts, inventory_items, employees, tax_records, tax_deadlines, integrations, sync_logs, exceptions, bank_accounts, chart_of_accounts
 DO $$
 DECLARE
     tbl text;
@@ -159,8 +159,7 @@ DECLARE
         'sync_logs',
         'exceptions',
         'bank_accounts',
-        'chart_of_accounts',
-        'journal_entries'
+        'chart_of_accounts'
     ];
 BEGIN
     FOREACH tbl IN ARRAY entity_tables
@@ -207,8 +206,19 @@ BEGIN
     END LOOP;
 END $$;
 
--- 8. JOURNAL LINES RLS (References journal_entry_id)
+-- 8. JOURNAL ENTRIES & JOURNAL LINES RLS (Read-only for authenticated; writes exclusively via atomic RPCs)
+DROP POLICY IF EXISTS "journal_entries_select" ON public.journal_entries;
+DROP POLICY IF EXISTS "journal_entries_insert" ON public.journal_entries;
+DROP POLICY IF EXISTS "journal_entries_update" ON public.journal_entries;
+DROP POLICY IF EXISTS "journal_entries_delete" ON public.journal_entries;
+CREATE POLICY "journal_entries_select" ON public.journal_entries
+FOR SELECT TO authenticated
+USING (business_entity_id IN (SELECT public.get_auth_user_entities()));
+
 DROP POLICY IF EXISTS "journal_lines_select" ON public.journal_lines;
+DROP POLICY IF EXISTS "journal_lines_insert" ON public.journal_lines;
+DROP POLICY IF EXISTS "journal_lines_update" ON public.journal_lines;
+DROP POLICY IF EXISTS "journal_lines_delete" ON public.journal_lines;
 CREATE POLICY "journal_lines_select" ON public.journal_lines
 FOR SELECT TO authenticated
 USING (
@@ -218,86 +228,18 @@ USING (
   )
 );
 
-DROP POLICY IF EXISTS "journal_lines_insert" ON public.journal_lines;
-CREATE POLICY "journal_lines_insert" ON public.journal_lines
-FOR INSERT TO authenticated
-WITH CHECK (
-  journal_entry_id IN (
-    SELECT id FROM public.journal_entries 
-    WHERE business_entity_id IN (SELECT public.get_auth_user_entities())
-  )
-);
-
-DROP POLICY IF EXISTS "journal_lines_update" ON public.journal_lines;
-CREATE POLICY "journal_lines_update" ON public.journal_lines
-FOR UPDATE TO authenticated
-USING (
-  journal_entry_id IN (
-    SELECT id FROM public.journal_entries 
-    WHERE business_entity_id IN (SELECT public.get_auth_user_entities())
-  )
-)
-WITH CHECK (
-  journal_entry_id IN (
-    SELECT id FROM public.journal_entries 
-    WHERE business_entity_id IN (SELECT public.get_auth_user_entities())
-  )
-);
-
-DROP POLICY IF EXISTS "journal_lines_delete" ON public.journal_lines;
-CREATE POLICY "journal_lines_delete" ON public.journal_lines
-FOR DELETE TO authenticated
-USING (
-  journal_entry_id IN (
-    SELECT id FROM public.journal_entries 
-    WHERE business_entity_id IN (SELECT public.get_auth_user_entities())
-  )
-);
-
--- 9. Trigger on auth.users creation to auto-link with team_members and workspaces
+-- 9. Trigger on auth.users creation to safely link pre-invited team_members rows
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE
-  default_ws_id UUID;
-  existing_member_id UUID;
 BEGIN
-  -- 1. Check if user already exists in team_members by email
-  SELECT id INTO existing_member_id 
-  FROM public.team_members 
-  WHERE LOWER(email) = LOWER(NEW.email) 
-  LIMIT 1;
-
-  IF existing_member_id IS NOT NULL THEN
+  IF NEW.email_confirmed_at IS NOT NULL AND NEW.email IS NOT NULL THEN
     UPDATE public.team_members
     SET user_id = NEW.id
-    WHERE id = existing_member_id;
-  ELSE
-    -- Find default workspace or first available workspace
-    SELECT id INTO default_ws_id FROM public.workspaces ORDER BY created_at ASC LIMIT 1;
-    
-    IF default_ws_id IS NOT NULL THEN
-      INSERT INTO public.team_members (
-        workspace_id,
-        user_id,
-        name,
-        email,
-        role,
-        status,
-        assigned_companies_count
-      )
-      VALUES (
-        default_ws_id,
-        NEW.id,
-        COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-        NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'role', 'accountant'),
-        'active',
-        3
-      );
-    END IF;
+    WHERE user_id IS NULL
+      AND LOWER(email) = LOWER(NEW.email);
   END IF;
 
   RETURN NEW;

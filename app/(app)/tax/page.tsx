@@ -50,7 +50,8 @@ function extractTrialBalanceTaxMetrics(tb: any[]) {
 }
 
 export default function TaxPage() {
-  const { currentEntity } = useAppState();
+  const { currentEntity, currentRole } = useAppState();
+  const isReadOnly = currentRole === "viewer" || currentRole === "auditor";
   const { t, locale } = useTranslation();
   const dict = getReconcileErpDict(locale);
   const d = dict.erpExtra.tax;
@@ -202,6 +203,7 @@ export default function TaxPage() {
   };
 
   const handleConfirmVatCalculation = async () => {
+    if (isReadOnly) return;
     setIsSubmitting(true);
     try {
       const offsetAmount = Math.min(vatOutput6410, vatInput4410);
@@ -237,6 +239,7 @@ export default function TaxPage() {
   };
 
   const handlePayTax = async (rec: TaxRecord) => {
+    if (isReadOnly) return;
     const unpaid = Math.max(0, rec.calculatedAmount - rec.paidAmount);
     if (unpaid <= 0) {
       toast.info(d.toasts.alreadyPaidInfo);
@@ -297,14 +300,16 @@ export default function TaxPage() {
             {t.common.export} (CSV/Excel)
           </Button>
 
-          <Button
-            size="sm"
-            className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => setIsCalcModalOpen(true)}
-          >
-            <Calculator className="h-3.5 w-3.5" />
-            {t.pages.tax.tabs.vat}
-          </Button>
+          {!isReadOnly && (
+            <Button
+              size="sm"
+              className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={() => setIsCalcModalOpen(true)}
+            >
+              <Calculator className="h-3.5 w-3.5" />
+              {t.pages.tax.tabs.vat}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -608,7 +613,7 @@ export default function TaxPage() {
             <Button variant="outline" size="sm" onClick={() => setSelectedTax(null)}>
               {t.common.close}
             </Button>
-            {selectedTax && selectedTax.calculatedAmount > selectedTax.paidAmount && (
+            {!isReadOnly && selectedTax && selectedTax.calculatedAmount > selectedTax.paidAmount && (
               <Button
                 size="sm"
                 disabled={isSubmitting}

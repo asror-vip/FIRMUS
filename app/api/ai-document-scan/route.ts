@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { depersonalizeForAi, sanitizeStringForAi } from "@/lib/utils/privacy";
 import { roundMoney } from "@/lib/utils/finance";
+import { getTashkentTodayIso } from "@/lib/format/date";
 import {
   authorizeAndConsumeAiCredits,
   refundConsumedAiCredits,
@@ -136,7 +137,7 @@ function buildContractHeuristicFallback(rawText: string, msg: ApiMessages) {
     modelUsed: "deterministic-contract-guard",
     documentType: msg.contractFallback.documentType,
     documentNumber: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: getTashkentTodayIso(),
     counterparty: msg.contractFallback.counterparty,
     counterpartyStir: "",
     direction: "expense" as const,
@@ -406,7 +407,7 @@ export async function POST(req: NextRequest) {
             documentNumber: sanitizeStringForAi(String(data.documentNumber || "")).slice(0, 40),
             date: /^\d{4}-\d{2}-\d{2}$/.test(String(data.date || ""))
               ? String(data.date)
-              : new Date().toISOString().slice(0, 10),
+              : getTashkentTodayIso(),
             counterparty: sanitizeStringForAi(String(data.counterparty || msg.defaultCounterparty)).slice(0, 120),
             counterpartyStir: String(data.counterpartyStir || "").replace(/\D/g, "").slice(0, 9),
             direction: data.direction === "income" ? "income" : "expense",

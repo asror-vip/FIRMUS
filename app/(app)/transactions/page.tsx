@@ -42,6 +42,7 @@ function TransactionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentEntity, currentRole } = useAppState();
+  const isReadOnly = currentRole === "viewer" || currentRole === "auditor";
   const { t, locale } = useTranslation();
   const dict = getReconcileErpDict(locale);
   const d = dict.erpExtra.transactions;
@@ -213,7 +214,7 @@ function TransactionsContent() {
   }, [currentEntity?.id, activeTab, search, currentPage]);
 
   const handleConfirmImport = async () => {
-    if (importedList.length === 0) return;
+    if (isReadOnly || importedList.length === 0) return;
     setIsImporting(true);
     try {
       const saved = await importBatchTransactions(importedList, currentEntity?.id);
@@ -248,6 +249,7 @@ function TransactionsContent() {
 
   const handleCreateTx = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     const parsed = transactionSchema.safeParse({
       date: newTx.date,
       amount: newTx.amount,
@@ -326,7 +328,7 @@ function TransactionsContent() {
   const paginatedTx = filtered;
 
   const handleApproveTx = async (tx: Transaction) => {
-    if (isMutating) return;
+    if (isReadOnly || isMutating) return;
     setIsMutating(true);
     try {
       await updateTransactionStatus(tx.id, "posted", {
@@ -349,7 +351,7 @@ function TransactionsContent() {
   };
 
   const handleRejectTx = async (tx: Transaction) => {
-    if (isMutating) return;
+    if (isReadOnly || isMutating) return;
     setIsMutating(true);
     try {
       await updateTransactionStatus(tx.id, "rejected");
@@ -364,7 +366,7 @@ function TransactionsContent() {
   };
 
   const handleBatchApprove = async () => {
-    if (isMutating) return;
+    if (isReadOnly || isMutating) return;
     const selectedObjects = transactions.filter((t) => selectedIds.includes(t.id));
     if (selectedObjects.length === 0) return;
 
@@ -424,15 +426,17 @@ function TransactionsContent() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs h-8 gap-1.5 border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300"
-            onClick={() => setIsImportOpen(true)}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {d.importBtn}
-          </Button>
+          {!isReadOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8 gap-1.5 border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300"
+              onClick={() => setIsImportOpen(true)}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {d.importBtn}
+            </Button>
+          )}
 
           <Button
             variant="outline"
@@ -455,7 +459,7 @@ function TransactionsContent() {
             {t.common.export} (CSV)
           </Button>
 
-          {currentRole !== "viewer" && currentRole !== "auditor" && (
+          {!isReadOnly && (
             <Button
               size="sm"
               className="text-xs h-8 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
@@ -551,7 +555,7 @@ function TransactionsContent() {
       )}
 
       {/* Bulk Action Bar (when selected) */}
-      {selectedIds.length > 0 && (
+      {!isReadOnly && selectedIds.length > 0 && (
         <div className="flex items-center justify-between rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-2.5 text-xs">
           <span className="font-medium text-foreground">
             {selectedIds.length} — {t.nav.transactions}
@@ -783,7 +787,7 @@ function TransactionsContent() {
             )}
 
             {/* Actions */}
-            {currentRole !== "viewer" && currentRole !== "auditor" && (
+            {!isReadOnly && (
               <div className="pt-4 flex items-center gap-2">
                 <Button
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-9"

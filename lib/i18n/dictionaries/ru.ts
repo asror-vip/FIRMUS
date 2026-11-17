@@ -127,10 +127,13 @@ export const ruTranslations: Translations = {
   },
   roles: {
     workspace_owner: "Владелец рабочей зоны",
+    workspace_admin: "Администратор",
     chief_accountant: "Главный бухгалтер",
     accountant: "Бухгалтер",
     auditor: "Аудитор (Только чтение)",
     company_director: "Генеральный директор",
+    admin: "Администратор",
+    director: "Директор",
     viewer: "Наблюдатель",
   },
   aiDrawer: {

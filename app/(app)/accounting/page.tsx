@@ -34,6 +34,7 @@ import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile
 
 export default function AccountingPage() {
   const { currentEntity, currentRole } = useAppState();
+  const isReadOnly = currentRole === "viewer" || currentRole === "auditor";
   const { t, locale } = useTranslation();
   const dict = getReconcileErpDict(locale);
   const d = dict.erpExtra.accounting;
@@ -300,6 +301,7 @@ export default function AccountingPage() {
 
   const handleCreateEntry = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     const parsed = journalEntrySchema.safeParse({
       entryNumber: newEntry.entryNumber,
       date: newEntry.date,
@@ -358,6 +360,7 @@ export default function AccountingPage() {
 
   const handleCreateCoa = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     if (!/^\d{4,8}$/.test(newCoa.code.trim())) {
       toast.error(d.toasts.coaCodeInvalid);
       return;
@@ -391,7 +394,7 @@ export default function AccountingPage() {
   };
 
   const handleReverseEntry = async () => {
-    if (!selectedEntry) return;
+    if (isReadOnly || !selectedEntry) return;
     if (!reversalReason || reversalReason.trim().length < 3) {
       toast.error(d.toasts.stornoReasonTooShort);
       return;
@@ -419,6 +422,7 @@ export default function AccountingPage() {
 
   const handleClosePeriod = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     if (!closePeriodDates.fromDate || !closePeriodDates.toDate) {
       toast.error(d.toasts.selectPeriodDates);
       return;
@@ -491,7 +495,7 @@ export default function AccountingPage() {
             <Download className="h-3.5 w-3.5" />
             {t.common.export} (CSV)
           </Button>
-          {currentRole !== "viewer" && currentRole !== "auditor" && (
+          {!isReadOnly && (
             <>
               <Button
                 variant="outline"
@@ -558,7 +562,7 @@ export default function AccountingPage() {
               <span className="text-xs text-muted-foreground">
                 {filteredCoa.length} / {chartOfAccounts.length} {d.coaCountSuffix}
               </span>
-              {currentRole !== "viewer" && currentRole !== "auditor" && (
+              {!isReadOnly && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -745,7 +749,7 @@ export default function AccountingPage() {
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  {selectedEntry.status === "posted" && currentRole !== "auditor" && (
+                  {selectedEntry.status === "posted" && !isReadOnly && (
                     <Button
                       variant="outline"
                       size="sm"

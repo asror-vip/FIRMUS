@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase/client";
 import { roundMoney } from "@/lib/utils/finance";
 import { computeSha256Hex } from "@/lib/utils/image-compression";
+import { sanitizeStorageText } from "@/lib/utils/privacy";
+import { getTashkentTodayIso } from "@/lib/format/date";
 import {
   saveWorkBatch,
   markWorkBatchPosted,
@@ -107,8 +109,10 @@ export async function scanCompressedImageAndSave(params: {
       const saved = await saveWorkBatch({
         entityId: params.entityId,
         batchType: "document_scan",
-        periodMonth: /^\d{4}-\d{2}/.test(data.date) ? data.date.slice(0, 7) : undefined,
-        title: `${data.documentType}: ${data.counterparty || params.fileName}`.slice(0, 180),
+        periodMonth: /^\d{4}-\d{2}/.test(data.date)
+          ? data.date.slice(0, 7)
+          : getTashkentTodayIso().slice(0, 7),
+        title: sanitizeStorageText(`${data.documentType}: ${data.counterparty || params.fileName}`).slice(0, 180),
         bankFileName: params.fileName,
         fileHash,
         rowCount: Math.max(1, data.items?.length || 1),
@@ -144,9 +148,11 @@ export async function postScannedDocToLedger(params: {
   const gross = roundMoney(scan.totalAmount);
   const vat = roundMoney(scan.vatAmount);
   const net = roundMoney(gross - vat);
-  const safeDesc = `${scan.documentType} ${
-    scan.documentNumber ? `№${scan.documentNumber} ` : ""
-  }(${scan.counterparty})`.slice(0, 220);
+  const safeDesc = sanitizeStorageText(
+    `${scan.documentType} ${
+      scan.documentNumber ? `№${scan.documentNumber} ` : ""
+    }(${scan.counterparty})`
+  ).slice(0, 220);
 
   let lines: Array<{
     account_code: string;
@@ -228,10 +234,10 @@ export async function postScannedDocToLedger(params: {
   const { error } = await supabase.rpc("create_journal_entry_atomic", {
     p_business_entity_id: entityId,
     p_entry_number: `JE-OCR-${Date.now().toString().slice(-5)}`,
-    p_entry_date: scan.date,
+    p_entry_date: scan.date || getTashkentTodayIso(),
     p_description: safeDesc,
     p_source_type: "ocr_scan",
-    p_idempotency_key: `idem-ocr-${entityId}-${scan.date}-${gross}-${scan.documentNumber || "doc"}`,
+    p_idempotency_key: `idem-ocr-${entityId}-${scan.date || getTashkentTodayIso()}-${gross}-${scan.documentNumber || "doc"}`,
     p_lines: lines,
   });
 

@@ -127,10 +127,13 @@ export const uzTranslations: Translations = {
   },
   roles: {
     workspace_owner: "Workspace Owner (Toʻliq ega)",
+    workspace_admin: "Administrator",
     chief_accountant: "Bosh buxgalter (Tasdiqlovchi)",
     accountant: "Buxgalter (Mijoz operatori)",
     auditor: "Auditor (Faqat oʻqish)",
     company_director: "Bosh direktor",
+    admin: "Administrator",
+    director: "Direktor",
     viewer: "Kuzatuvchi",
   },
   aiDrawer: {

@@ -139,21 +139,39 @@ describe("Native .xlsx Bank Parser & Uzbekistan Tax/Payroll Calculators", () => 
     expect(fwd.net).toBe(4_400_000);
     expect(fwd.socialTax12).toBe(600_000);
     expect(fwd.provodka).toHaveLength(4);
+    expect(fwd.taxRuleVersion).toBe("UZ-SK-2026.1");
+    expect(fwd.effectiveYear).toBe(2026);
 
     const rev = calculatePayrollUz({ amount: 4_400_000, direction: "net_to_gross" });
     expect(rev.gross).toBe(5_000_000);
     expect(rev.net).toBe(4_400_000);
+    expect(rev.taxRuleVersion).toBe("UZ-SK-2026.1");
+    expect(rev.effectiveYear).toBe(2026);
 
     const vatInc = calculateVatUz({ amount: 11_200_000, mode: "included" });
     expect(vatInc.vat12).toBe(1_200_000);
     expect(vatInc.net).toBe(10_000_000);
+    expect(vatInc.taxRuleVersion).toBe("UZ-SK-2026.1");
+    expect(vatInc.effectiveYear).toBe(2026);
 
     const vatExc = calculateVatUz({ amount: 10_000_000, mode: "excluded" });
     expect(vatExc.vat12).toBe(1_200_000);
     expect(vatExc.total).toBe(11_200_000);
+    expect(vatExc.taxRuleVersion).toBe("UZ-SK-2026.1");
+    expect(vatExc.effectiveYear).toBe(2026);
 
     const turn = calculateTurnoverTaxUz({ revenue: 100_000_000 });
     expect(turn.tax).toBe(4_000_000);
+    expect(turn.taxRuleVersion).toBe("UZ-SK-2026.1");
+    expect(turn.effectiveYear).toBe(2026);
+
+    const payroll2025 = calculatePayrollUz({
+      amount: 5_000_000,
+      direction: "gross_to_net",
+      taxYear: 2025,
+    });
+    expect(payroll2025.taxRuleVersion).toBe("UZ-SK-2025.1");
+    expect(payroll2025.effectiveYear).toBe(2025);
 
     const vac = calculateVacationPayUz({ monthlySalary: 5_080_000, days: 21 });
     expect(vac.dailyRate).toBe(200_000);

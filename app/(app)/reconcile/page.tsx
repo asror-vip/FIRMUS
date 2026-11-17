@@ -48,6 +48,7 @@ import {
 import { cacheKeys, peekQueryCache } from "@/lib/cache/query-cache";
 import { sanitizeStringForAi } from "@/lib/utils/privacy";
 import { roundMoney } from "@/lib/utils/finance";
+import { getTashkentTodayIso } from "@/lib/format/date";
 import { supabase } from "@/lib/supabase/client";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getReconcileErpDict, getIntlLocale } from "@/lib/i18n/domains/reconcile-erp";
@@ -384,7 +385,7 @@ function ReconcileContent() {
     setIsSavingBatch(true);
     try {
       const sampleDate = rows.find((r) => /^\d{4}-\d{2}/.test(r.date))?.date;
-      const periodMonth = sampleDate ? sampleDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+      const periodMonth = sampleDate ? sampleDate.slice(0, 7) : getTashkentTodayIso().slice(0, 7);
       const safeRows = sanitizeReconcileRowsForStorage(rows);
       const label = [bankFileName || "Bank", oneCFileName || "1C"].filter(Boolean).join(" ↔ ");
 
@@ -541,7 +542,7 @@ function ReconcileContent() {
 
     downloadFileBlob(
       txt,
-      `kl_to_1c_${new Date().toISOString().slice(0, 10)}.txt`,
+      `kl_to_1c_${getTashkentTodayIso()}.txt`,
       "text/plain;charset=utf-8"
     );
     toast.success(
@@ -572,7 +573,7 @@ function ReconcileContent() {
     const xml = generate1CEnterpriseDataXml(entries);
     downloadFileBlob(
       xml,
-      `1c_enterprise_reconciled_${new Date().toISOString().slice(0, 10)}.xml`,
+      `1c_enterprise_reconciled_${getTashkentTodayIso()}.xml`,
       "application/xml;charset=utf-8"
     );
     toast.success(
@@ -587,7 +588,7 @@ function ReconcileContent() {
     const csv = buildReconcileCsvReport(rows);
     downloadFileBlob(
       csv,
-      `sverka_hisobot_${new Date().toISOString().slice(0, 10)}.csv`,
+      `sverka_hisobot_${getTashkentTodayIso()}.csv`,
       "text/csv;charset=utf-8"
     );
     toast.success(d.toasts.exportedCsv);

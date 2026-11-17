@@ -65,7 +65,8 @@ function pickSelectedException(
 function AiAuditorContent() {
   const searchParams = useSearchParams();
   const targetExcId = searchParams.get("id");
-  const { currentEntity } = useAppState();
+  const { currentEntity, currentRole } = useAppState();
+  const isReadOnly = currentRole === "viewer" || currentRole === "auditor";
   const { t, locale } = useTranslation();
   const dict = getReconcileErpDict(locale);
   const d = dict.erpExtra.aiAuditor;
@@ -263,7 +264,7 @@ function AiAuditorContent() {
   const filtered = exceptions;
 
   const handleResolve = async (exc: ExceptionItem, action: "approve" | "reject", customLabel?: string) => {
-    if (isMutating) return;
+    if (isReadOnly || isMutating) return;
     setIsMutating(true);
     try {
       if (action === "approve" && exc.amount && exc.amount > 0 && isValidUuid(currentEntity?.id)) {
@@ -537,6 +538,7 @@ function AiAuditorContent() {
               </div>
 
               {/* Action Buttons Footer */}
+              {!isReadOnly && (
               <div className="p-4 border-t border-border flex items-center justify-between gap-3 bg-muted/10">
                 <Button
                   variant="outline"
@@ -577,6 +579,7 @@ function AiAuditorContent() {
                   </Button>
                 </div>
               </div>
+              )}
             </Card>
           ) : (
             <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border p-8 text-center text-muted-foreground text-xs">

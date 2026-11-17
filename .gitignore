@@ -45,3 +45,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
+
+# Local archive & legacy docs (preserved on disk, untracked from git)
+/archive/
+/docs/
