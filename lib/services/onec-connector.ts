@@ -696,9 +696,9 @@ export function generate1CEpfGuideBsl(params: { appUrl: string }): {
 `;
 
   const instructionsUz = [
-    "1. Firmus integratsiyalar boʻlimida «6 raqamli ulash kodini olish» tugmasini bosing (kod 10 daqiqa amal qiladi).",
+    "1. Firmus integratsiyalar boʻlimida «8 belgili ulash kodini olish» tugmasini bosing (kod 5 daqiqa amal qiladi).",
     "2. 1C:Predpriyatiye dasturini oching va menyudan «Файл -> Открыть» (Ctrl+O) orqali Firmus1CBridge.epf tashqi ishlovini tanlang.",
-    "3. Ochilgan oynada 6 raqamli kodni kiriting va «Firmusga ulash» tugmasini bosing — 1C avtomatik ravishda xavfsiz Bearer token oladi.",
+    "3. Ochilgan oynada 8 belgili kodni (masalan, ABCD-2345) kiriting va «Firmusga ulash» tugmasini bosing — 1C avtomatik ravishda 90 kun amal qiluvchi xavfsiz Bearer token oladi.",
     "4. «Kontragentlarni sinxronlash» orqali 1C katalogini Firmusga yuboring, soʻng «Qoralamalarni yuklash» orqali hujjatlarni qabul qiling.",
     "5. Xavfsizlik kafolati: barcha yuklangan hujjatlar 1C da faqat «Qoralama» (Проведен = Ложь) holatida saqlanadi; yakuniy provodkani buxgalter tasdiqlaydi.",
   ];
@@ -750,7 +750,7 @@ export async function authenticate1CBridgeToken(req: NextRequest | Request): Pro
 
   const { data: conn, error } = await service
     .from("integration_connections")
-    .select("id, business_entity_id, provider, status, config, token_hash")
+    .select("id, business_entity_id, provider, status, config, token_hash, token_expires_at, token_revoked_at")
     .eq("provider", "onec_epf")
     .eq("status", "connected")
     .eq("token_hash", tokenHash)
@@ -761,6 +761,22 @@ export async function authenticate1CBridgeToken(req: NextRequest | Request): Pro
       ok: false,
       status: 401,
       error: "Integratsiya tokeni yaroqsiz yoki bekor qilingan.",
+    };
+  }
+
+  if (conn.token_revoked_at) {
+    return {
+      ok: false,
+      status: 401,
+      error: "Integratsiya tokeni bekor qilingan.",
+    };
+  }
+
+  if (conn.token_expires_at && new Date(conn.token_expires_at).getTime() <= Date.now()) {
+    return {
+      ok: false,
+      status: 401,
+      error: "Integratsiya tokenining amal qilish muddati tugagan. Yangi ulash kodi oling.",
     };
   }
 

@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       targetEntity = data;
     }
 
-    const aiMessage = `${message}\n\n[${msg.aiLanguageInstruction(locale)}]`;
+    const aiMessage = `${message}\n\n[Reply in the exact same language as the user's message above. If the language is ambiguous (e.g., numbers only), use ${locale}.]`;
 
     let result;
     try {

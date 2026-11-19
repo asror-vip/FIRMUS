@@ -7,7 +7,8 @@ import {
   encryptSecret,
   decryptSecret,
   sha256Hex,
-  generateSixDigitCode,
+  generatePairingCode,
+  normalizePairingCode,
 } from "@/lib/utils/crypto-secrets";
 import {
   validateExternalODataUrl,
@@ -102,7 +103,7 @@ export async function GET(req: NextRequest) {
     // 1. Fetch connections
     const { data: connections, error: connErr } = await service
       .from("integration_connections")
-      .select("id, provider, status, config, pairing_code_expires_at, last_sync_at, last_error, created_at, updated_at")
+      .select("id, provider, status, config, pairing_code_expires_at, token_expires_at, token_revoked_at, last_sync_at, last_error, created_at, updated_at")
       .eq("business_entity_id", entityId);
 
     if (connErr) {
@@ -156,24 +157,33 @@ export async function GET(req: NextRequest) {
     let hasPassword = false;
     let pairCode: string | null = null;
     let pairCodeExpiresAt: string | null = null;
+    let tokenExpiresAt: string | null = null;
+    let connectionId: string | null = null;
     let lastSyncedAt: string | null = null;
 
     if (onecOdata && onecOdata.status === "connected") {
       activeOneCMode = "odata";
       activeOneCStatus = "connected";
+      connectionId = onecOdata.id;
       baseUrl = (onecOdata.config as any)?.baseUrl || "";
       username = (onecOdata.config as any)?.username || "";
       hasPassword = Boolean((onecOdata.config as any)?.hasPassword);
       lastSyncedAt = onecOdata.last_sync_at;
     } else if (onecEpf && (onecEpf.status === "connected" || onecEpf.status === "pending_pair")) {
       activeOneCMode = "epf";
+      connectionId = onecEpf.id;
       const isExpired =
         onecEpf.pairing_code_expires_at &&
         new Date(onecEpf.pairing_code_expires_at).getTime() < Date.now();
+      const isTokenExpired =
+        onecEpf.token_expires_at &&
+        new Date(onecEpf.token_expires_at).getTime() <= Date.now();
+      const isTokenRevoked = Boolean(onecEpf.token_revoked_at);
 
-      if (onecEpf.status === "connected") {
+      if (onecEpf.status === "connected" && !isTokenExpired && !isTokenRevoked) {
         activeOneCStatus = "connected";
-      } else if (!isExpired) {
+        tokenExpiresAt = onecEpf.token_expires_at || null;
+      } else if (onecEpf.status === "pending_pair" && !isExpired) {
         activeOneCStatus = "awaiting_code";
         pairCode = (onecEpf.config as any)?.pairCode || null;
         pairCodeExpiresAt = onecEpf.pairing_code_expires_at;
@@ -181,6 +191,7 @@ export async function GET(req: NextRequest) {
       lastSyncedAt = onecEpf.last_sync_at;
     } else if (onecOdata) {
       activeOneCMode = "odata";
+      connectionId = onecOdata.id;
       baseUrl = (onecOdata.config as any)?.baseUrl || "";
       username = (onecOdata.config as any)?.username || "";
       hasPassword = Boolean((onecOdata.config as any)?.hasPassword);
@@ -192,11 +203,13 @@ export async function GET(req: NextRequest) {
       onec: {
         mode: activeOneCMode,
         status: activeOneCStatus,
+        connectionId,
         baseUrl,
         username,
         hasPassword,
         pairCode,
         pairCodeExpiresAt,
+        tokenExpiresAt,
         lastSyncedAt,
         counterpartiesCount,
         accountsCount,
@@ -216,9 +229,10 @@ export async function GET(req: NextRequest) {
       },
       queue: formattedQueue,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    console.error("[INTEGRATIONS GET ERROR]", err);
     return NextResponse.json(
-      { error: err?.message || "Server xatosi yuz berdi." },
+      { error: "Server xatosi yuz berdi." },
       { status: 500 }
     );
   }
@@ -423,11 +437,11 @@ export async function POST(req: NextRequest) {
     // ACTION: generate_epf_pair_code
     // --------------------------------------------------------------------------
     if (action === "generate_epf_pair_code") {
-      const pairCode = generateSixDigitCode();
-      const pairCodeHash = sha256Hex(pairCode);
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const pairCode = generatePairingCode(8);
+      const pairCodeHash = sha256Hex(normalizePairingCode(pairCode));
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-      const { error: upsertErr } = await service
+      const { data: upserted, error: upsertErr } = await service
         .from("integration_connections")
         .upsert(
           {
@@ -437,6 +451,9 @@ export async function POST(req: NextRequest) {
             status: "pending_pair",
             pairing_code_hash: pairCodeHash,
             pairing_code_expires_at: expiresAt.toISOString(),
+            pairing_failed_attempts: 0,
+            pairing_locked_until: null,
+            token_revoked_at: null,
             config: {
               pairCode,
               pairCodeExpiresAt: expiresAt.toISOString(),
@@ -445,14 +462,18 @@ export async function POST(req: NextRequest) {
             updated_at: new Date().toISOString(),
           },
           { onConflict: "business_entity_id,provider" }
-        );
+        )
+        .select("id")
+        .single();
 
       if (upsertErr) {
+        console.error("[INTEGRATIONS] generate_epf_pair_code failed:", upsertErr);
         return NextResponse.json({ error: "Ulash kodini yaratishda xatolik." }, { status: 500 });
       }
 
       return NextResponse.json({
         ok: true,
+        connectionId: upserted?.id || null,
         code: pairCode,
         expiresAt: expiresAt.toISOString(),
       });
@@ -527,14 +548,19 @@ export async function POST(req: NextRequest) {
       const provider = String(body?.provider || "onec");
 
       if (provider === "onec") {
+        const nowIso = new Date().toISOString();
         await service
           .from("integration_connections")
           .update({
             status: "disconnected",
             pairing_code_hash: null,
             pairing_code_expires_at: null,
+            pairing_failed_attempts: 0,
+            pairing_locked_until: null,
             token_hash: null,
-            updated_at: new Date().toISOString(),
+            token_expires_at: null,
+            token_revoked_at: nowIso,
+            updated_at: nowIso,
           })
           .eq("business_entity_id", entityId)
           .in("provider", ["onec_odata", "onec_epf"]);
@@ -689,9 +715,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: `Nomaʼlum amal: ${action}` }, { status: 400 });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    console.error("[INTEGRATIONS GET ERROR]", err);
     return NextResponse.json(
-      { error: err?.message || "Server xatosi yuz berdi." },
+      { error: "Server xatosi yuz berdi." },
       { status: 500 }
     );
   }

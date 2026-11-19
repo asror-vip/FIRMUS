@@ -78,10 +78,40 @@ export function sha256Hex(value: string): string {
 
 /**
  * Generates a cryptographically secure 6-digit numeric pairing code (100000..999999).
+ * @deprecated Prefer `generatePairingCode()` (8+ char alphanumeric) for 1C bridge pairing.
  */
 export function generateSixDigitCode(): string {
   assertServerOnlyRuntime();
   return String(crypto.randomInt(100000, 1000000));
+}
+
+const PAIRING_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 unambiguous chars (no 0/O/1/I)
+
+/**
+ * Normalizes a pairing code by stripping dashes/spaces and uppercasing.
+ */
+export function normalizePairingCode(raw: string): string {
+  return String(raw || "")
+    .replace(/[\s-]+/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+/**
+ * Generates a cryptographically secure 8-character alphanumeric pairing code (32^8 > 10^12 space),
+ * formatted as XXXX-XXXX for readability.
+ */
+export function generatePairingCode(length = 8): string {
+  assertServerOnlyRuntime();
+  const safeLen = Math.max(8, Math.min(16, Math.trunc(length)));
+  let raw = "";
+  for (let i = 0; i < safeLen; i++) {
+    raw += PAIRING_ALPHABET[crypto.randomInt(0, PAIRING_ALPHABET.length)];
+  }
+  if (safeLen === 8) {
+    return `${raw.slice(0, 4)}-${raw.slice(4)}`;
+  }
+  return raw;
 }
 
 /**

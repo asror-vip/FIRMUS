@@ -240,7 +240,10 @@ export async function POST(req: NextRequest) {
         if (outcome === "already_paid") {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.ORDER_ALREADY_PAID });
         }
-        if (outcome === "conflict" || outcome === "wrong_method" || outcome === "invalid_status" || outcome === "timed_out") {
+        if (
+          (outcome !== "claimed" && outcome !== "already_same") ||
+          Number(claimRes.provider_state) !== 1
+        ) {
           return NextResponse.json({ id: reqId, error: PAYME_ERRORS.UNABLE_TO_PERFORM });
         }
 
