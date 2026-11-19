@@ -482,7 +482,7 @@ export default function AccountingPage() {
             onClick={handleExport1CXml}
             title={d.export1CXmlTitle}
           >
-            <FileCode className="h-3.5 w-3.5 text-violet-400" />
+            <FileCode className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
             {d.export1CXmlBtn}
           </Button>
 
@@ -508,7 +508,7 @@ export default function AccountingPage() {
               </Button>
               <Button
                 size="sm"
-                className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                 onClick={() => {
                   setNewEntry((prev) => ({
                     ...prev,
@@ -606,7 +606,7 @@ export default function AccountingPage() {
                       : 0;
                     return (
                       <TableRow key={acc.id} className="border-border/30 hover:bg-muted/30">
-                        <TableCell className="font-mono font-bold text-xs text-violet-400">
+                        <TableCell className="font-mono font-bold text-xs text-violet-600 dark:text-violet-400">
                           {acc.code}
                         </TableCell>
                         <TableCell className="font-medium text-foreground">
@@ -649,7 +649,7 @@ export default function AccountingPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/40 hover:bg-transparent">
-                  <TableHead className="w-32 text-[11px] uppercase font-medium text-muted-foreground">№</TableHead>
+                  <TableHead className="w-32 text-[11px] uppercase font-medium text-muted-foreground">â„–</TableHead>
                   <TableHead className="w-24 text-[11px] uppercase font-medium text-muted-foreground">{t.common.date}</TableHead>
                   <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.description}</TableHead>
                   <TableHead className="text-[11px] uppercase font-medium text-muted-foreground">{t.common.source}</TableHead>
@@ -673,7 +673,7 @@ export default function AccountingPage() {
                     className="cursor-pointer border-border/30 hover:bg-muted/30"
                     onClick={() => setSelectedEntry(je)}
                   >
-                    <TableCell className="font-mono text-xs font-semibold text-violet-400">
+                    <TableCell className="font-mono text-xs font-semibold text-violet-600 dark:text-violet-400">
                       {je.entryNumber}
                     </TableCell>
                     <TableCell className="font-mono text-[11px] text-muted-foreground">
@@ -740,7 +740,7 @@ export default function AccountingPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground font-mono">
-                      {selectedEntry.entryNumber} • {selectedEntry.date}
+                      {selectedEntry.entryNumber} â€¢ {selectedEntry.date}
                     </span>
                     <StatusPill status={selectedEntry.status} />
                   </div>
@@ -788,17 +788,17 @@ export default function AccountingPage() {
                   <TableBody>
                     {selectedEntry.lines.map((l) => (
                       <TableRow key={l.id} className="border-border/30 hover:bg-muted/30">
-                        <TableCell className="font-mono font-bold text-violet-400">
+                        <TableCell className="font-mono font-bold text-violet-600 dark:text-violet-400">
                           {l.accountCode}
                         </TableCell>
                         <TableCell className="font-medium text-foreground">{l.accountName}</TableCell>
                         <TableCell className="text-right font-mono font-medium">
-                          {l.debit > 0 ? <Money amount={l.debit} /> : "—"}
+                          {l.debit > 0 ? <Money amount={l.debit} /> : "â€”"}
                         </TableCell>
                         <TableCell className="text-right font-mono font-medium">
-                          {l.credit > 0 ? <Money amount={l.credit} /> : "—"}
+                          {l.credit > 0 ? <Money amount={l.credit} /> : "â€”"}
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-[11px]">{l.memo || "—"}</TableCell>
+                        <TableCell className="text-muted-foreground text-[11px]">{l.memo || "â€”"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -811,15 +811,15 @@ export default function AccountingPage() {
         {/* 3. Trial Balance Tab */}
         <TabsContent value="trial" className="space-y-4 mt-4">
           <div className="flex items-center justify-between p-3 rounded-xl border border-violet-500/30 bg-violet-500/10 backdrop-blur-sm text-xs">
-            <div className="flex items-center gap-2 text-violet-300 font-medium">
-              <CheckCircle2 className="h-4 w-4 text-violet-400" />
+            <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300 font-medium">
+              <CheckCircle2 className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               <span>
                 {isTbBalanced ? d.tbBalanced : d.tbUnbalanced}
               </span>
             </div>
             <div className="flex items-center gap-4 font-mono font-bold text-foreground">
               <span>{t.pages.accounting.debit}: <span className="text-emerald-400">{new Intl.NumberFormat(intlLocale).format(tbTotalDebit)}</span> {t.common.currency}</span>
-              <span>{t.pages.accounting.credit}: <span className="text-violet-400">{new Intl.NumberFormat(intlLocale).format(tbTotalCredit)}</span> {t.common.currency}</span>
+              <span>{t.pages.accounting.credit}: <span className="text-violet-600 dark:text-violet-400">{new Intl.NumberFormat(intlLocale).format(tbTotalCredit)}</span> {t.common.currency}</span>
             </div>
           </div>
 
@@ -839,7 +839,7 @@ export default function AccountingPage() {
                 {trialBalanceData.length > 0 ? (
                   trialBalanceData.map((row) => (
                     <TableRow key={row.account_code} className="border-border/30 hover:bg-muted/30">
-                      <TableCell className="font-mono font-bold text-violet-400">
+                      <TableCell className="font-mono font-bold text-violet-600 dark:text-violet-400">
                         {row.account_code}
                       </TableCell>
                       <TableCell className="font-medium text-foreground">{row.account_name}</TableCell>
@@ -853,10 +853,10 @@ export default function AccountingPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-emerald-500 dark:text-emerald-400 font-medium">
-                        {Number(row.period_debit) > 0 ? <Money amount={Number(row.period_debit)} /> : "—"}
+                        {Number(row.period_debit) > 0 ? <Money amount={Number(row.period_debit)} /> : "â€”"}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-violet-400 font-medium">
-                        {Number(row.period_credit) > 0 ? <Money amount={Number(row.period_credit)} /> : "—"}
+                      <TableCell className="text-right font-mono text-violet-600 dark:text-violet-400 font-medium">
+                        {Number(row.period_credit) > 0 ? <Money amount={Number(row.period_credit)} /> : "â€”"}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold text-foreground">
                         {Number(row.closing_debit) > 0 ? (
@@ -892,7 +892,7 @@ export default function AccountingPage() {
             >
               {chartOfAccounts.map((acc) => (
                 <option key={acc.id} value={acc.code}>
-                  {acc.code} — {acc.name}
+                  {acc.code} â€” {acc.name}
                 </option>
               ))}
             </select>
@@ -918,14 +918,14 @@ export default function AccountingPage() {
                     .map((row, idx) => (
                     <TableRow key={row.entry_id || idx} className="border-border/30 hover:bg-muted/30">
                       <TableCell className="font-mono text-xs">{row.entry_date}</TableCell>
-                      <TableCell className="font-mono text-xs text-violet-400 font-medium">{row.entry_number}</TableCell>
+                      <TableCell className="font-mono text-xs text-violet-600 dark:text-violet-400 font-medium">{row.entry_number}</TableCell>
                       <TableCell className="font-medium text-foreground">{row.description}</TableCell>
-                      <TableCell className="font-mono text-violet-400 font-bold">{row.correspondent_code}</TableCell>
+                      <TableCell className="font-mono text-violet-600 dark:text-violet-400 font-bold">{row.correspondent_code}</TableCell>
                       <TableCell className="text-right text-emerald-500 dark:text-emerald-400 font-mono font-medium">
-                        {Number(row.debit_amount) > 0 ? <Money amount={Number(row.debit_amount)} /> : "—"}
+                        {Number(row.debit_amount) > 0 ? <Money amount={Number(row.debit_amount)} /> : "â€”"}
                       </TableCell>
-                      <TableCell className="text-right text-violet-400 font-mono font-medium">
-                        {Number(row.credit_amount) > 0 ? <Money amount={Number(row.credit_amount)} /> : "—"}
+                      <TableCell className="text-right text-violet-600 dark:text-violet-400 font-mono font-medium">
+                        {Number(row.credit_amount) > 0 ? <Money amount={Number(row.credit_amount)} /> : "â€”"}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold text-foreground">
                         <Money amount={Number(row.running_balance)} />
@@ -1008,7 +1008,7 @@ export default function AccountingPage() {
                 >
                   {chartOfAccounts.map((acc) => (
                     <option key={acc.id} value={acc.code}>
-                      {acc.code} — {acc.name}
+                      {acc.code} â€” {acc.name}
                     </option>
                   ))}
                 </select>
@@ -1022,7 +1022,7 @@ export default function AccountingPage() {
                 >
                   {chartOfAccounts.map((acc) => (
                     <option key={acc.id} value={acc.code}>
-                      {acc.code} — {acc.name}
+                      {acc.code} â€” {acc.name}
                     </option>
                   ))}
                 </select>
@@ -1055,7 +1055,7 @@ export default function AccountingPage() {
               <Button
                 type="submit"
                 size="sm"
-                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? d.savingBtn : d.saveEntryBtn}
@@ -1175,7 +1175,7 @@ export default function AccountingPage() {
               <Button
                 type="submit"
                 size="sm"
-                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                 disabled={isSubmittingCoa}
               >
                 {isSubmittingCoa ? d.addingBtn : d.saveCoaBtn}
@@ -1190,7 +1190,7 @@ export default function AccountingPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
-              <Lock className="h-4 w-4 text-violet-400" />
+              <Lock className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               {d.closePeriodTitle}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -1234,7 +1234,7 @@ export default function AccountingPage() {
               <Button
                 type="submit"
                 size="sm"
-                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                 disabled={isClosingPeriod}
               >
                 {isClosingPeriod ? d.closingBtn : d.closePeriodSubmitBtn}

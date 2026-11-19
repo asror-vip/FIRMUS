@@ -6,8 +6,8 @@
  * capabilities can be enabled step-by-step without database migrations.
  */
 export const FEATURES = {
-  /** Multi-workspace & multi-company switchers, company STIR onboarding, and Settings -> Entities */
-  multiCompanyMode: false,
+  /** Multi-workspace & multi-company switchers, company STIR onboarding, and Clients / Entities */
+  multiCompanyMode: true,
   /** Team member invitations, corporate role badges, and multi-seat quotas */
   teamMode: false,
   /** Full ERP Accounting modules (Transactions, Chart of Accounts/Ledger, Tax Calendar, Finance P&L, AI Auditor) */

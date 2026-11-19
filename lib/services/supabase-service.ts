@@ -135,13 +135,18 @@ export async function fetchBusinessEntities() {
           tradeName: ent.trade_name || undefined,
           tinStir: ent.tin_stir,
           companyType: ent.company_type || "MChJ",
+          taxpayerStatus: ent.taxpayer_status || "llc",
           taxRegime: ent.tax_regime || "vat_profit_tax",
+          isVatPayer: Boolean(ent.is_vat_payer ?? ent.tax_regime === "vat_profit_tax"),
+          activityType: ent.activity_type || "Savdo va xizmatlar",
+          oneCProfileId: ent.onec_profile_id || "universal_excel_csv",
           currency: ent.currency || "UZS",
           accountantName: ent.accountant_name || "Bosh buxgalter",
           isActive: ent.is_active,
           directorName: "",
-          bankAccount: "",
-          bankName: "",
+          bankAccount: ent.bank_account || "",
+          bankName: ent.bank_name || "",
+          bankMfo: ent.bank_mfo || "",
         }));
       },
       { ttlMs: 120_000 }
@@ -158,13 +163,28 @@ export async function createBusinessEntity(entity: {
   tradeName?: string;
   tinStir: string;
   companyType: string;
+  taxpayerStatus?: "llc" | "yatt" | "self_employed";
   taxRegime: string;
+  isVatPayer?: boolean;
+  activityType?: string;
+  oneCProfileId?: string;
   accountantName?: string;
+  bankAccount?: string;
+  bankName?: string;
+  bankMfo?: string;
 }) {
   const workspaceId = await resolveActiveWorkspaceId(entity.workspaceId);
   if (!workspaceId) {
     throw new Error("Faol ishchi maydon (Workspace) topilmadi. Avval tizimga kiring.");
   }
+
+  const inferredStatus =
+    entity.taxpayerStatus ??
+    (entity.companyType.toUpperCase() === "YATT"
+      ? "yatt"
+      : entity.companyType.toLowerCase().includes("band")
+      ? "self_employed"
+      : "llc");
 
   const { data, error } = await supabase
     .from("business_entities")
@@ -174,8 +194,15 @@ export async function createBusinessEntity(entity: {
       trade_name: entity.tradeName || null,
       tin_stir: entity.tinStir,
       company_type: entity.companyType,
+      taxpayer_status: inferredStatus,
       tax_regime: entity.taxRegime,
+      is_vat_payer: entity.isVatPayer ?? entity.taxRegime === "vat_profit_tax",
+      activity_type: entity.activityType || "Savdo va xizmatlar",
+      onec_profile_id: entity.oneCProfileId || "universal_excel_csv",
       accountant_name: entity.accountantName || "Bosh buxgalter",
+      bank_account: entity.bankAccount?.trim() || null,
+      bank_name: entity.bankName?.trim() || null,
+      bank_mfo: entity.bankMfo?.trim() || null,
       currency: "UZS",
       is_active: true,
     })
@@ -191,13 +218,18 @@ export async function createBusinessEntity(entity: {
     tradeName: data.trade_name || undefined,
     tinStir: data.tin_stir,
     companyType: data.company_type,
+    taxpayerStatus: data.taxpayer_status || "llc",
     taxRegime: data.tax_regime,
+    isVatPayer: Boolean(data.is_vat_payer),
+    activityType: data.activity_type || "Savdo va xizmatlar",
+    oneCProfileId: data.onec_profile_id || "universal_excel_csv",
     currency: data.currency,
     accountantName: data.accountant_name,
     isActive: data.is_active,
-    directorName: "Masʼul rahbar",
-    bankAccount: "20208000700543210001",
-    bankName: "ATB Kapitalbank",
+    directorName: "",
+    bankAccount: data.bank_account || "",
+    bankName: data.bank_name || "",
+    bankMfo: data.bank_mfo || "",
   };
 }
 
@@ -208,8 +240,15 @@ export async function updateBusinessEntity(
     tradeName?: string;
     tinStir?: string;
     companyType?: string;
+    taxpayerStatus?: "llc" | "yatt" | "self_employed";
     taxRegime?: string;
+    isVatPayer?: boolean;
+    activityType?: string;
+    oneCProfileId?: string;
     accountantName?: string;
+    bankAccount?: string;
+    bankName?: string;
+    bankMfo?: string;
   }
 ) {
   const payload: any = { updated_at: new Date().toISOString() };
@@ -217,9 +256,15 @@ export async function updateBusinessEntity(
   if (updates.tradeName !== undefined) payload.trade_name = updates.tradeName || null;
   if (updates.tinStir !== undefined) payload.tin_stir = updates.tinStir;
   if (updates.companyType !== undefined) payload.company_type = updates.companyType;
+  if (updates.taxpayerStatus !== undefined) payload.taxpayer_status = updates.taxpayerStatus;
   if (updates.taxRegime !== undefined) payload.tax_regime = updates.taxRegime;
-
+  if (updates.isVatPayer !== undefined) payload.is_vat_payer = updates.isVatPayer;
+  if (updates.activityType !== undefined) payload.activity_type = updates.activityType;
+  if (updates.oneCProfileId !== undefined) payload.onec_profile_id = updates.oneCProfileId;
   if (updates.accountantName !== undefined) payload.accountant_name = updates.accountantName;
+  if (updates.bankAccount !== undefined) payload.bank_account = updates.bankAccount || null;
+  if (updates.bankName !== undefined) payload.bank_name = updates.bankName || null;
+  if (updates.bankMfo !== undefined) payload.bank_mfo = updates.bankMfo || null;
 
   const { data, error } = await supabase
     .from("business_entities")
@@ -236,10 +281,17 @@ export async function updateBusinessEntity(
     tradeName: data.trade_name || undefined,
     tinStir: data.tin_stir,
     companyType: data.company_type,
+    taxpayerStatus: data.taxpayer_status || "llc",
     taxRegime: data.tax_regime,
+    isVatPayer: Boolean(data.is_vat_payer),
+    activityType: data.activity_type || "Savdo va xizmatlar",
+    oneCProfileId: data.onec_profile_id || "universal_excel_csv",
     currency: data.currency,
     accountantName: data.accountant_name,
     isActive: data.is_active,
+    bankAccount: data.bank_account || "",
+    bankName: data.bank_name || "",
+    bankMfo: data.bank_mfo || "",
   };
 }
 

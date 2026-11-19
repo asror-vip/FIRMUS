@@ -1,4 +1,7 @@
 import type { Locale } from "../types";
+import { getTurnoverRateRangeLabel } from "@/lib/services/uz-tax-calculator";
+
+const TURNOVER_RATE_RANGE = getTurnoverRateRangeLabel();
 
 export function getIntlLocale(locale: Locale): string {
   return locale === "ru" ? "ru-RU" : locale === "en" ? "en-US" : "uz-UZ";
@@ -841,7 +844,7 @@ const reconcileErpDict: Record<Locale, ReconcileErpDict> = {
         loadingEntities: "Korxonalar yuklanmoqda...",
         emptyEntities: "Ushbu ishchi maydonda korxonalar kiritilmagan.",
         regimeVatProfit: "QQS + Foyda",
-        regimeTurnover: "Aylanma soliq (4%)",
+        regimeTurnover: `Aylanma soliq (${TURNOVER_RATE_RANGE})`,
         regimeFixed: "Qatʼiy soliq",
         authenticatedSession: "Autentifikatsiya qilingan sessiya",
         supabaseSessionNote: "Supabase Auth JWT sessiya",
@@ -865,7 +868,7 @@ const reconcileErpDict: Record<Locale, ReconcileErpDict> = {
         },
         taxRegimeLabel: "Soliq rejimi *",
         taxRegimeOptVat: "QQS (12%) + Foyda soligʻi",
-        taxRegimeOptTurnover: "Aylanmadan olinadigan soliq (4%)",
+        taxRegimeOptTurnover: `Aylanmadan olinadigan soliq (${TURNOVER_RATE_RANGE})`,
         taxRegimeOptFixed: "Qatʼiy belgilangan soliq",
         rolePositionLabel: "Masʼul lavozimi (ixtiyoriy)",
         rolePositionPlaceholder: "Lavozimi",
@@ -1354,7 +1357,7 @@ const reconcileErpDict: Record<Locale, ReconcileErpDict> = {
         loadingEntities: "Загрузка организаций...",
         emptyEntities: "В данном рабочем пространстве организации не добавлены.",
         regimeVatProfit: "НДС + Прибыль",
-        regimeTurnover: "Налог с оборота (4%)",
+        regimeTurnover: `Налог с оборота (${TURNOVER_RATE_RANGE})`,
         regimeFixed: "Фиксированный налог",
         authenticatedSession: "Аутентифицированная сессия",
         supabaseSessionNote: "JWT-сессия Supabase Auth",
@@ -1378,7 +1381,7 @@ const reconcileErpDict: Record<Locale, ReconcileErpDict> = {
         },
         taxRegimeLabel: "Налоговый режим *",
         taxRegimeOptVat: "НДС (12%) + Налог на прибыль",
-        taxRegimeOptTurnover: "Налог с оборота (4%)",
+        taxRegimeOptTurnover: `Налог с оборота (${TURNOVER_RATE_RANGE})`,
         taxRegimeOptFixed: "Фиксированный налог",
         rolePositionLabel: "Должность ответственного (необязательно)",
         rolePositionPlaceholder: "Должность",
@@ -1867,7 +1870,7 @@ const reconcileErpDict: Record<Locale, ReconcileErpDict> = {
         loadingEntities: "Loading entities...",
         emptyEntities: "No business entities added in this workspace.",
         regimeVatProfit: "VAT + Profit Tax",
-        regimeTurnover: "Turnover Tax (4%)",
+        regimeTurnover: `Turnover Tax (${TURNOVER_RATE_RANGE})`,
         regimeFixed: "Fixed Tax",
         authenticatedSession: "Authenticated session",
         supabaseSessionNote: "Supabase Auth JWT session",
@@ -1891,7 +1894,7 @@ const reconcileErpDict: Record<Locale, ReconcileErpDict> = {
         },
         taxRegimeLabel: "Tax Regime *",
         taxRegimeOptVat: "VAT (12%) + Profit Tax",
-        taxRegimeOptTurnover: "Turnover Tax (4%)",
+        taxRegimeOptTurnover: `Turnover Tax (${TURNOVER_RATE_RANGE})`,
         taxRegimeOptFixed: "Fixed Tax",
         rolePositionLabel: "Responsible Position (optional)",
         rolePositionPlaceholder: "Position",

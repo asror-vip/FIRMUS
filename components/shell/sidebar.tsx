@@ -24,6 +24,7 @@ import {
   Calculator,
   FileWarning,
   History,
+  Building2,
 } from "lucide-react";
 
 interface NavigationItem {
@@ -80,8 +81,8 @@ function SidebarNavigation({
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all relative group",
                   isActive
-                    ? "bg-gradient-to-r from-violet-600/25 via-violet-700/15 to-violet-900/10 border border-violet-500/30 text-violet-900 dark:text-violet-100 font-semibold shadow-[0_0_15px_rgba(139,92,246,0.15)]"
-                    : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                    ? "bg-violet-500/10 text-violet-700 dark:text-violet-200 font-semibold"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 )}
               >
                 <Icon
@@ -110,13 +111,26 @@ export function Sidebar() {
   const d = getShellSharedDict(locale);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  const clientsLabel =
+    locale === "ru" ? "Клиенты" : locale === "en" ? "Clients" : "Mijozlar";
+  const taxCalcLabel =
+    locale === "ru"
+      ? "Оборот и налог"
+      : locale === "en"
+      ? "Turnover & Tax"
+      : "Aylanma va soliq";
+
   const soloToolsGroups: NavigationGroup[] = [
     {
       label: d.sidebar.toolsGroupLabel,
       items: [
         { name: d.sidebar.solo.home, href: "/", icon: LayoutDashboard },
-        { name: d.sidebar.solo.aiChat, href: "/assistant", icon: Sparkles },
+        ...(FEATURES.multiCompanyMode
+          ? [{ name: clientsLabel, href: "/clients", icon: Building2 }]
+          : []),
+        { name: taxCalcLabel, href: "/tax-calc", icon: Percent },
         { name: d.sidebar.solo.reconcile, href: "/reconcile", icon: Scale },
+        { name: d.sidebar.solo.aiChat, href: "/assistant", icon: Sparkles },
         { name: d.sidebar.solo.scanner, href: "/assistant?tab=scan", icon: Camera },
         { name: d.sidebar.solo.calculator, href: "/assistant?tab=calc", icon: Calculator },
         { name: d.sidebar.solo.contract, href: "/assistant?tab=contract", icon: FileWarning },
@@ -137,6 +151,9 @@ export function Sidebar() {
       label: t.nav.groups.overview,
       items: [
         { name: t.nav.dashboard, href: "/", icon: LayoutDashboard },
+        ...(FEATURES.multiCompanyMode
+          ? [{ name: clientsLabel, href: "/clients", icon: Building2 }]
+          : []),
         { name: d.sidebar.erp.reconcile, href: "/reconcile", icon: Scale },
         { name: d.sidebar.erp.assistant, href: "/assistant", icon: Sparkles },
         { name: t.nav.aiAuditor, href: "/ai-auditor", icon: ShieldAlert },
@@ -192,22 +209,17 @@ export function Sidebar() {
           </button>
         ) : (
           <>
-            <Link href="/" className="flex items-center gap-2.5 overflow-hidden">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-blue-400/40 shadow-sm bg-black">
-                <img
-                  src="/brand/firmus-f.jpg"
-                  alt="FIRMUS"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="flex flex-col truncate">
-                <span className="font-bold text-sm tracking-tight text-foreground font-sans">
-                  FIRMUS
-                </span>
-                <span className="text-[10px] text-muted-foreground font-mono leading-none">
-                  {FEATURES.multiCompanyMode ? d.sidebar.brandSubMulti : d.sidebar.brandSubSolo}
-                </span>
-              </div>
+            <Link href="/" className="flex items-center overflow-hidden min-w-0">
+              <img
+                src="/brand/firmus-wordmark.png"
+                alt="FIRMUS"
+                className="h-9 w-auto max-w-[162px] object-contain dark:hidden"
+              />
+              <img
+                src="/brand/firmus-wordmark-dark.png"
+                alt="FIRMUS"
+                className="h-9 w-auto max-w-[162px] object-contain hidden dark:block"
+              />
             </Link>
             <button
               onClick={() => setIsCollapsed(true)}
@@ -230,19 +242,19 @@ export function Sidebar() {
         />
       </Suspense>
 
-      {/* AI Quick Trigger Box (when expanded) */}
+      {/* AI Quick Trigger (clean, borderless — no cramped mini-box) */}
       {!isCollapsed && (
-        <div className="p-3 mx-2.5 mb-2 rounded-xl border border-violet-500/25 bg-violet-500/[0.06] text-xs">
-          <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-semibold mb-1">
+        <div className="px-3.5 py-3 border-t border-border/50 text-xs space-y-2">
+          <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-semibold">
             <Sparkles className="h-3.5 w-3.5" />
             <span>{d.sidebar.aiAgentTitle}</span>
           </div>
-          <p className="text-[11px] text-muted-foreground leading-tight mb-2">
+          <p className="text-[11px] text-muted-foreground leading-snug">
             {t.sidebarFooter.copilotSubtitle}
           </p>
           <button
             onClick={toggleAiDrawer}
-            className="w-full text-center text-[11px] font-semibold text-white bg-violet-600 hover:bg-violet-500 py-1 rounded-md shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-colors"
+            className="w-full text-center text-[11px] font-semibold text-white bg-violet-600 hover:bg-violet-500 py-1.5 rounded-lg transition-colors"
           >
             {t.sidebarFooter.copilotButton}
           </button>
@@ -250,15 +262,15 @@ export function Sidebar() {
       )}
 
       {/* Sidebar Footer: Status & Version (h-14 aligned with main Footer border) */}
-      <div className="h-14 shrink-0 border-t border-border mt-auto bg-card/30">
+      <div className="h-14 shrink-0 border-t border-border/50 mt-auto">
         {!isCollapsed ? (
-          <div className="h-full px-3 flex flex-col justify-center gap-0.5">
+          <div className="h-full px-3.5 flex flex-col justify-center gap-0.5">
             <div className="flex items-center justify-between text-[11px]">
-              <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-medium">
-                <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.6)] animate-pulse" />
+              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="truncate">{t.sidebarFooter.syncStatus}</span>
               </div>
-              <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              <span className="text-[10px] font-mono text-muted-foreground/75">
                 v1.0.4
               </span>
             </div>
@@ -269,7 +281,7 @@ export function Sidebar() {
         ) : (
           <div className="h-full px-3 flex items-center justify-center">
             <div
-              className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.6)]"
+              className="h-2 w-2 rounded-full bg-emerald-500"
               title={d.sidebar.activeBadge}
             />
           </div>

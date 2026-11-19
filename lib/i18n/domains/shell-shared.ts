@@ -1,5 +1,8 @@
 import type { Locale } from "../types";
 import type { AiModelId } from "@/lib/config/plans";
+import { getTurnoverRateRangeLabel } from "@/lib/services/uz-tax-calculator";
+
+const TURNOVER_RATE_RANGE = getTurnoverRateRangeLabel();
 
 export function getIntlLocale(locale: Locale): "uz-UZ" | "ru-RU" | "en-US" {
   switch (locale) {
@@ -450,7 +453,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
       switchedToast: (name) => `Tanlangan korxona: ${name}`,
       taxRegimes: {
         vat_profit_tax: "QQS + Foyda",
-        turnover_tax: "Aylanma 4%",
+        turnover_tax: `Aylanma ${TURNOVER_RATE_RANGE}`,
         fixed_tax: "Qatʼiy soliq",
       },
     },
@@ -510,7 +513,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
         taxRegimeLabel: "Soliq rejimi",
         taxRegimes: {
           vat_profit_tax: "QQS (12%) + Foyda",
-          turnover_tax: "Aylanmadan (4%)",
+          turnover_tax: `Aylanmadan (${TURNOVER_RATE_RANGE})`,
         },
         defaultAccountantName: "Bosh buxgalter",
         createdToast: "Korxona yaratildi!",
@@ -593,7 +596,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
         heroSubtitle: "Soliq, 21-BHMS, provodka va hujjatlar boʻyicha savol bering",
         quickPrompts: [
           "12% QQS boʻyicha kiruvchi faktura provodkasini yozib ber",
-          "Aylanma soliq 4% qachon va qanday topshiriladi?",
+          `Aylanma soliq (${TURNOVER_RATE_RANGE}) qachon va qanday topshiriladi?`,
           "Asosiy vosita amortizatsiyasi boʻyicha misol keltir",
         ],
         thinkingLabel: "AI javob tayyorlamoqda...",
@@ -813,7 +816,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
       switchedToast: (name) => `Выбранная организация: ${name}`,
       taxRegimes: {
         vat_profit_tax: "НДС + Прибыль",
-        turnover_tax: "С оборота 4%",
+        turnover_tax: `С оборота ${TURNOVER_RATE_RANGE}`,
         fixed_tax: "Фикс. налог",
       },
     },
@@ -873,7 +876,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
         taxRegimeLabel: "Налоговый режим",
         taxRegimes: {
           vat_profit_tax: "НДС (12%) + Прибыль",
-          turnover_tax: "Налог с оборота (4%)",
+          turnover_tax: `Налог с оборота (${TURNOVER_RATE_RANGE})`,
         },
         defaultAccountantName: "Главный бухгалтер",
         createdToast: "Организация создана!",
@@ -956,7 +959,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
         heroSubtitle: "Задайте вопрос по налогам, НСБУ №21, проводкам и документам",
         quickPrompts: [
           "Составь проводку по входящему счету-фактуре с НДС 12%",
-          "Когда и как сдается налог с оборота 4%?",
+          `Когда и как сдается налог с оборота (${TURNOVER_RATE_RANGE})?`,
           "Приведи пример расчета амортизации основных средств",
         ],
         thinkingLabel: "AI готовит ответ...",
@@ -1176,7 +1179,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
       switchedToast: (name) => `Selected entity: ${name}`,
       taxRegimes: {
         vat_profit_tax: "VAT + Profit",
-        turnover_tax: "Turnover 4%",
+        turnover_tax: `Turnover ${TURNOVER_RATE_RANGE}`,
         fixed_tax: "Fixed Tax",
       },
     },
@@ -1236,7 +1239,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
         taxRegimeLabel: "Tax Regime",
         taxRegimes: {
           vat_profit_tax: "VAT (12%) + Profit",
-          turnover_tax: "Turnover Tax (4%)",
+          turnover_tax: `Turnover Tax (${TURNOVER_RATE_RANGE})`,
         },
         defaultAccountantName: "Chief Accountant",
         createdToast: "Entity created!",
@@ -1319,7 +1322,7 @@ export const shellSharedDict: Record<Locale, ShellSharedDict> = {
         heroSubtitle: "Ask about Uzbekistan taxes, NAS 21, journal entries, and documents",
         quickPrompts: [
           "Write the journal entry for an incoming invoice with 12% VAT",
-          "When and how is the 4% turnover tax filed?",
+          `When and how is turnover tax (${TURNOVER_RATE_RANGE}) filed?`,
           "Show an example of fixed asset depreciation calculation",
         ],
         thinkingLabel: "AI is thinking...",

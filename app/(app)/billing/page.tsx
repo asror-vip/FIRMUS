@@ -705,9 +705,9 @@ function BillingContent() {
     } catch (err: any) {
       toast.error(err?.message || b.toast.confirmError);
       if (
-        err?.message?.includes("avval toʻlangan") ||
+        err?.message?.includes("avval toÊ»langan") ||
         err?.message?.includes("already paid") ||
-        err?.message?.includes("уже оплачен")
+        err?.message?.includes("ÑƒÐ¶Ðµ Ð¾Ð¿Ð»Ð°Ñ‡ÐµÐ½")
       ) {
         clearLastCheckoutOrder(orderId);
         await refreshSubscription();
@@ -724,15 +724,15 @@ function BillingContent() {
     if (!activePlanSpec) return;
     const inv = checkoutOrder?.invoiceDetails;
     const ord = checkoutOrder?.order;
-    const orderId = ord?.orderId || checkoutOrder?.orderId || "—";
+    const orderId = ord?.orderId || checkoutOrder?.orderId || "â€”";
     const invNum =
       inv?.invoiceNumber ||
       checkoutOrder?.invoiceNumber ||
-      (orderId !== "—" ? `INV-${orderId}` : checkoutOrder?.fallbackInvoiceNumber || "INV-000000");
-    const seller = inv?.sellerName || "«FIRMUS TECH» MChJ";
+      (orderId !== "â€”" ? `INV-${orderId}` : checkoutOrder?.fallbackInvoiceNumber || "INV-000000");
+    const seller = inv?.sellerName || "Â«FIRMUS TECHÂ» MChJ";
     const sTin = inv?.sellerTin || "309888777";
     const sAccount = inv?.sellerAccount || "2020 8000 9005 1234 5001";
-    const sBank = inv?.sellerBank || "«Oʻzsanoatqurilishbank» ATB";
+    const sBank = inv?.sellerBank || "Â«OÊ»zsanoatqurilishbankÂ» ATB";
     const sMfo = inv?.sellerMfo || "00440";
     const bName =
       inv?.buyerName ||
@@ -745,7 +745,7 @@ function BillingContent() {
       checkoutOrder?.b2bMetadata?.tinStir ||
       b2bTinStir ||
       currentEntity?.tinStir ||
-      "—";
+      "â€”";
     const amountVal =
       inv?.amountUzs ||
       ord?.finalAmountUzs ||
@@ -920,7 +920,7 @@ function BillingContent() {
             <Button
               type="button"
               size="sm"
-              className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] shrink-0"
+              className="h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm shrink-0"
               disabled={isActivatingTrial}
               onClick={handleActivateTrial}
             >
@@ -939,7 +939,7 @@ function BillingContent() {
             <div className="rounded-xl border border-border/50 bg-card/40 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>{b.summary.monthlyAiActivity}</span>
-                <Activity className="h-3.5 w-3.5 text-violet-400" />
+                <Activity className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
                 {b.summary.usedPercent.replace("{pct}", String(aiUsagePercent))}
@@ -958,7 +958,7 @@ function BillingContent() {
             <div className="rounded-xl border border-border/50 bg-card/40 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>{b.summary.activeAiModel}</span>
-                <Cpu className="h-3.5 w-3.5 text-violet-400" />
+                <Cpu className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               </div>
               <div className="mt-1.5 font-semibold text-sm text-foreground">
                 {activeAiModelMeta.label}
@@ -973,16 +973,16 @@ function BillingContent() {
             <div className="rounded-xl border border-border/50 bg-card/40 p-3.5">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>{b.summary.savedWorks}</span>
-                <FileStack className="h-3.5 w-3.5 text-violet-400" />
+                <FileStack className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               </div>
               <div className="mt-1.5 font-mono font-bold text-sm text-foreground">
                 {isLoadingUsage
-                  ? "…"
+                  ? "â€¦"
                   : b.summary.worksCount.replace("{count}", String(usage.monthlyBatches))}
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {isLoadingUsage
-                  ? "…"
+                  ? "â€¦"
                   : b.summary.savedChatsCount.replace("{count}", String(usage.aiThreadsCount))}
               </p>
             </div>
@@ -997,7 +997,7 @@ function BillingContent() {
           aria-live="polite"
           className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 flex items-center gap-2.5 text-xs text-violet-200"
         >
-          <Loader2 className="h-4 w-4 animate-spin text-violet-400 shrink-0" />
+          <Loader2 className="h-4 w-4 animate-spin text-violet-600 dark:text-violet-400 shrink-0" />
           <span className="font-medium">{b.returnPolling.checkingMsg}</span>
         </div>
       ) : pendingOrder ? (
@@ -1042,7 +1042,7 @@ function BillingContent() {
             <Button
               type="button"
               size="sm"
-              className="h-7 px-2.5 text-[11px] bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1"
+              className="h-7 px-2.5 text-[11px] bg-violet-600 hover:bg-violet-500 text-white shadow-sm gap-1"
               disabled={isCheckingPendingOrder || isCancellingPendingOrder}
               onClick={() => handleReopenPendingOrder(pendingOrder)}
             >
@@ -1109,7 +1109,7 @@ function BillingContent() {
               className={cn(
                 "flex flex-col justify-between transition-all rounded-xl border bg-card/30 backdrop-blur-sm overflow-hidden",
                 isCurrent
-                  ? "border-violet-500 ring-1 ring-violet-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                  ? "border-violet-500 ring-1 ring-violet-500/50 shadow-sm"
                   : "border-border/50 hover:border-violet-500/30"
               )}
             >
@@ -1160,7 +1160,7 @@ function BillingContent() {
                   <ul className="space-y-2.5 text-xs">
                     {featuresList.map((feat, idx) => (
                       <li key={idx} className="flex items-start gap-2 text-foreground/90">
-                        <Check className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
+                        <Check className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />
                         <span>{feat}</span>
                       </li>
                     ))}
@@ -1173,7 +1173,7 @@ function BillingContent() {
                   <Button
                     type="button"
                     size="sm"
-                    className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                    className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                     disabled={isActivatingTrial}
                     onClick={handleActivateTrial}
                   >
@@ -1191,7 +1191,7 @@ function BillingContent() {
                   variant={isCurrent || showTrialBtn || isIncludedInHigherTier ? "outline" : "default"}
                   className={cn(
                     "w-full h-9 text-xs gap-1.5",
-                    !isCurrent && !showTrialBtn && !isIncludedInHigherTier && "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                    !isCurrent && !showTrialBtn && !isIncludedInHigherTier && "bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                   )}
                   onClick={() => {
                     setSelectedPlanForInfo(plan);
@@ -1265,7 +1265,7 @@ function BillingContent() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{b.dialogs.invoice.sellerLabel}</span>
                     <span className="font-medium text-foreground">
-                      {checkoutOrder.invoiceDetails?.sellerName || "«FIRMUS TECH» MChJ"} ({b.dialogs.invoice.tinPrefix}:{" "}
+                      {checkoutOrder.invoiceDetails?.sellerName || "Â«FIRMUS TECHÂ» MChJ"} ({b.dialogs.invoice.tinPrefix}:{" "}
                       {checkoutOrder.invoiceDetails?.sellerTin || "309888777"})
                     </span>
                   </div>
@@ -1289,7 +1289,7 @@ function BillingContent() {
                         checkoutOrder.b2bMetadata?.tinStir ||
                         b2bTinStir ||
                         currentEntity?.tinStir ||
-                        "—"}
+                        "â€”"}
                       )
                     </span>
                   </div>
@@ -1346,7 +1346,7 @@ function BillingContent() {
                   type="button"
                   size="sm"
                   disabled={isConfirmingOrder || isCheckingOut}
-                  className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                  className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                   onClick={() =>
                     handleConfirmOrder(checkoutOrder.order?.orderId || checkoutOrder.orderId)
                   }
@@ -1413,7 +1413,7 @@ function BillingContent() {
                   type="button"
                   size="sm"
                   disabled={isConfirmingOrder || isCheckingOut}
-                  className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
+                  className="bg-violet-600 hover:bg-violet-500 text-white shadow-sm gap-1.5"
                   onClick={() =>
                     handleConfirmOrder(checkoutOrder.order?.orderId || checkoutOrder.orderId)
                   }
@@ -1480,7 +1480,7 @@ function BillingContent() {
 
               {subscription.planId === "pro_plus" && activePlanSpec.id === "professional" && (
                 <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3 text-[11px] text-violet-200 flex items-start gap-2">
-                  <Sparkles className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
+                  <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />
                   <span>
                     {b.dialogs.activePaid.proPlusIncludedNotePrefix}
                     <strong>{getLocalizedPlanSpec("pro_plus", locale).name}</strong>
@@ -1503,7 +1503,7 @@ function BillingContent() {
                 <Button
                   type="button"
                   size="sm"
-                  className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
+                  className="bg-violet-600 hover:bg-violet-500 text-white shadow-sm gap-1.5"
                   onClick={() => {
                     setSelectedPlanForInfo(getLocalizedPlanSpec("pro_plus", locale));
                     setCheckoutOrder(null);
@@ -1534,7 +1534,7 @@ function BillingContent() {
 
             {showUpgradeValueNote && (
               <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-[11px] text-violet-200 flex items-start gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-violet-400 shrink-0 mt-0.5" />
+                <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />
                 <span>{b.upgradeValueNote}</span>
               </div>
             )}
@@ -1558,7 +1558,7 @@ function BillingContent() {
                   </div>
                 </div>
                 {paymentMethod === "payme" && (
-                  <Check className="h-4 w-4 text-violet-400 shrink-0" />
+                  <Check className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
                 )}
               </div>
 
@@ -1580,11 +1580,11 @@ function BillingContent() {
                   </div>
                 </div>
                 {paymentMethod === "click" && (
-                  <Check className="h-4 w-4 text-violet-400 shrink-0" />
+                  <Check className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
                 )}
               </div>
 
-              {/* 3. Bank oʻtkazmasi */}
+              {/* 3. Bank oÊ»tkazmasi */}
               <div
                 onClick={() => setPaymentMethod("bank_transfer_didox")}
                 className={cn(
@@ -1596,7 +1596,7 @@ function BillingContent() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <Building2 className="h-4 w-4 text-violet-400 shrink-0" />
+                    <Building2 className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
                     <div>
                       <span className="font-semibold text-foreground block">{b.dialogs.checkout.bankTitle}</span>
                       <span className="text-[11px] text-muted-foreground">
@@ -1605,7 +1605,7 @@ function BillingContent() {
                     </div>
                   </div>
                   {paymentMethod === "bank_transfer_didox" && (
-                    <Check className="h-4 w-4 text-violet-400 shrink-0" />
+                    <Check className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
                   )}
                 </div>
 
@@ -1651,7 +1651,7 @@ function BillingContent() {
                 type="button"
                 size="sm"
                 disabled={isCheckingOut || isConfirmingOrder}
-                className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
+                className="bg-violet-600 hover:bg-violet-500 text-white shadow-sm gap-1.5"
                 onClick={handleInitiateCheckout}
               >
                 {isCheckingOut ? (

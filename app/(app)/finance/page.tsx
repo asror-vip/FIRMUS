@@ -201,7 +201,7 @@ export default function FinancePage() {
             {t.pages.finance.title}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {currentEntity?.name} • {d.subtitleSuffix}
+            {currentEntity?.name} â€¢ {d.subtitleSuffix}
           </p>
         </div>
 
@@ -306,7 +306,7 @@ export default function FinancePage() {
                       <TableCell
                         className={`text-xs ${
                           row.isSectionHeader
-                            ? "text-violet-400 font-bold uppercase tracking-wider"
+                            ? "text-violet-600 dark:text-violet-400 font-bold uppercase tracking-wider"
                             : row.isHeader
                             ? "font-semibold text-foreground"
                             : "text-foreground"

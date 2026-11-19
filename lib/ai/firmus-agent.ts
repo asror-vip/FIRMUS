@@ -8,6 +8,10 @@ import {
   calculatePayrollUz,
   calculateVatUz,
   calculateTurnoverTaxUz,
+  buildTaxRulesSummaryForAi,
+  getTurnoverRateRangeLabel,
+  resolveUzTaxRules,
+  type TaxpayerStatus,
   LEX_UZ_TAX_CODE_URL,
   LEX_UZ_BHMS21_URL,
 } from "@/lib/services/uz-tax-calculator";
@@ -149,14 +153,23 @@ function buildFirmusSystemInstruction(params: {
 }): string {
   const { entity, coaRows, userRole, soloToolsMode } = params;
 
+  const activeRules = resolveUzTaxRules();
+  const activeTaxSummary = buildTaxRulesSummaryForAi();
+  const turnoverRangeLabel = getTurnoverRateRangeLabel();
+  const vatPct = Math.round(activeRules.vatRate * 100);
+  const corpPct = Math.round(activeRules.corporateTaxRate * 100);
+
   if (soloToolsMode) {
     return [
       "Siz FIRMUS — O'zbekiston buxgalteriyasi (21-son BHMS №3593 va O'zR Soliq kodeksi) bo'yicha aniq AI yordamchisiz.",
-      `Bugungi sana: ${todayIso()}. Rasmiy manbalar: Soliq kodeksi (${LEX_UZ_TAX_CODE_URL}), 21-son BHMS (${LEX_UZ_BHMS21_URL}).`,
+      `Bugungi sana: ${todayIso()}.`,
+      "",
+      "AMALDAGI SOLIQ QOIDALARI (MANBA):",
+      activeTaxSummary,
       "",
       "ASOSIY QOIDALAR:",
       "1. Agar foydalanuvchi yuklangan fayllar, cheklar yoki shartnoma tarixi haqida so'rasa, faqat `list_work_batches` toolini chaqiring (raqamlarni to'qimang).",
-      "2. Ish haqi (JShDS 12%, shundan 0.1% ShJBPH; Ijtimoiy soliq 12%), QQS 12% (SK 258-modda, ichidan ×12/112) yoki aylanma soliq 4% (SK 467-modda) hisoblashda aniqlik uchun `calculate_uz_tax` toolini chaqiring.",
+      "2. Ish haqi, QQS yoki aylanma solig'ini (MChJ / YaTT / o'zini o'zi band qilgan) hisoblashda aniqlik uchun `calculate_uz_tax` toolini chaqiring.",
       "3. Asosiy 21-BHMS schyotlari: 0100, 1010, 2910, 4010, 4310, 4410, 5010, 5110, 6010, 6310, 6410, 6520, 6710, 9010, 9020, 9030, 9110, 9410, 9420, 9430.",
       "4. Obuna, to'lovlar yoki tizim ruxsatlari haqidagi savollarda foydalanuvchini Obunalar bo'limiga yo'naltiring.",
       "5. Javoblarni O'zbek tilida, lo'nda, tushunarli va xatosiz bering.",
@@ -170,10 +183,10 @@ function buildFirmusSystemInstruction(params: {
 
   const taxLabel =
     entity.tax_regime === "vat_profit_tax"
-      ? "QQS (12%) + Foyda solig'i (15%)"
+      ? `QQS (${vatPct}%) + Foyda solig'i (${corpPct}%)`
       : entity.tax_regime === "turnover_tax"
-      ? "Aylanmadan olinadigan soliq (4%)"
-      : "Qat'iy belgilangan soliq";
+      ? `Aylanmadan olinadigan soliq (${turnoverRangeLabel})`
+      : "Qat'iy belgilangan soliq (eski rejim)";
 
   const entityContextLine =
     entity.tin_stir && entity.tin_stir !== "000000000"
@@ -193,10 +206,7 @@ function buildFirmusSystemInstruction(params: {
     "2. HECH QACHON schyotlar rejasida (yuqoridagi ro'yxatda) mavjud bo'lmagan schyot kodini ishlatmang.",
     "3. IKKIYOQLAMA YOZUV QONUNI: Har bir provodkada Debet jami == Kredit jami (aniq 2 xonagacha), bir qatorda ham debit > 0 ham credit > 0 bo'lmasligi, va summalar > 0 bo'lishi shart.",
     "4. O'ZBEKISTON SOLIQ FORMULALARI VA QONUNCHILIK HAVOLALARI:",
-    `   - Rasmiy manbalar: Soliq kodeksi (${LEX_UZ_TAX_CODE_URL}), 21-son BHMS yangi tahrir (${LEX_UZ_BHMS21_URL}).`,
-    "   - QQS 12% (Soliq kodeksi 258-modda): Agar summa 'QQS bilan' berilgan bo'lsa: QQS = round(summa * 12 / 112, 2), sof summa = summa - QQS. QQS chiqim/sotishda 6410 (Kt), kirim/xaridda 4410 (Dt). Ta'lim/tibbiyot kabi QQS ozodliklari SK 243-moddada ko'rsatilgan.",
-    "   - Ish haqi (Soliq kodeksi 381- va 405-moddalar): JShDS = 12% (shundan 0.1% ShJBPH/INPS ichida; 6710 Dt / 6410 Kt), Netto = Brutto * 0.88 (yoki Brutto = Netto / 0.88), Ijtimoiy soliq = 12% (9420 Dt / 6520 Kt), asosiy hisob (9420 Dt / 6710 Kt).",
-    "   - Aylanmadan soliq = 4% (Soliq kodeksi 467-modda): 9430 Dt / 6410 Kt.",
+    activeTaxSummary,
     "   - Xarid (tovar/xizmat): Tovarlar 2910 yoki Material 1010 yoki Xarajat 9420 (Dt), Yetkazib beruvchi 6010 (Kt).",
     "   - Sotuv (tushum): Xaridor 4010 (Dt), Sotish tushumi 9010/9020/9030 (Kt), QQS 6410 (Kt).",
     "   - Bank to'lovi: Kirim 5110 Dt / 4010 Kt; Chiqim 6010 Dt / 5110 Kt.",
@@ -210,16 +220,28 @@ function buildFirmusSystemInstruction(params: {
 const CALCULATE_UZ_TAX_TOOL = {
   name: "calculate_uz_tax",
   description:
-    "O'zbekiston Soliq kodeksi bo'yicha 100% aniq arifmetik hisob-kitob bajaradi: maosh (gross/net, JShDS 12%, ijtimoiy soliq 12%), QQS 12% yoki aylanma soliq 4%.",
+    `O'zbekiston Soliq kodeksi (markaziy soliq qoidalari jadvali) bo'yicha 100% aniq arifmetik hisob-kitob bajaradi: maosh (gross/net, JShDS, ijtimoiy soliq), QQS yoki aylanma solig'i (${getTurnoverRateRangeLabel()} — MChJ, YaTT, o'zini o'zi band qilgan).`,
   parameters: {
     type: "OBJECT",
     properties: {
       calc_type: {
         type: "STRING",
-        enum: ["payroll_gross_to_net", "payroll_net_to_gross", "vat_included", "vat_excluded", "turnover_4"],
-        description: "Hisob turi",
+        enum: [
+          "payroll_gross_to_net",
+          "payroll_net_to_gross",
+          "vat_included",
+          "vat_excluded",
+          "turnover",
+          "turnover_4",
+        ],
+        description: "Hisob turi (aylanma solig'i uchun 'turnover' ishlatiladi)",
       },
       amount: { type: "NUMBER", description: "Summa so'mda (> 0)" },
+      taxpayer_status: {
+        type: "STRING",
+        enum: ["llc", "yatt", "self_employed"],
+        description: "Aylanma solig'i uchun soliq to'lovchi maqomi: llc (MChJ), yatt (YaTT), self_employed (o'zini o'zi band qilgan)",
+      },
     },
     required: ["calc_type", "amount"],
   },
@@ -458,11 +480,14 @@ async function runToolCall(
         },
       };
     }
-    if (kind === "turnover_4") {
+    if (kind === "turnover" || kind === "turnover_4") {
+      const rawStatus = String(args.taxpayer_status || "llc");
+      const taxpayerStatus: TaxpayerStatus =
+        rawStatus === "yatt" || rawStatus === "self_employed" ? rawStatus : "llc";
       return {
         result: {
           ok: true,
-          ...calculateTurnoverTaxUz({ revenue: amount }),
+          ...calculateTurnoverTaxUz({ revenue: amount, taxpayerStatus }),
         },
       };
     }
@@ -1256,15 +1281,25 @@ function buildDeterministicUzAdvisoryReply(message: string): string {
     ].join("\n");
   }
 
-  if (lower.includes("aylanma") || lower.includes("4%")) {
+  if (lower.includes("aylanma") || lower.includes("оборот") || lower.includes("turnover")) {
     const revenue = parsedAmount > 0 ? parsedAmount : 100_000_000;
-    const turn = calculateTurnoverTaxUz({ revenue });
+    const isSelfEmployed =
+      lower.includes("o'zini") || lower.includes("oʻzini") || lower.includes("самозанят") || lower.includes("self");
+    const isYatt = lower.includes("yatt") || lower.includes("yakka") || lower.includes("ип ");
+    const taxpayerStatus: TaxpayerStatus = isSelfEmployed ? "self_employed" : isYatt ? "yatt" : "llc";
+    const turn = calculateTurnoverTaxUz({ revenue, taxpayerStatus });
+    const thresholdText = turn.annualThresholdUzs
+      ? `• Yillik chegara: ${formatUzs(turn.annualThresholdUzs)}${
+          turn.annualThresholdBhm ? ` (${turn.annualThresholdBhm.toLocaleString("en-US")} BHM)` : ""
+        }`
+      : null;
     return [
-      `Aylanmadan olinadigan soliq 4% (${turn.taxArticleRef}):`,
+      `Aylanmadan olinadigan soliq — ${turn.ratePercent}% (${turn.taxArticleRef}):`,
       `• Jami tushum: ${formatUzs(turn.revenue)}`,
-      `• Toʻlanadigan soliq (4%): ${formatUzs(turn.tax)}`,
+      `• Toʻlanadigan soliq (${turn.ratePercent}%): ${formatUzs(turn.tax)}`,
+      ...(thresholdText ? [thresholdText] : []),
       `• Provodka: 9430 Dt / 6410 Kt (${formatUzs(turn.tax)})`,
-      `Manba: ${turn.lexUrl}`,
+      `Manba: ${turn.lexUrl} (tekshirilgan: ${turn.lastVerifiedAt})`,
     ].join("\n");
   }
 
@@ -1296,12 +1331,13 @@ export async function runAdvisoryAgent(params: {
         : ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
     const advisoryPrompt = [
       "Siz FIRMUS — Oʻzbekiston buxgalterlari uchun AI hamkasbsiz (Oʻzbekiston Soliq kodeksi va 21-son BHMS №3593).",
-      `Rasmiy havolalar: Soliq kodeksi (${LEX_UZ_TAX_CODE_URL}), 21-son BHMS (${LEX_UZ_BHMS21_URL}).`,
+      `Bugungi sana: ${todayIso()}.`,
+      "AMALDAGI SOLIQ QOIDALARI (MANBA):",
+      buildTaxRulesSummaryForAi(),
       "Qoidalar:",
       "1. Qonunchilik savollariga imkon qadar tegishli Soliq kodeksi moddasini va lex.uz havolasini aniq koʻrsatib javob bering. Aniq ishonchingiz komil boʻlmagan moddani toʻqimang.",
-      "2. Ish haqi savollarida: JShDS 12% (0.1% ShJBPH ichida, SK 381-modda), Ijtimoiy soliq 12% (SK 405-modda) va 21-BHMS Debet/Kredit provodkalarini qadam-baqadam koʻrsating.",
-      "3. QQS 12% (SK 258-modda): ichidan ajratish = summa * 12 / 112. Aylanmadan soliq 4% (SK 467-modda).",
-      "4. Javobni oʻzbek tilida loʻnda, tushunarli va amaliy tarzda bering.",
+      "2. Ish haqi va soliq savollarida 21-BHMS Debet/Kredit provodkalarini qadam-baqadam koʻrsating.",
+      "3. Javobni oʻzbek tilida loʻnda, tushunarli va amaliy tarzda bering.",
     ].join("\n");
 
     const contents = [

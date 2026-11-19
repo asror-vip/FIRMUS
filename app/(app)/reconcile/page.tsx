@@ -32,7 +32,20 @@ import {
   type ReconcileSummary,
 } from "@/lib/services/reconcile-engine";
 import type { ParsedBankTransaction } from "@/lib/services/bank-import";
-import { generate1CClientBankText, generate1CEnterpriseDataXml } from "@/lib/services/one-c-export";
+import {
+  ONEC_VERSION_PROFILES,
+  extractAnonymizedFileBlueprint,
+  detectLearnedSchemaMatch,
+  fetchLearnedSchemasForEntity,
+  saveLearnedSchemaForEntity,
+  getProfileOptionsForSource,
+  getOneCProfileById,
+  generate1CClientBankTextForProfile,
+  generate1CEnterpriseXmlForProfile,
+  type AnonymizedFileBlueprint,
+  type DocumentSourceType,
+  type LearnedDocumentSchema,
+} from "@/lib/services/onec-profiles";
 import {
   fetchRecentTransactions,
   fetchWorkBatchesPaginated,
@@ -149,6 +162,36 @@ function ReconcileContent() {
   const [pasteTarget, setPasteTarget] = useState<"bank" | "onec" | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [isPushingToOneCQueue, setIsPushingToOneCQueue] = useState(false);
+
+  // Stage 5: 1C / Bank / Didox Self-Learning Schema Blueprint State
+  const [learnedSchemas, setLearnedSchemas] = useState<LearnedDocumentSchema[]>([]);
+  const [activeOneCProfileId, setActiveOneCProfileId] = useState<string>(
+    () => currentEntity?.oneCProfileId || "universal_excel_csv"
+  );
+  const [pendingBlueprint, setPendingBlueprint] = useState<{
+    fileName: string;
+    blueprint: AnonymizedFileBlueprint;
+    selectedSourceType: DocumentSourceType;
+    selectedProfileId: string;
+  } | null>(null);
+  const [matchedSchemaBanner, setMatchedSchemaBanner] = useState<{
+    sourceType: DocumentSourceType;
+    versionLabel: string;
+    sampleCount: number;
+    columnCount: number;
+  } | null>(null);
+  const [isSavingSchema, setIsSavingSchema] = useState(false);
+
+  useEffect(() => {
+    setActiveOneCProfileId(currentEntity?.oneCProfileId || "universal_excel_csv");
+    if (!currentEntity?.id) {
+      setLearnedSchemas([]);
+      return;
+    }
+    fetchLearnedSchemasForEntity(currentEntity.id)
+      .then((list) => setLearnedSchemas(list))
+      .catch(() => setLearnedSchemas([]));
+  }, [currentEntity?.id, currentEntity?.oneCProfileId]);
 
   const loadHistory = useCallback(async () => {
     if (!currentEntity?.id) {
@@ -298,6 +341,138 @@ function ReconcileContent() {
     return true;
   };
 
+  const inspectUploadedBlueprint = async (
+    source: "bank" | "onec",
+    input: ArrayBuffer | string,
+    fileName: string
+  ) => {
+    try {
+      const bp = await extractAnonymizedFileBlueprint(
+        input,
+        fileName,
+        source === "onec" ? "onec" : "bank"
+      );
+      const matched = detectLearnedSchemaMatch(bp, learnedSchemas);
+      if (matched) {
+        setMatchedSchemaBanner({
+          sourceType: matched.sourceType,
+          versionLabel: matched.versionLabel,
+          sampleCount: matched.sampleCount,
+          columnCount: matched.columnHeaders.length,
+        });
+        if (matched.sourceType === "onec") {
+          setActiveOneCProfileId(matched.profileId);
+        }
+        setPendingBlueprint(null);
+        return;
+      }
+
+      // Bank and Didox are ALWAYS auto-detected & auto-saved without asking the user!
+      // 1C is also auto-saved if the file content identified the 1C version OR if the client already has a 1C profile selected.
+      const clientHasChosen1C =
+        bp.sourceType === "onec" &&
+        activeOneCProfileId &&
+        activeOneCProfileId !== "universal_excel_csv";
+
+      if (bp.autoConfirmed || clientHasChosen1C) {
+        const autoProfileId = clientHasChosen1C ? activeOneCProfileId : bp.suggestedProfileId;
+        const autoLabel = clientHasChosen1C
+          ? getOneCProfileById(activeOneCProfileId).label
+          : bp.suggestedVersionLabel;
+
+        if (currentEntity?.id) {
+          try {
+            const saved = await saveLearnedSchemaForEntity({
+              entityId: currentEntity.id,
+              sourceType: bp.sourceType,
+              profileId: autoProfileId,
+              versionLabel: autoLabel,
+              blueprint: bp,
+            });
+            setLearnedSchemas((prev) => [saved, ...prev.filter((s) => s.id !== saved.id)]);
+            if (bp.sourceType === "onec") {
+              setActiveOneCProfileId(autoProfileId);
+            }
+            setMatchedSchemaBanner({
+              sourceType: saved.sourceType,
+              versionLabel: saved.versionLabel,
+              sampleCount: saved.sampleCount,
+              columnCount: saved.columnHeaders.length,
+            });
+            setPendingBlueprint(null);
+            return;
+          } catch {
+            // Fall through to banner display even if offline
+          }
+        }
+
+        setMatchedSchemaBanner({
+          sourceType: bp.sourceType,
+          versionLabel: autoLabel,
+          sampleCount: 1,
+          columnCount: bp.columnHeaders.length,
+        });
+        setPendingBlueprint(null);
+        return;
+      }
+
+      // Only ask the user when a 1C file's version could not be auto-detected AND client has no 1C version selected yet
+      setMatchedSchemaBanner(null);
+      setPendingBlueprint({
+        fileName,
+        blueprint: bp,
+        selectedSourceType: "onec",
+        selectedProfileId: bp.suggestedProfileId,
+      });
+    } catch {
+      // Non-fatal: universal parser still succeeds
+    }
+  };
+
+  const handleSaveLearnedBlueprint = async () => {
+    if (!pendingBlueprint || !currentEntity?.id) {
+      toast.error("Qolipni saqlash uchun avval mijozni (korxonani) tanlang.");
+      return;
+    }
+    setIsSavingSchema(true);
+    try {
+      const options = getProfileOptionsForSource(pendingBlueprint.selectedSourceType);
+      const chosen =
+        options.find((o) => o.id === pendingBlueprint.selectedProfileId) ?? options[0];
+
+      const saved = await saveLearnedSchemaForEntity({
+        entityId: currentEntity.id,
+        sourceType: pendingBlueprint.selectedSourceType,
+        profileId: chosen.id,
+        versionLabel: chosen.label,
+        blueprint: {
+          ...pendingBlueprint.blueprint,
+          sourceType: pendingBlueprint.selectedSourceType,
+        },
+      });
+
+      setLearnedSchemas((prev) => [
+        saved,
+        ...prev.filter((s) => s.id !== saved.id),
+      ]);
+      if (pendingBlueprint.selectedSourceType === "onec") {
+        setActiveOneCProfileId(chosen.id);
+      }
+      setMatchedSchemaBanner({
+        sourceType: saved.sourceType,
+        versionLabel: saved.versionLabel,
+        sampleCount: saved.sampleCount,
+        columnCount: saved.columnHeaders.length,
+      });
+      setPendingBlueprint(null);
+      toast.success(`Hujjat qolipi (${chosen.shortLabel}) bazaga eslab qolindi!`);
+    } catch (err: any) {
+      toast.error(err?.message || "Qolipni saqlashda xatolik");
+    } finally {
+      setIsSavingSchema(false);
+    }
+  };
+
   const handleUploadFile = async (source: "bank" | "onec", file?: File) => {
     if (!file) return;
     if (file.size > subscription.limits.reconcileMaxFileBytes) {
@@ -312,26 +487,28 @@ function ReconcileContent() {
     try {
       const buffer = await file.arrayBuffer();
       const parsed = await parseStatementFileBuffer(buffer, file.name, currentEntity?.tinStir || "");
-      applyParsedSource(source, parsed, file.name);
+      if (applyParsedSource(source, parsed, file.name)) {
+        await inspectUploadedBlueprint(source, buffer, file.name);
+      }
     } catch (err: any) {
       toast.error(d.toasts.fileReadError.replace("{error}", err?.message || d.unknownError));
     }
   };
 
-  const handleApplyPaste = () => {
+  const handleApplyPaste = async () => {
     if (!pasteTarget || !pasteText.trim()) {
       toast.error(d.toasts.pasteEmpty);
       return;
     }
-    const parsed = parseStatementFile(
-      pasteText,
-      pasteTarget === "onec" ? "pasted_1c.csv" : "pasted_bank.csv",
-      currentEntity?.tinStir || ""
-    );
-    const label = pasteTarget === "bank" ? d.pasteBankLabel : d.pasteOneCLabel;
-    if (applyParsedSource(pasteTarget, parsed, label)) {
+    const target = pasteTarget;
+    const raw = pasteText;
+    const fakeName = target === "onec" ? "pasted_1c.csv" : "pasted_bank.csv";
+    const parsed = parseStatementFile(raw, fakeName, currentEntity?.tinStir || "");
+    const label = target === "bank" ? d.pasteBankLabel : d.pasteOneCLabel;
+    if (applyParsedSource(target, parsed, label)) {
       setPasteTarget(null);
       setPasteText("");
+      await inspectUploadedBlueprint(target, raw, fakeName);
     }
   };
 
@@ -373,6 +550,8 @@ function ReconcileContent() {
     setActiveTab("all");
     setAiModeNote(null);
     setActiveBatchId(null);
+    setPendingBlueprint(null);
+    setMatchedSchemaBanner(null);
   };
 
   const handleSaveBatchToHistory = async (markPosted = false): Promise<string | null> => {
@@ -387,7 +566,7 @@ function ReconcileContent() {
       const sampleDate = rows.find((r) => /^\d{4}-\d{2}/.test(r.date))?.date;
       const periodMonth = sampleDate ? sampleDate.slice(0, 7) : getTashkentTodayIso().slice(0, 7);
       const safeRows = sanitizeReconcileRowsForStorage(rows);
-      const label = [bankFileName || "Bank", oneCFileName || "1C"].filter(Boolean).join(" ↔ ");
+      const label = [bankFileName || "Bank", oneCFileName || "1C"].filter(Boolean).join(" â†” ");
 
       const created = await saveWorkBatch({
         entityId: currentEntity.id,
@@ -532,7 +711,7 @@ function ReconcileContent() {
       return;
     }
 
-    const txt = generate1CClientBankText(itemsToExport, {
+    const txt = generate1CClientBankTextForProfile(activeOneCProfileId, itemsToExport, {
       name: currentEntity?.name || d.defaultCompany,
       inn: currentEntity?.tinStir || "",
       account: currentEntity?.bankAccount || "",
@@ -548,7 +727,7 @@ function ReconcileContent() {
     toast.success(
       d.toasts.exported1CTxt
         .replace("{count}", String(itemsToExport.length))
-        .replace("{mode}", modeLabel)
+        .replace("{mode}", `${modeLabel} · ${getOneCProfileById(activeOneCProfileId).shortLabel}`)
     );
   };
 
@@ -570,7 +749,7 @@ function ReconcileContent() {
       };
     });
 
-    const xml = generate1CEnterpriseDataXml(entries);
+    const xml = generate1CEnterpriseXmlForProfile(activeOneCProfileId, entries);
     downloadFileBlob(
       xml,
       `1c_enterprise_reconciled_${getTashkentTodayIso()}.xml`,
@@ -579,7 +758,7 @@ function ReconcileContent() {
     toast.success(
       d.toasts.exported1CXml
         .replace("{count}", String(entries.length))
-        .replace("{mode}", modeLabel)
+        .replace("{mode}", `${modeLabel} · ${getOneCProfileById(activeOneCProfileId).shortLabel}`)
     );
   };
 
@@ -610,12 +789,12 @@ function ReconcileContent() {
         sourceKind: "bank_reconcile",
         docType: r.type === "income" ? "bank_receipt" : "bank_payment",
         docDate: r.date,
-        counterpartyName: sanitizeStringForAi(r.counterparty || "Nomaʼlum").trim(),
+        counterpartyName: sanitizeStringForAi(r.counterparty || "NomaÊ¼lum").trim(),
         counterpartyStir: r.counterpartyStir,
         amount: Math.abs(r.bankAmount || r.oneCAmount || 0),
         debitAccount: r.type === "income" ? "5110" : (r.suggestedAccountCode || "6010"),
         creditAccount: r.type === "income" ? (r.suggestedAccountCode || "4010") : "5110",
-        description: sanitizeStringForAi(`${r.counterparty} — ${r.bankItem?.description || r.explanation || ""}`).slice(0, 250),
+        description: sanitizeStringForAi(`${r.counterparty} â€” ${r.bankItem?.description || r.explanation || ""}`).slice(0, 250),
         idempotencyKey: `rec-${currentEntity.id}-${r.date}-${i}-${Math.abs(r.bankAmount || r.oneCAmount || 0)}`,
       }));
 
@@ -631,11 +810,11 @@ function ReconcileContent() {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || "Qoralamalar navbatiga qoʻshishda xatolik");
+        throw new Error(data?.error || "Qoralamalar navbatiga qoÊ»shishda xatolik");
       }
 
       toast.success(
-        `${drafts.length} ta operatsiya 1C Qoralamalar navbatiga qoʻshildi. Integratsiyalar boʻlimidan 1C ga uzatishingiz mumkin.`
+        `${drafts.length} ta operatsiya 1C Qoralamalar navbatiga qoÊ»shildi. Integratsiyalar boÊ»limidan 1C ga uzatishingiz mumkin.`
       );
     } catch (err: any) {
       toast.error(err?.message || "Xatolik yuz berdi");
@@ -804,7 +983,7 @@ function ReconcileContent() {
                 {d.bankSectionTitle}
               </span>
               {bankItems.length > 0 && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium">
                   {bankItems.length} {d.operationsCountSuffix}
                 </span>
               )}
@@ -829,7 +1008,7 @@ function ReconcileContent() {
             onClick={() => bankInputRef.current?.click()}
             className="w-full h-16 rounded-lg border border-dashed border-border/70 hover:border-violet-500/50 bg-muted/20 hover:bg-violet-500/5 transition-all flex flex-col items-center justify-center gap-1 group text-xs text-muted-foreground hover:text-foreground"
           >
-            <Upload className="h-4 w-4 text-violet-400 group-hover:scale-110 transition-transform" />
+            <Upload className="h-4 w-4 text-violet-600 dark:text-violet-400 group-hover:scale-110 transition-transform" />
             <span className="truncate max-w-[280px] font-medium">{bankFileName || d.bankUploadPrompt}</span>
           </button>
 
@@ -858,7 +1037,7 @@ function ReconcileContent() {
                 {d.oneCSectionTitle}
               </span>
               {oneCItems.length > 0 && (
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium">
                   {oneCItems.length} {d.recordsCountSuffix}
                 </span>
               )}
@@ -917,6 +1096,101 @@ function ReconcileContent() {
         </div>
       </div>
 
+      {/* Stage 5: Self-Learning 1C / Bank / Didox Blueprint Prompt or Auto-Detected Badge */}
+      {matchedSchemaBanner && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="font-medium text-foreground">
+              Avtomatik aniqlandi va qolipi saqlandi:{" "}
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                {matchedSchemaBanner.versionLabel}
+              </span>
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              ({matchedSchemaBanner.columnCount} ta ustun · {matchedSchemaBanner.sampleCount} marta ishlatilgan)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMatchedSchemaBanner(null)}
+            className="text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            Yopish
+          </button>
+        </div>
+      )}
+
+      {pendingBlueprint && (
+        <div className="rounded-xl border border-violet-500/35 bg-violet-500/5 p-4 space-y-3 text-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <p className="font-semibold text-foreground flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                1C versiyasini bir marta tasdiqlang ({pendingBlueprint.fileName})
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Bank va Didox fayllarini tizim oʻzi avtomatik taniydi. Ushbu 1C fayli qaysi versiyadan olinganini 1 marta tanlasangiz, keyingi safar soʻramaydi.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingBlueprint(null)}
+              className="text-[11px] text-muted-foreground hover:text-foreground self-end sm:self-auto"
+            >
+              Keyinroq
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <select
+              value={pendingBlueprint.selectedProfileId}
+              onChange={(e) =>
+                setPendingBlueprint((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        selectedSourceType: "onec",
+                        selectedProfileId: e.target.value,
+                      }
+                    : null
+                )
+              }
+              className="flex-1 h-8 rounded-md border border-border bg-background px-2.5 text-xs"
+            >
+              {ONEC_VERSION_PROFILES.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shrink-0"
+              disabled={isSavingSchema}
+              onClick={handleSaveLearnedBlueprint}
+            >
+              {isSavingSchema ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              ) : (
+                <BookmarkCheck className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              1C versiyasini eslab qolish
+            </Button>
+          </div>
+
+          {pendingBlueprint.blueprint.columnHeaders.length > 0 && (
+            <div className="rounded-lg border border-border/60 bg-background/70 px-3 py-2 text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">Aniqlangan ustunlar qolipi (anonim): </span>
+              <span className="font-mono">
+                {pendingBlueprint.blueprint.columnHeaders.slice(0, 10).join(" | ")}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Results & Actions */}
       {summary && (
         <>
@@ -933,13 +1207,13 @@ function ReconcileContent() {
                 <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
                   {d.kpiMatched}
                 </span>
-                <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
                 {summary.matchedCount}
               </div>
               <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-                <CheckCircle2 className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span className="truncate">{d.statusMatched}</span>
               </div>
             </button>
@@ -948,20 +1222,20 @@ function ReconcileContent() {
               type="button"
               onClick={() => setActiveTab("amount_mismatch")}
               className={`p-4 sm:p-5 text-left transition-colors flex flex-col justify-between ${
-                activeTab === "amount_mismatch" ? "bg-violet-500/10" : "hover:bg-muted/30"
+                activeTab === "amount_mismatch" ? "bg-amber-500/10" : "hover:bg-muted/30"
               }`}
             >
               <div className="flex items-center justify-between text-muted-foreground mb-2">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
                   {d.kpiMismatch}
                 </span>
-                <span className="h-2 w-2 rounded-full bg-purple-300 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
                 {summary.mismatchCount}
               </div>
               <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-                <AlertTriangle className="h-3.5 w-3.5 text-purple-300 shrink-0" />
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                 <span className="truncate">{d.statusMismatch}</span>
               </div>
             </button>
@@ -970,20 +1244,20 @@ function ReconcileContent() {
               type="button"
               onClick={() => setActiveTab("bank_only")}
               className={`p-4 sm:p-5 text-left transition-colors flex flex-col justify-between ${
-                activeTab === "bank_only" ? "bg-violet-500/10" : "hover:bg-muted/30"
+                activeTab === "bank_only" ? "bg-rose-500/10" : "hover:bg-muted/30"
               }`}
             >
               <div className="flex items-center justify-between text-muted-foreground mb-2">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
                   {d.kpiBankOnly}
                 </span>
-                <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+                <span className="h-2 w-2 rounded-full bg-rose-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
                 {summary.bankOnlyCount}
               </div>
               <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-                <XCircle className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                <XCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
                 <span className="truncate">{d.statusBankOnly}</span>
               </div>
             </button>
@@ -999,13 +1273,13 @@ function ReconcileContent() {
                 <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
                   {d.kpiOneCOnly}
                 </span>
-                <span className="h-2 w-2 rounded-full bg-purple-400/80 shadow-[0_0_8px_rgba(168,85,247,0.4)]" />
+                <span className="h-2 w-2 rounded-full bg-violet-500" />
               </div>
               <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
                 {summary.oneCOnlyCount}
               </div>
               <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-                <AlertTriangle className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                <AlertTriangle className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400 shrink-0" />
                 <span className="truncate">{d.statusOneCOnly}</span>
               </div>
             </button>
@@ -1017,7 +1291,7 @@ function ReconcileContent() {
               <div>
                 <p className="text-[11px] text-muted-foreground">{d.totalIncomeLabel}</p>
                 <div className="flex items-center gap-2 mt-0.5 font-mono font-semibold">
-                  <span className="text-violet-400">
+                  <span className="text-violet-600 dark:text-violet-400">
                     <Money amount={summary.bankTotalIncome} />
                   </span>
                   <span className="text-muted-foreground">/</span>
@@ -1026,7 +1300,7 @@ function ReconcileContent() {
                   </span>
                 </div>
               </div>
-              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium">
                 {incomeDiff === 0
                   ? d.incomeMatchedZero
                   : `${d.diffPrefix}: ${incomeDiff > 0 ? "+" : ""}${incomeDiff.toLocaleString(intlLocale)}`}
@@ -1081,13 +1355,25 @@ function ReconcileContent() {
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 size="sm"
-                className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white gap-1.5 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white gap-1.5 shadow-sm"
                 disabled={isAiChecking}
                 onClick={handleAiVerify}
               >
                 {isAiChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 {d.aiVerifyBtn}
               </Button>
+              <select
+                value={activeOneCProfileId}
+                onChange={(e) => setActiveOneCProfileId(e.target.value)}
+                title="1C ga yuklab olish (Eksport) versiyasi"
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+              >
+                {ONEC_VERSION_PROFILES.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    1C format: {p.shortLabel}
+                  </option>
+                ))}
+              </select>
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5" onClick={handleExport1CTxt}>
                 <Download className="h-3.5 w-3.5" />
                 {d.export1CTxtBtn}
@@ -1106,7 +1392,7 @@ function ReconcileContent() {
                 className="text-xs h-8 gap-1.5 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                 disabled={isPushingToOneCQueue}
                 onClick={handlePushTo1CDraftQueue}
-                title="1C Qoralamalar navbatiga qoʻshish"
+                title="1C Qoralamalar navbatiga qoÊ»shish"
               >
                 {isPushingToOneCQueue ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1126,7 +1412,7 @@ function ReconcileContent() {
                   {isSavingBatch ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <BookmarkCheck className="h-3.5 w-3.5 text-violet-400" />
+                    <BookmarkCheck className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
                   )}
                   {activeBatchId ? d.savedBtn : d.saveToHistoryBtn}
                 </Button>
@@ -1134,7 +1420,7 @@ function ReconcileContent() {
               {FEATURES.fullAccountingErp && selectedIds.length > 0 && (
                 <Button
                   size="sm"
-                  className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                  className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                   disabled={isPostingLedger}
                   onClick={handlePostSelectedToLedger}
                 >
@@ -1146,7 +1432,7 @@ function ReconcileContent() {
           </div>
 
           {aiModeNote && (
-            <div className="text-[11px] text-violet-400 font-medium flex items-center gap-1.5">
+            <div className="text-[11px] text-violet-600 dark:text-violet-400 font-medium flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
               {aiModeNote}
             </div>
@@ -1206,7 +1492,7 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell>
                           {row.status === "matched" && (
-                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 font-medium">
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium">
                               {d.statusMatched}
                             </span>
                           )}
@@ -1235,15 +1521,15 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell className="text-right font-mono whitespace-nowrap">
                           {row.bankAmount > 0 ? (
-                            <span className={row.type === "income" ? "text-violet-400" : "text-foreground"}>
+                            <span className={row.type === "income" ? "text-violet-600 dark:text-violet-400" : "text-foreground"}>
                               <Money amount={row.bankAmount} />
                             </span>
                           ) : (
-                            "—"
+                            "â€”"
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono whitespace-nowrap">
-                          {row.oneCAmount > 0 ? <Money amount={row.oneCAmount} /> : "—"}
+                          {row.oneCAmount > 0 ? <Money amount={row.oneCAmount} /> : "â€”"}
                         </TableCell>
                         <TableCell>
                           <select
@@ -1254,7 +1540,7 @@ function ReconcileContent() {
                           >
                             {RECONCILE_ACCOUNT_OPTIONS.map((opt) => (
                               <option key={opt.code} value={opt.code}>
-                                {opt.code} — {opt.name.slice(0, 22)}
+                                {opt.code} â€” {opt.name.slice(0, 22)}
                               </option>
                             ))}
                           </select>
@@ -1265,7 +1551,7 @@ function ReconcileContent() {
                             onClick={() => handleToggleRowVat(row.id)}
                             className={`px-2 py-0.5 rounded text-[10px] font-medium border transition-colors ${
                               row.vatIncluded
-                                ? "border-violet-500/30 bg-violet-500/10 text-violet-300"
+                                ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300"
                                 : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
                             }`}
                             title={d.vatToggleTitle}
@@ -1275,7 +1561,7 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell className="max-w-[280px] text-[11px] text-muted-foreground">
                           <div className="flex items-start gap-1">
-                            {row.aiVerified && <Sparkles className="h-3 w-3 text-violet-400 shrink-0 mt-0.5" />}
+                            {row.aiVerified && <Sparkles className="h-3 w-3 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />}
                             <span>{row.explanation}</span>
                           </div>
                         </TableCell>
@@ -1301,7 +1587,7 @@ function ReconcileContent() {
         <div ref={historyCardRef} id="reconcile-history" className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
           <div className="p-4 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/40">
             <div className="flex items-center gap-2">
-              <History className="h-4 w-4 text-violet-400" />
+              <History className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               <span className="text-sm font-semibold text-foreground">
                 {d.historyTitle} ({savedBatchesCount})
               </span>
@@ -1341,7 +1627,7 @@ function ReconcileContent() {
           <div className="p-0 overflow-x-auto">
             {isLoadingHistory ? (
               <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
+                <Loader2 className="h-4 w-4 animate-spin text-violet-600 dark:text-violet-400" />
                 {d.historyLoading}
               </div>
             ) : savedBatches.length === 0 ? (
@@ -1367,7 +1653,7 @@ function ReconcileContent() {
                         <TableCell className="font-mono text-[11px] text-muted-foreground whitespace-nowrap">{b.periodMonth}</TableCell>
                         <TableCell className="font-medium max-w-[260px] truncate">{b.title}</TableCell>
                         <TableCell className="text-right font-mono">{b.rowCount}</TableCell>
-                        <TableCell className="text-right font-mono text-violet-400">
+                        <TableCell className="text-right font-mono text-violet-600 dark:text-violet-400">
                           <Money amount={b.totalIncome} />
                         </TableCell>
                         <TableCell className="text-right font-mono">
@@ -1375,7 +1661,7 @@ function ReconcileContent() {
                         </TableCell>
                         <TableCell>
                           {b.status === "posted_to_ledger" ? (
-                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300">{d.histStatusPosted}</span>
+                            <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300">{d.histStatusPosted}</span>
                           ) : (
                             <span className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded-full border border-border/60 bg-muted/40 text-muted-foreground">{d.histStatusReviewed}</span>
                           )}

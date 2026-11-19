@@ -430,7 +430,7 @@ function TransactionsContent() {
             <Button
               variant="outline"
               size="sm"
-              className="text-xs h-8 gap-1.5 border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300"
+              className="text-xs h-8 gap-1.5 border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300"
               onClick={() => setIsImportOpen(true)}
             >
               <Upload className="h-3.5 w-3.5" />
@@ -445,7 +445,7 @@ function TransactionsContent() {
             onClick={handleExport1C}
             title={d.export1CTitle}
           >
-            <FileCode className="h-3.5 w-3.5 text-violet-400" />
+            <FileCode className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
             {d.export1CBtn}
           </Button>
 
@@ -462,7 +462,7 @@ function TransactionsContent() {
           {!isReadOnly && (
             <Button
               size="sm"
-              className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+              className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
               onClick={() => setIsAddOpen(true)}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -558,12 +558,12 @@ function TransactionsContent() {
       {!isReadOnly && selectedIds.length > 0 && (
         <div className="flex items-center justify-between rounded-lg border border-violet-500/30 bg-violet-500/10 p-2.5 text-xs">
           <span className="font-medium text-foreground">
-            {selectedIds.length} — {t.nav.transactions}
+            {selectedIds.length} â€” {t.nav.transactions}
           </span>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              className="h-7 px-3 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+              className="h-7 px-3 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
               disabled={isMutating}
               onClick={handleBatchApprove}
             >
@@ -644,12 +644,12 @@ function TransactionsContent() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {tx.matchedDocumentName ? (
-                    <span className="flex items-center gap-1 text-[11px] text-violet-400 font-medium">
+                    <span className="flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 font-medium">
                       <FileText className="h-3 w-3" />
                       {tx.matchedDocumentName}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-muted-foreground/60">—</span>
+                    <span className="text-[11px] text-muted-foreground/60">â€”</span>
                   )}
                 </TableCell>
               </TableRow>
@@ -728,7 +728,7 @@ function TransactionsContent() {
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
                 <span className="text-muted-foreground">{t.entity.tin}:</span>
-                <span className="font-mono text-foreground">{selectedTx.counterpartyStir || "—"}</span>
+                <span className="font-mono text-foreground">{selectedTx.counterpartyStir || "â€”"}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-border/50">
                 <span className="text-muted-foreground">{t.pages.transactions.tableHeaders.source}:</span>
@@ -739,7 +739,7 @@ function TransactionsContent() {
               <div className="flex justify-between py-1 border-b border-border/50">
                 <span className="text-muted-foreground">{t.nav.accounting}:</span>
                 <span className="font-mono font-medium text-foreground">
-                  {selectedTx.accountCode ? `${selectedTx.accountCode} (${selectedTx.accountName})` : "—"}
+                  {selectedTx.accountCode ? `${selectedTx.accountCode} (${selectedTx.accountName})` : "â€”"}
                 </span>
               </div>
             </div>
@@ -747,11 +747,11 @@ function TransactionsContent() {
             {/* AI Explanation / Suggestion Card */}
             {selectedTx.aiExplanation && (
               <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3.5">
-                <div className="flex items-center gap-1.5 text-violet-400 font-semibold mb-1">
+                <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-semibold mb-1">
                   <Sparkles className="h-3.5 w-3.5" />
                   <span>{t.dashboard.aiRecommendationTitle}</span>
                   {selectedTx.aiConfidence && (
-                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/15 text-violet-300 font-mono">
+                    <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/15 text-violet-700 dark:text-violet-300 font-mono">
                       {selectedTx.aiConfidence}% {t.pages.aiAuditor.confidence}
                     </span>
                   )}
@@ -766,7 +766,7 @@ function TransactionsContent() {
             {selectedTx.matchedDocumentName && (
               <div className="rounded-xl border border-border p-3.5 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
                     <FileText className="h-4 w-4" />
                   </div>
                   <div>
@@ -789,7 +789,7 @@ function TransactionsContent() {
             {!isReadOnly && (
               <div className="pt-4 flex items-center gap-2">
                 <Button
-                  className="flex-1 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] h-9"
+                  className="flex-1 bg-violet-600 hover:bg-violet-500 text-white shadow-sm h-9"
                   disabled={isMutating || selectedTx.status === "posted"}
                   onClick={() => handleApproveTx(selectedTx)}
                 >
@@ -1031,7 +1031,7 @@ function TransactionsContent() {
                             </Badge>
                           </TableCell>
                           <TableCell className="font-medium max-w-[140px] truncate">{item.counterparty}</TableCell>
-                          <TableCell className="font-mono text-muted-foreground">{item.counterpartyStir || "—"}</TableCell>
+                          <TableCell className="font-mono text-muted-foreground">{item.counterpartyStir || "â€”"}</TableCell>
                           <TableCell className={`text-right font-mono font-bold ${item.type === "income" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
                             {item.amount.toLocaleString(intlLocale)}
                           </TableCell>

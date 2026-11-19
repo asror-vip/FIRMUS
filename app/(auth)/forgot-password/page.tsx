@@ -89,7 +89,7 @@ export default function ForgotPasswordPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 font-semibold shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all"
+                className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 font-semibold shadow-sm transition-all"
               >
                 {isLoading ? (
                   <>
@@ -103,7 +103,7 @@ export default function ForgotPasswordPage() {
             </form>
           ) : (
             <div className="text-center py-4 space-y-2">
-              <CheckCircle2 className="h-10 w-10 text-violet-400 mx-auto" />
+              <CheckCircle2 className="h-10 w-10 text-violet-600 dark:text-violet-400 mx-auto" />
               <h3 className="font-bold text-sm text-foreground">{d.sentTitle}</h3>
               <p className="text-muted-foreground text-xs leading-relaxed">
                 {d.sentSuccess.replace("{email}", email)}

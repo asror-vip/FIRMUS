@@ -1,4 +1,7 @@
 import type { Locale } from "../types";
+import { getTurnoverRateRangeLabel } from "@/lib/services/uz-tax-calculator";
+
+const TURNOVER_RATE_RANGE = getTurnoverRateRangeLabel();
 
 export interface AssistantDictionary {
   header: {
@@ -115,8 +118,15 @@ export interface AssistantDictionary {
     };
     other: {
       title: string;
-      turnoverTitle: string;
+      turnoverTitle: (ratePercent: number) => string;
       turnoverTaxLabel: string;
+      turnoverThresholdLabel: string;
+      turnoverExceedsWarning: string;
+      turnoverStatuses: {
+        llc: string;
+        yatt: string;
+        self_employed: string;
+      };
       vacationTitle: (days: number) => string;
       vacationNetLabel: string;
     };
@@ -325,9 +335,16 @@ export const assistantDict: Record<Locale, AssistantDictionary> = {
         totalLabel: "Jami",
       },
       other: {
-        title: "Aylanmadan soliq (4%) va Taʼtil puli",
-        turnoverTitle: "Aylanmadan soliq (4%)",
+        title: `Aylanmadan soliq (${TURNOVER_RATE_RANGE}) va Taʼtil puli`,
+        turnoverTitle: (ratePercent) => `Aylanmadan soliq (${ratePercent}%)`,
         turnoverTaxLabel: "Soliq (9430/6410):",
+        turnoverThresholdLabel: "Yillik chegara:",
+        turnoverExceedsWarning: "Chegaradan oshdi — QQS/umumiy rejim talab etilishi mumkin",
+        turnoverStatuses: {
+          llc: "MChJ",
+          yatt: "YaTT",
+          self_employed: "Oʻzini band",
+        },
         vacationTitle: (days) => `Taʼtil puli (${days} kun)`,
         vacationNetLabel: "Qoʻliga tegadi:",
       },
@@ -540,9 +557,16 @@ export const assistantDict: Record<Locale, AssistantDictionary> = {
         totalLabel: "Итого",
       },
       other: {
-        title: "Налог с оборота (4%) и Отпускные",
-        turnoverTitle: "Налог с оборота (4%)",
+        title: `Налог с оборота (${TURNOVER_RATE_RANGE}) и Отпускные`,
+        turnoverTitle: (ratePercent) => `Налог с оборота (${ratePercent}%)`,
         turnoverTaxLabel: "Налог (9430/6410):",
+        turnoverThresholdLabel: "Годовой порог:",
+        turnoverExceedsWarning: "Порог превышен — может потребоваться переход на НДС",
+        turnoverStatuses: {
+          llc: "ООО",
+          yatt: "ИП",
+          self_employed: "Самозанятый",
+        },
         vacationTitle: (days) => `Отпускные (${days} дн.)`,
         vacationNetLabel: "На руки:",
       },
@@ -755,9 +779,16 @@ export const assistantDict: Record<Locale, AssistantDictionary> = {
         totalLabel: "Total",
       },
       other: {
-        title: "Turnover Tax (4%) & Vacation Pay",
-        turnoverTitle: "Turnover tax (4%)",
+        title: `Turnover Tax (${TURNOVER_RATE_RANGE}) & Vacation Pay`,
+        turnoverTitle: (ratePercent) => `Turnover tax (${ratePercent}%)`,
         turnoverTaxLabel: "Tax (9430/6410):",
+        turnoverThresholdLabel: "Annual limit:",
+        turnoverExceedsWarning: "Threshold exceeded — VAT/general regime may apply",
+        turnoverStatuses: {
+          llc: "LLC",
+          yatt: "Sole Prop.",
+          self_employed: "Self-emp.",
+        },
         vacationTitle: (days) => `Vacation pay (${days} days)`,
         vacationNetLabel: "Take-home:",
       },

@@ -1,5 +1,8 @@
 import type { Locale } from "../types";
 import type { AiModelId, PlanId } from "@/lib/config/plans";
+import { getTurnoverRateRangeLabel } from "@/lib/services/uz-tax-calculator";
+
+const TURNOVER_RATE_RANGE = getTurnoverRateRangeLabel();
 
 export interface LocalizedPlanCopy {
   name: string;
@@ -526,7 +529,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
           scanTitle: "Faktura / Chek Skaner",
           scanDesc: "Rasm yoki PDF hujjatdan schyot va summani ajratish",
           calcTitle: "Soliq & Maosh Kalkulyatori",
-          calcDesc: "JShDS 12%, QQS 12%, aylanma 4% va taʼtil hisobi",
+          calcDesc: `JShDS 12%, QQS 12%, aylanma ${TURNOVER_RATE_RANGE} va taʼtil hisobi`,
           contractTitle: "Shartnoma Xavf Tekshiruvi",
           contractDesc: "Penya, avans va QQS shartlarini AI bilan tekshirish",
           historyTitle: "Saqlangan Tarix",
@@ -559,7 +562,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
           scanDesc: "Rasm yoki PDF hujjatdan schyot va summani ajratish",
           scanCta: "Yuklash",
           calcTitle: "Kalkulyator va Soliq AI",
-          calcDesc: "JShDS 12%, QQS 12%, aylanma 4% va taʼtil hisobi",
+          calcDesc: `JShDS 12%, QQS 12%, aylanma ${TURNOVER_RATE_RANGE} va taʼtil hisobi`,
           calcCta: "Ochish",
         },
         postedOperationsSub: "{posted} / {total} ta operatsiya oʻtkazilgan",
@@ -848,7 +851,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
           scanTitle: "Сканер счетов и чеков",
           scanDesc: "Извлечение счетов и сумм из фото или PDF",
           calcTitle: "Калькулятор налогов и зарплаты",
-          calcDesc: "Расчёт НДФЛ 12%, НДС 12%, оборота 4% и отпускных",
+          calcDesc: `Расчёт НДФЛ 12%, НДС 12%, оборота ${TURNOVER_RATE_RANGE} и отпускных`,
           contractTitle: "Проверка рисков договора",
           contractDesc: "Проверка пени, аванса и условий НДС с помощью AI",
           historyTitle: "Сохранённая история",
@@ -881,7 +884,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
           scanDesc: "Извлечение реквизитов и сумм из фото или PDF",
           scanCta: "Загрузить",
           calcTitle: "Калькулятор и Налоги AI",
-          calcDesc: "Расчёт НДФЛ 12%, НДС 12%, оборота 4% и отпускных",
+          calcDesc: `Расчёт НДФЛ 12%, НДС 12%, оборота ${TURNOVER_RATE_RANGE} и отпускных`,
           calcCta: "Открыть",
         },
         postedOperationsSub: "Проведено {posted} / {total} операций",
@@ -1170,7 +1173,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
           scanTitle: "Invoice / Receipt Scanner",
           scanDesc: "Extract accounts and amounts from images or PDFs",
           calcTitle: "Tax & Payroll Calculator",
-          calcDesc: "PIT 12%, VAT 12%, turnover 4%, and vacation pay calculations",
+          calcDesc: `PIT 12%, VAT 12%, turnover ${TURNOVER_RATE_RANGE}, and vacation pay calculations`,
           contractTitle: "Contract Risk Check",
           contractDesc: "AI review of penalties, prepayments, and VAT clauses",
           historyTitle: "Saved History",
@@ -1203,7 +1206,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
           scanDesc: "Extract accounts and totals from photos or PDFs",
           scanCta: "Upload",
           calcTitle: "Calculator & Tax AI",
-          calcDesc: "PIT 12%, VAT 12%, turnover 4%, and vacation pay calculations",
+          calcDesc: `PIT 12%, VAT 12%, turnover ${TURNOVER_RATE_RANGE}, and vacation pay calculations`,
           calcCta: "Open",
         },
         postedOperationsSub: "{posted} / {total} operations posted",

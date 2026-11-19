@@ -498,7 +498,7 @@ export function AiDrawer() {
                   )}
                 >
                   {msg.sender === "user" ? (
-                    <div className="rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-white leading-relaxed shadow-sm whitespace-pre-line">
+                    <div className="rounded-2xl rounded-tr-sm bg-violet-600 px-3.5 py-2.5 text-white leading-relaxed shadow-sm whitespace-pre-line">
                       {msg.imagePreviewUrl && (
                         <img
                           src={msg.imagePreviewUrl}
@@ -510,10 +510,10 @@ export function AiDrawer() {
                     </div>
                   ) : (
                     <div className="flex items-start gap-2.5 w-full">
-                      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/25">
+                      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400">
                         <Sparkles className="h-3 w-3" />
                       </div>
-                      <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-muted/50 border border-border/70 px-3.5 py-2.5 shadow-sm">
+                      <div className="flex-1 min-w-0 py-0.5 text-foreground">
                         <AiStreamingMessage
                           text={msg.text}
                           animate={Boolean(msg.isFresh)}

@@ -87,7 +87,7 @@ export function EntitySwitcher() {
 
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => router.push("/settings?action=add-entity")}
+          onClick={() => router.push("/clients?action=add")}
           className="text-xs text-primary font-medium cursor-pointer"
         >
           <Plus className="mr-2 h-3.5 w-3.5" />

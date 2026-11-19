@@ -38,7 +38,7 @@ export function KpiCard({
       onClick={onClick}
       className={cn(
         "rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm p-5 relative overflow-hidden transition-all duration-150 hover:border-violet-500/40 hover:bg-violet-500/5",
-        onClick && "cursor-pointer hover:shadow-[0_0_15px_rgba(139,92,246,0.15)] active:scale-[0.99]",
+        onClick && "cursor-pointer hover:shadow-sm active:scale-[0.99]",
         className
       )}
     >
@@ -62,7 +62,7 @@ export function KpiCard({
             <span
               className={cn(
                 "font-medium",
-                trend.isPositive ? "text-violet-400 dark:text-violet-300" : "text-rose-600 dark:text-rose-400"
+                trend.isPositive ? "text-violet-600 dark:text-violet-400 dark:text-violet-300" : "text-rose-600 dark:text-rose-400"
               )}
             >
               {trend.value}

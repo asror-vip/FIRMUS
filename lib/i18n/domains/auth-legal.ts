@@ -1,4 +1,7 @@
 import type { Locale } from "../types";
+import { getTurnoverRateRangeLabel } from "@/lib/services/uz-tax-calculator";
+
+const TURNOVER_RATE_RANGE = getTurnoverRateRangeLabel();
 
 export interface AuthLegalSection {
   heading: string;
@@ -282,7 +285,7 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
       taxRegimeLabel: "Soliq rejimi:",
       taxRegimes: {
         vat_profit_tax: "Umumbelgilangan (QQS 12% + Foyda soligʻi)",
-        turnover_tax: "Aylanmadan olinadigan soliq (4%)",
+        turnover_tax: `Aylanmadan olinadigan soliq (${TURNOVER_RATE_RANGE})`,
         fixed_tax: "Qatʼiy belgilangan soliq (YaTT)",
       },
       step4Title: "Barchasi tayyor!",
@@ -305,35 +308,77 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
     privacy: {
       backToApp: "Ilovaga qaytish",
       backToLogin: "Tizimga qaytish",
-      badge: "Zero-PII Standarti",
-      title: "Maxfiylik siyosati (Zero-PII Standarti)",
-      lastUpdated: "Oxirgi yangilanish: 2026-yil 16-noyabr • OʻRQ-547 talablariga muvofiq",
+      badge: "Zero-PII • OʻRQ-547",
+      title: "Maxfiylik siyosati va Maʼlumotlarni himoya qilish reglamenti",
+      lastUpdated: "Oxirgi yangilanish: 2026-yil 20-noyabr • Oʻzbekiston Respublikasi OʻRQ-547 qonuniga muvofiq",
       sections: [
         {
-          heading: "1. «Zero-PII» asosiy tamoyil",
+          heading: "1. Umumiy qoidalar va Qonunchilikka muvofiqlik (OʻRQ-547)",
           paragraphs: [
-            "FIRMUS platformasi Oʻzbekiston Respublikasining «Shaxsga doir maʼlumotlar toʻgʻrisida»gi OʻRQ-547 qonuni talablariga hurmat bilan yondashadi va fuqarolarning shaxsiy maʼlumotlarini (JShShIR/PINFL, pasport maʼlumotlari, shaxsiy telefon raqamlari) talab qilmaydi hamda yigʻmaydi.",
+            "Ushbu Maxfiylik siyosati FIRMUS buxgalteriya va soliq avtomatlashtirish platformasidan («Platforma», «Sayt») foydalanish jarayonida foydalanuvchilar («Buxgalter», «Foydalanuvchi», «Mijoz») tomonidan taqdim etiladigan axborotni qayta ishlash, himoya qilish, shaxssizlantirish va saqlash tartibini belgilaydi.",
+            "Platforma Oʻzbekiston Respublikasining «Shaxsga doir maʼlumotlar toʻgʻrisida»gi OʻRQ-547-sonli Qonuni, «Axborotlashtirish toʻgʻrisida»gi Qonuni hamda xalqaro axborot xavfsizligi tamoyillariga qatʼiy amal qiladi. Platformadan roʻyxatdan oʻtish yoki mehmon rejimida foydalanish orqali Foydalanuvchi ushbu Maxfiylik siyosati shartlariga toʻliq rozilik bildiradi.",
           ],
         },
         {
-          heading: "2. Qayta ishlanadigan korporativ maʼlumotlar",
+          heading: "2. «Zero-PII» (Shaxsga doir maʼlumotlarni yigʻmaslik) asosiy arxitekturasi",
+          paragraphs: [
+            "FIRMUS «Zero-PII» (Zero Personally Identifiable Information) tamoyili asosida qurilgan. Platforma jismoniy shaxslarning shaxsiy identifikatsion raqamlarini (14 xonali JShShIR / PINFL), pasport yoki ID-karta seriyasi va raqamlarini, yashash manzillarini, biometrik maʼlumotlarini yoki shaxsiy bank plastik kartalarining maxfiy rekvizitlarini (CVV, PIN-kod) talab qilmaydi va yigʻmaydi.",
+            "Agar Foydalanuvchi yuklagan bank koʻchirmasi, shartnoma yoki 1C faylining izoh qismida jismoniy shaxsga oid raqamlar (masalan, plastik karta raqami, JShShIR yoki telefon raqami) uchrab qolsa, Platformaning xavfsizlik filtri (`lib/utils/privacy.ts`) ularni tahlil va saqlashdan oldin avtomatik ravishda niqoblaydi (maskalaydi).",
+          ],
+        },
+        {
+          heading: "3. Mehmon rejimi (Loginsiz) va Roʻyxatdan oʻtgan rejimda maʼlumotlar bilan ishlash",
           bullets: [
-            "Kirish sessiyasi: Google OAuth yoki elektron pochta orqali autentifikatsiya sessiyasi.",
-            "Yuridik shaxs rekvizitlari: korxona nomi, STIR (INN) va soliq rejimi.",
-            "Bank ↔ 1C Solishtirish (Sverka): yuklangan `.txt` / `.xml` / `.csv` fayllar foydalanuvchi brauzeri xotirasida oʻqiladi va server bazasida saqlanmaydi.",
-            "21-BHMS Bosh kitob provodkalari: faqat korporativ schyotlar (`4010`, `5110`, `6010`, `6410`, `9010`, `9420`) kesimida yuritiladi.",
+            "Mehmon rejimi (`/welcome`, `/calculators`, `/try`): Roʻyxatdan oʻtmagan foydalanuvchi «Bepul Bank ↔ 1C Sverka» (`/try`) yoki kalkulyatorlardan foydalanganda, yuklangan `.xlsx`, `.xls`, `.csv`, `.txt`, `.xml` fayllar 100% foydalanuvchining oʻz qurilmasi (brauzer tezkor xotirasi — RAM) ichida qayta ishlanadi. Mehmon yuklagan fayl serverga yuborilmaydi va maʼlumotlar bazasiga yozilmaydi. Brauzer sahifasi yopilishi bilan ushbu maʼlumotlar qurilma xotirasidan toʻliq oʻchib ketadi.",
+            "Roʻyxatdan oʻtgan buxgalter rejimi (`/reconcile`, `/tax-calc`, `/clients`): Tizimga kirgan foydalanuvchi uchun korxona yuridik nomi, 9 xonali STIR (INN), tanlangan soliq rejimi (`MChJ 4%`, `YaTT 1%`, `QQS 12%`), bank hisobvaragʻi va 1C versiya profili saqlanadi.",
+            "Sverka tarixi (`work_batches`) va Bosh kitob provodkalari (`journal_entries`): Faqat Foydalanuvchi oʻzi «Tarixga saqlash» yoki «Bosh kitobga oʻtkazish» tugmasini bosgan taqdirdagina shaxssizlantirilgan moliyaviy yozuvlar (sana, summa, 21-son BHMS schyot kodi va tozalangan izoh) korxona profiliga biriktirib saqlanadi.",
           ],
         },
         {
-          heading: "3. AI Agent va avtomatik maskalash",
+          heading: "4. 1C, Bank va Didox hujjat qoliplarini (`onec_learned_schemas`) anonim oʻrganish",
           paragraphs: [
-            "Tashqi AI modellariga (Gemini API) tahlil uchun soʻrov yuborishdan avval 16 xonali plastik karta raqamlari, 20 xonali bank hisobvaraqlari, JShShIR, telefon va STIR belgilari avtomatik tarzda shaxssizlantiriladi (`[KARTA_MASKED]`, `[PINFL_MASKED]`, `[TELEFON_MASKED]`).",
+            "Platformada foydalanuvchiga qulaylik yaratish maqsadida hujjat tuzilmasini (qolipini) avtomatik tanish tizimi mavjud. Foydalanuvchi 1C, Bank koʻchirmasi yoki Didox/Soliq EHF faylini yuklaganda, tizimning `extractAnonymizedFileBlueprint` moduli fayldan FAQAT jadvalning ustun sarlavhalarini (masalan: `Sana | Hujjat № | Kontragent | STIR | Debet | Kredit | Toʻlov maqsadi`) va ustunlar tartib raqamini ajratib oladi.",
+            "Qolip jadvaliga (`public.onec_learned_schemas`) hech qachon hujjat ichidagi pul summalari, kontragent nomlari, STIR raqamlari yoki hisob raqamlari yozilmaydi. Hatto ustun sarlavhasida tasodifan 5 xonadan uzun raqam boʻlsa ham, u saqlashdan oldin avtomatik oʻchiriladi.",
           ],
         },
         {
-          heading: "4. Multi-Tenant izolyatsiya va Cookie fayllar",
+          heading: "5. Tashqi AI modellariga (Gemini API) murojaat va Avtomatik maskalash",
           paragraphs: [
-            "Har bir korxona maʼlumotlari PostgreSQL Row-Level Security (RLS) darajasida qatʼiy ajratilgan. Tizim faqat kirish sessiyasi va interfeys sozlamalari (til va mavzu) uchun texnik cookieʼlardan foydalanadi.",
+            "Foydalanuvchi AI Yordamchi (`/assistant`), AI Sverka tekshiruvi, Skaner yoki Noaniq soliq qatorlarini AI orqali tasniflash (`/api/tax-classify`) funksiyasini ishga tushirganda, matn tashqi sunʼiy intellekt provayderiga (Google Gemini API) yuborilishidan oldin qatʼiy `depersonalizeForAi` filtridan oʻtkaziladi:",
+          ],
+          bullets: [
+            "16 xonali bank plastik karta raqamlari -> `[KARTA_MASKED]` ga almashtiriladi;",
+            "14 xonali JShShIR (PINFL) raqamlari -> `[PINFL_MASKED]` ga almashtiriladi;",
+            "20 xonali bank hisobvaraqlari (`20208...`, `22626...`) -> `[HISOB_MASKED]` ga almashtiriladi;",
+            "9 xonali STIR (INN) va telefon raqamlari -> `[STIR_MASKED]` va `[TELEFON_MASKED]` ga almashtiriladi;",
+            "4-bosqichdagi «Aylanma va soliq» (`/tax-calc`) boʻlimida barcha soliq summalari 100% dasturiy kod (`lib/services/turnover-tax-engine.ts`) orqali hisoblanadi — AI hech qachon soliq summasini hisoblamaydi.",
+          ],
+        },
+        {
+          heading: "6. Maʼlumotlar bazasi xavfsizligi, Shifrlash va Multi-Tenant RLS izolyatsiyasi",
+          bullets: [
+            "Row-Level Security (RLS): Maʼlumotlar bazasidagi barcha jadvallar (`workspaces`, `business_entities`, `bank_accounts`, `work_batches`, `onec_learned_schemas`, `journal_entries`, `transactions`) PostgreSQL RLS qatlami bilan himoyalangan. Bir buxgalter (Accountant A) hech qanday holatda boshqa buxgalterning (Accountant B) mijozlarini yoki hujjatlarini koʻra olmaydi.",
+            "Kriptografik shifrlash (`AES-256-GCM`): 1C OData / EPF koʻprigi uchun kiritilgan ulanish parollari va integratsiya kalitlari ochiq matnda saqlanmaydi; ular server kaliti yordamida `AES-256-GCM` va `SHA-256` algoritmlari bilan shifrlangan holda saqlanadi.",
+            "Tarmoq xavfsizligi: Barcha maʼlumotlar almashinuvi HTTPS / TLS 1.3 shifrlangan kanali orqali amalga oshiriladi hamda ichki lokal tarmoqlarga (`SSRF`) ruxsatsiz ulanishlar bloklanadi.",
+          ],
+        },
+        {
+          heading: "7. Foydalanuvchining oʻz hisobi va qurilmasi xavfsizligi boʻyicha majburiyatlari",
+          paragraphs: [
+            "Foydalanuvchi oʻzining elektron pochta manzili, paroli, Google hisobi va 1C integratsiya tokenlarini maxfiy saqlashga shaxsan javobgardir. Begona kompyuterlarda («Internet-kafe», umumiy ofis kompyuteri) tizimdan chiqmasdan (`Chiqish` tugmasini bosmasdan) ketish, parolni uchinchi shaxslarga berish yoki zararlangan (virusli) qurilmadan foydalanish oqibatida maʼlumotlarning uchinchi shaxslarga oshkor boʻlishi uchun FIRMUS maʼmuriyati javobgar emas.",
+          ],
+        },
+        {
+          heading: "8. Cookie fayllari va Shaxsiy maʼlumotsiz analitika (`analytics_events`)",
+          paragraphs: [
+            "Platforma uchinchi tomon reklama kuzatuvchilari (advertising trackers) yoki foydalanuvchi shaxsini kuzatuvchi piksel kodlardan foydalanmaydi. Texnik cookie fayllari faqatgina tizimga kirish sessiyasini (`sb-*-auth-token`) va interfeys tilini (`uz` / `ru` / `en`) saqlab qolish uchun ishlatiladi.",
+            "Ichki analitika jadvali (`public.analytics_events`) faqat 4 ta umumiy texnik hodisani (`page_view`, `tool_used`, `register_clicked`, `registered`) qayd etadi va unda email, IP-manzil, ism, STIR yoki pul summalari saqlanishiga dasturiy taqiq qoʻyilgan.",
+          ],
+        },
+        {
+          heading: "9. Maʼlumotlarni oʻchirish huquqi va Murojaat",
+          paragraphs: [
+            "Foydalanuvchi istalgan vaqtda «Sverka» (`/reconcile`) yoki «Mijozlar» (`/clients`) boʻlimidan oʻzi saqlagan ishlar tarixini, bank hisoblarini yoki mijoz profilini oʻchirib tashlash huquqiga ega. Hisobni butunlay oʻchirish boʻyicha soʻrovlar «Sozlamalar -> Hisob» (`/settings`) boʻlimi orqali amalga oshiriladi.",
           ],
         },
       ],
@@ -341,28 +386,85 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
     terms: {
       backToApp: "Ilovaga qaytish",
       backToLogin: "Tizimga qaytish",
-      badge: "21-BHMS",
-      title: "Foydalanish shartlari (Ommaviy oferta)",
-      subtitle: "FIRMUS AI Buxgalteriya Platformasi • Oʻzbekiston 21-son BHMS asosida",
+      badge: "Ommaviy Oferta • 21-BHMS",
+      title: "Foydalanish shartlari va Javobgarlikni cheklash toʻgʻrisida Ommaviy oferta",
+      subtitle: "FIRMUS SaaS Platformasi • Oʻzbekiston Respublikasi Fuqarolik kodeksi 367–370-moddalariga muvofiq",
       sections: [
         {
-          heading: "1. Xizmat mazmuni",
+          heading: "1. Umumiy qoidalar va Ommaviy ofertani qabul qilish (Aksept)",
           paragraphs: [
-            "FIRMUS foydalanuvchilarga bank koʻchirmalari va 1C fayllarini AI yordamida solishtirish (sverka), 21-son BHMS boʻyicha ikkiyoqlama provodkalar yuritish, oborot-saldovaya vedomost va soliq koʻrsatkichlarini tezkor hisoblash uchun dasturiy vosita taqdim etadi.",
+            "Mazkur hujjat FIRMUS platformasi maʼmuriyati («Platforma», «Ijrochi») tomonidan jismoniy va yuridik shaxslarga, shu jumladan mustaqil buxgalterlar, autsorsing (BPO) kompaniyalari va tadbirkorlarga («Foydalanuvchi») dasturiy xizmatlardan foydalanish boʻyicha yoʻllangan rasmiy Ommaviy oferta hisoblanadi.",
+            "Oʻzbekiston Respublikasi Fuqarolik kodeksining 367 va 370-moddalariga muvofiq, Foydalanuvchi tomonidan Saytda roʻyxatdan oʻtish (`/register`), «Shartlarga roziman» belgisini qoʻyish, Google orqali tizimga kirish yoki mehmon rejimida (`/try`, `/calculators`) hisob-kitoblarni bajarish mazkur Ommaviy ofertaning barcha shartlarini hech qanday istisnolarsiz, toʻliq va soʻzsiz qabul qilish (Aksept) hisoblanadi. Agar Foydalanuvchi ushbu shartlarning biror bandiga rozi boʻlmasa, u Platformadan foydalanishni darhol toʻxtatishi shart.",
           ],
         },
         {
-          heading: "2. Buxgalteriya va xavfsizlik qoidalari",
+          heading: "2. Xizmatning huquqiy maqomi («As-Is» — Yordamchi dasturiy vosita)",
+          paragraphs: [
+            "FIRMUS — bu buxgalter va tadbirkorning kundalik ishini tezlashtiruvchi yordamchi dasturiy taʼminot (`SaaS` — Software as a Service) boʻlib, u «boricha» («As-Is») tamoyili asosida taqdim etiladi.",
+            "MUHIM: FIRMUS davlat soliq qoʻmitasi (`soliq.uz`), tijorat banki, rasmiy soliq maslahatchisi yoki litsenziyalangan auditorlik tashkiloti EMAS. Platforma tomonidan shakllantirilgan har qanday jadval, sverka natijasi, aylanma soliq hisobi yoki 21-son BHMS provodkasi rasmiy davlat soliq hisoboti yoki yuridik xulosa oʻrnini bosmaydi.",
+          ],
+        },
+        {
+          heading: "3. Foydalanuvchining ehtiyotkorsizligi va xatolari uchun javobgarlikdan ozod etish",
+          paragraphs: [
+            "Platforma maʼmuriyati Foydalanuvchining ehtiyotkorsizligi, beparvoligi, malaka yetishmasligi yoki tizimdan notoʻgʻri foydalanishi natijasida kelib chiqqan har qanday toʻgʻridan-toʻgʻri yoki bilvosita zarar uchun JAVOBGAR EMAS. Xususan, quyidagi holatlarda toʻliq javobgarlik 100% Foydalanuvchining oʻz zimmasida boʻladi:",
+          ],
           bullets: [
-            "Foydalanuvchi tizimga yuklayotgan birlamchi bank va 1C fayllarining aniqligiga oʻzi masʼuldir.",
-            "Tasdiqlangan buxgalteriya provodkalari oʻchirilmaydi; tuzatishlar faqat Storno (Reversal) mexanizmi orqali kiritiladi.",
-            "AI Agent taklif qilgan barcha moliyaviy yozuvlar faqat foydalanuvchi tasdigʻidan soʻng bazaga yoziladi (Human-in-the-Loop).",
+            "Notoʻgʻri yoki chala fayl yuklash: Foydalanuvchi tomonidan xato, buzilgan, boshqa davrga yoki boshqa korxonaga (boshqa STIRga) tegishli bank koʻchirmasi, 1C eksport fayli yoki Didox reestrini yuklab yuborish;",
+            "Mijoz va soliq profilini xato tanlash: Koʻp mijozli rejimda (`/clients`) bir mijozning hujjatini adashib boshqa mijoz profiliga yuklash yoki korxonaning soliq rejimini (`MChJ 4%`, `YaTT 1%`, `QQS 12%`) notoʻgʻri koʻrsatish;",
+            "Daromad boʻlmagan tushumlarni tekshirmaslik: «Aylanma va soliq» (`/tax-calc`) boʻlimida bank krediti, taʼsischi qarzi (moliyaviy yordam), oʻz hisobvaraqlari orasidagi oʻtkazma yoki qaytarilgan toʻlovlarni (`vozvrat`) buxgalter sifatida satrma-satr tekshirmasdan va tasdiqlamasdan soliq bazasiga qoʻshib yuborish yoki chiqarib tashlash;",
+            "Hisob va parol xavfsizligiga eʼtiborsizlik: Foydalanuvchining oʻz login, parol, Google akkounti yoki 1C OData kalitini begona shaxslarga berib qoʻyishi, umumiy kompyuterda sessiyani ochiq qoldirishi yoki fishing (soxta) havolalarga aldanishi;",
+            "Birlamchi hujjatlarning qonuniyligi: Tizimga yuklanayotgan bank, faktura va shartnoma maʼlumotlarining haqiqiyligi hamda qonuniyligi uchun faqat Foydalanuvchi javob beradi.",
           ],
         },
         {
-          heading: "3. Javobgarlik chegarasi",
+          heading: "4. Soliq hisob-kitoblari, jarimalar va moliyaviy javobgarlik chegarasi",
           paragraphs: [
-            "AI Sverka va AI Auditor tavsiyalari yordamchi tahliliy vosita boʻlib, yakuniy buxgalteriya va soliq hisobotlarini tasdiqlash vakolatli buxgalter yoki korxona rahbari zimmasida qoladi.",
+            "Platformadagi barcha kalkulyatorlar (`/calculators`) va «Aylanma va soliq» (`/tax-calc`) boʻlimidagi hisob-kitoblar Oʻzbekiston Respublikasi Soliq kodeksi hamda `lex.uz` rasmiy manbalariga (`PQ-247`, `OʻRQ-1108`, `PF-100`, `PF-115`) asoslangan boʻlsa-da, ular har doim «Taxminiy hisob — yakuniy qarorni buxgalter tasdiqlaydi» maqomiga ega.",
+            "Soliq qonunchiligidagi imtiyozlar, hududiy koeffitsiyentlar, yakka tartibdagi soliq rejimlari yoki qonunchilikdagi yangi oʻzgarishlarni korxona faoliyatiga toʻgʻri qoʻllash, `my3.soliq.uz` portalida rasmiy hisobotlarni oʻz vaqtida topshirish va soliqlarni toʻlash Foydalanuvchining (buxgalter va korxona rahbarining) majburiyatidir. Soliq organlari tomonidan hisoblangan har qanday jarima, penya, moliyaviy sanksiya, hisobvaraqning muzlatilishi yoki boy berilgan foyda uchun FIRMUS hech qanday moddiy, maʼmuriy yoki huquqiy javobgarlikni oʻz zimmasiga olmaydi.",
+          ],
+        },
+        {
+          heading: "5. 1C integratsiyasi, Eksport fayllari (`.txt` / `.xml`) va Zahira nusxa (Backup) majburiyati",
+          bullets: [
+            "Platformadan yuklab olinadigan `1CClientBankExchange` (`.txt`), `EnterpriseData 1.8` (`.xml`) fayllari hamda `1C OData / EPF` koʻprigi orqali yuboriladigan hujjatlar har doim QORALAMA (`Posted = false` / oʻtkazilmagan) holatida shakllantiriladi.",
+            "Foydalanuvchi ushbu fayllarni oʻzining ishchi 1C bazasiga (`1C:Buxgalteriya 8.3 Venkon`, `1C 8.2`, `1UZ` va b.) yuklashdan OLDIN 1C bazasining toʻliq zahira nusxasini (`Backup` / `.dt`) olishi hamda yuklangan qoralamalardagi schyot kodlari (`5110`, `4010`, `6010`, `6410`, `9010`, `9420`), summalar va kontragent STIRlarini tekshirib chiqishi shart.",
+            "1C bazasining zahira nusxasi olinmaganligi yoki qoralamalarni tekshirmasdan ommaviy oʻtkazib yuborish (`Групповое проведение`) natijasida 1C bazasida yuzaga kelgan buxgalteriya tafovutlari uchun Platforma javobgar emas.",
+          ],
+        },
+        {
+          heading: "6. Sunʼiy intellekt (AI) cheklovlari va «Human-in-the-Loop» (Inson tasdigʻi) qoidasi",
+          paragraphs: [
+            "Platformaning AI Yordamchi, AI Sverka, Skaner va Shartnoma tahlili boʻlimlari katta til modellaridan (LLM / Google Gemini) foydalanadi. Sunʼiy intellekt texnologiyasining tabiatiga koʻra, AI baʼzi hollarda noaniq, eskirgan yoki xato javob («AI gallyutsinatsiyasi») berishi mumkin.",
+            "Shu sababli Platformada «Human-in-the-Loop» (Yakuniy qaror inson tomonidan qabul qilinishi) qoidasi amal qiladi: AI hech qachon Foydalanuvchi tasdigʻisiz Bosh kitobga yozuv kiritmaydi va Foydalanuvchi AI tomonidan berilgan har bir tavsiyani amaliyotda qoʻllashdan oldin amaldagi qonunchilik (`lex.uz`) va birlamchi hujjatlar bilan solishtirib tekshirishi shart.",
+          ],
+        },
+        {
+          heading: "7. Koʻp mijozli rejim (Buxgalter / BPO) va Uchinchi shaxslar oldidagi vakolat",
+          paragraphs: [
+            "Agar Foydalanuvchi «Mijozlar» (`/clients`) boʻlimi orqali bir nechta yuridik shaxs yoki YaTTlarning hisobini yuritsa, Foydalanuvchi ushbu mijoz korxonalarning bank koʻchirmalari, STIR raqamlari va hisobvaraq-fakturalarini Platformaga yuklash hamda qayta ishlash uchun oʻsha korxonalardan qonuniy vakolat (shartnoma yoki ishonchnoma) olganligini kafolatlaydi. Mijoz korxona bilan buxgalter oʻrtasidagi har qanday mehnat yoki shartnomaviy nizolarga FIRMUS aralashmaydi va javobgar boʻlmaydi.",
+          ],
+        },
+        {
+          heading: "8. Obuna tariflari, AI kreditlar va Toʻlov shartlari (`Payme` / `Click`)",
+          bullets: [
+            "Platformada bepul (`Starter`) hamda pullik (`Professional`, `Pro+`) obuna tariflari mavjud. Har bir tarif boʻyicha mijozlar soni limiti (`Starter: 1 ta`, `Professional: 5 ta`, `Pro+: cheksiz`) va oylik/kunlik AI kreditlar hajmi `/billing` sahifasida aniq koʻrsatilgan.",
+            "Pullik obuna toʻlovlari Oʻzbekiston Respublikasining rasmiy toʻlov tizimlari (`Payme`, `Click`) orqali milliy valyutada (soʻmda) amalga oshiriladi. Faollashtirilgan obuna davri va sarflangan AI kreditlar uchun toʻlovlar qaytarilmaydi (qonunchilikda koʻzda tutilgan texnik nosozlik holatlari bundan mustasno).",
+            "Bepul sinov muddatini (`Pro Trial`) bir kishi tomonidan koʻplab soxta (vaqtinchalik) elektron pochtalar ochish orqali suiisteʼmol qilish aniqlanganda, tizimning avtomatik himoyasi sinov muddatini cheklash huquqiga ega.",
+          ],
+        },
+        {
+          heading: "9. Taqiqlangan harakatlar va Xizmatni toʻxtatish",
+          bullets: [
+            "Platformaga virusli fayllar, zararli skriptlar (`XSS`, `SQL Injection`, `ZIP-bomb`) yuklash yoki server infratuzilmasiga sunʼiy ortiqcha yuklama (`DDoS`, avtomatlashtirilgan botlar) tushirish qatʼiyan man etiladi.",
+            "Boshqa foydalanuvchilarning hisobiga yoki maʼlumotlar bazasiga ruxsatsiz kirishga urinish Oʻzbekiston Respublikasi Jinoyat kodeksining axborot xavfsizligiga oid moddalari boʻyicha javobgarlikka sabab boʻladi hamda Foydalanuvchi hisobi ogohlantirishsiz bloklanadi.",
+          ],
+        },
+        {
+          heading: "10. Fors-major, Texnik uzilishlar va Yakuniy qoidalar",
+          paragraphs: [
+            "Platforma maʼmuriyati internet provayderlar, xalqaro bulutli maʼlumotlar markazlari (`Supabase`, `Google Cloud`), elektr taʼminoti, davlat portallari (`soliq.uz`, `didox.uz`) yoki bank tizimlaridagi profilaktika va texnik uzilishlar (fors-major holatlari) tufayli xizmatdan vaqtincha foydalana olmaslik uchun javobgar boʻlmaydi.",
+            "Platforma maʼmuriyati qonunchilik oʻzgarishi yoki yangi funksiyalar qoʻshilishi munosabati bilan mazkur Ommaviy ofertaga oʻzgartirish kiritish huquqiga ega. Yangilangan shartlar `/terms` sahifasida eʼlon qilingan vaqtdan boshlab kuchga kiradi. Barcha masalalar Oʻzbekiston Respublikasi amaldagi qonunchiligi asosida tartibga solinadi.",
           ],
         },
       ],
@@ -488,7 +590,7 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
       taxRegimeLabel: "Налоговый режим:",
       taxRegimes: {
         vat_profit_tax: "Общеустановленный (НДС 12% + Налог на прибыль)",
-        turnover_tax: "Налог с оборота (4%)",
+        turnover_tax: `Налог с оборота (${TURNOVER_RATE_RANGE})`,
         fixed_tax: "Фиксированный налог (ИП)",
       },
       step4Title: "Всё готово!",
@@ -511,35 +613,66 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
     privacy: {
       backToApp: "Вернуться в приложение",
       backToLogin: "Вернуться ко входу",
-      badge: "Стандарт Zero-PII",
-      title: "Политика конфиденциальности (Стандарт Zero-PII)",
-      lastUpdated: "Последнее обновление: 16 ноября 2026 г. • В соответствии с ЗРУ-547",
+      badge: "Zero-PII • ЗРУ-547",
+      title: "Политика конфиденциальности и Регламент защиты данных",
+      lastUpdated: "Последнее обновление: 20 ноября 2026 г. • В соответствии с ЗРУ-547 Республики Узбекистан",
       sections: [
         {
-          heading: "1. Базовый принцип «Zero-PII»",
+          heading: "1. Общие положения и соответствие законодательству (ЗРУ-547)",
           paragraphs: [
-            "Платформа FIRMUS строго соблюдает требования Закона Республики Узбекистан «О персональных данных» № ЗРУ-547 и не запрашивает, не обрабатывает и не собирает персональные данные физических лиц (ПИНФЛ, паспортные данные, личные номера телефонов).",
+            "Настоящая Политика конфиденциальности определяет порядок обработки, обезличивания и защиты информации при использовании бухгалтерской и налоговой SaaS-платформы FIRMUS («Платформа», «Сайт»).",
+            "Платформа строго соблюдает требования Закона Республики Узбекистан «О персональных данных» № ЗРУ-547. Регистрация на Сайте, вход через Google или использование гостевого режима означает полное согласие Пользователя с настоящей Политикой.",
           ],
         },
         {
-          heading: "2. Обрабатываемые корпоративные данные",
+          heading: "2. Базовый принцип «Zero-PII» (Отказ от сбора персональных данных)",
+          paragraphs: [
+            "FIRMUS построена по архитектуре Zero-PII: Платформа не запрашивает и не собирает ПИНФЛ (14 цифр), паспортные данные, домашние адреса, биометрические данные или реквизиты личных банковских карт (CVV, PIN) физических лиц.",
+          ],
+        },
+        {
+          heading: "3. Гостевой режим (без входа) и Зарегистрированный режим",
           bullets: [
-            "Сессия входа: аутентификационная сессия через Google OAuth или электронную почту.",
-            "Реквизиты юридического лица: наименование организации, ИНН и применяемый налоговый режим.",
-            "Сверка Банк ↔ 1C: загруженные файлы `.txt` / `.xml` / `.csv` считываются в памяти браузера пользователя и не сохраняются в базе данных сервера.",
-            "Проводки Главной книги по НСБУ №21: ведутся исключительно в разрезе корпоративных счетов (`4010`, `5110`, `6010`, `6410`, `9010`, `9420`).",
+            "Гостевой режим (`/welcome`, `/calculators`, `/try`): загружаемые в бесплатной сверке (`/try`) файлы `.xlsx`, `.xls`, `.csv`, `.txt`, `.xml` обрабатываются на 100% внутри оперативной памяти браузера (RAM) на устройстве Пользователя и не передаются на сервер.",
+            "Зарегистрированный режим (`/reconcile`, `/tax-calc`, `/clients`): в базе сохраняются юридическое название клиента, 9-значный ИНН (СТИР), выбранный налоговый режим, банковские счета и обезличенные записи сверки только при нажатии Пользователем кнопки сохранения.",
           ],
         },
         {
-          heading: "3. AI Агент и автоматическое маскирование",
+          heading: "4. Анонимное обучение шаблонов документов 1С, Банков и Didox (`onec_learned_schemas`)",
           paragraphs: [
-            "Перед отправкой запросов на анализ во внешние AI-модели (Gemini API) 16-значные номера пластиковых карт, 20-значные банковские счета, ПИНФЛ, телефоны и ИНН автоматически обезличиваются (`[KARTA_MASKED]`, `[PINFL_MASKED]`, `[TELEFON_MASKED]`).",
+            "При загрузке выписок 1С, банков или реестров ЭСФ Didox/Soliq модуль `extractAnonymizedFileBlueprint` извлекает исключительно названия заголовков столбцов таблицы (`Дата`, `Контрагент`, `Дебет`, `Кредит`) без сохранения сумм, ИНН или наименований компаний.",
           ],
         },
         {
-          heading: "4. Multi-Tenant изоляция и файлы Cookie",
+          heading: "5. Обращение к внешним AI-моделям (Gemini API) и автоматическое маскирование",
+          bullets: [
+            "Перед отправкой текста во внешний сервис Google Gemini API фильтр `depersonalizeForAi` автоматически заменяет 16-значные номера карт на `[KARTA_MASKED]`, ПИНФЛ на `[PINFL_MASKED]`, 20-значные счета на `[HISOB_MASKED]`, телефоны и ИНН на `[TELEFON_MASKED]`.",
+            "Все расчеты налоговых сумм в разделе «Оборот и налог» (`/tax-calc`) выполняются на 100% детерминированным программным кодом без участия ИИ.",
+          ],
+        },
+        {
+          heading: "6. Безопасность БД, шифрование `AES-256-GCM` и изоляция `PostgreSQL RLS`",
+          bullets: [
+            "Row-Level Security (RLS): данные каждого бухгалтера и каждого клиента строго изолированы на уровне ядра PostgreSQL.",
+            "Пароли и токены интеграции 1С OData/EPF шифруются алгоритмами `AES-256-GCM` и `SHA-256`.",
+          ],
+        },
+        {
+          heading: "7. Обязанности Пользователя по защите аккаунта и устройства",
           paragraphs: [
-            "Данные каждого предприятия строго изолированы на уровне PostgreSQL Row-Level Security (RLS). Система использует технические cookie только для поддержания сессии входа и пользовательских настроек интерфейса (язык и тема оформления).",
+            "Пользователь несет личную ответственность за сохранность своего пароля, Google-аккаунта и токенов 1С. Администрация FIRMUS не несет ответственности за утечку данных вследствие небрежности Пользователя (оставленная открытая сессия на чужом компьютере, передача пароля третьим лицам, заражение устройства вирусами).",
+          ],
+        },
+        {
+          heading: "8. Технические файлы Cookie и аналитика без персональных данных (`analytics_events`)",
+          paragraphs: [
+            "Платформа использует только технические cookie для сессии авторизации и языка интерфейса. Таблица аналитики фиксирует только 4 обезличенных события (`page_view`, `tool_used`, `register_clicked`, `registered`) без сохранения IP-адресов, email или сумм.",
+          ],
+        },
+        {
+          heading: "9. Право на удаление данных",
+          paragraphs: [
+            "Пользователь вправе в любой момент удалить сохраненные сверки, банковские счета, профили клиентов или полностью удалить свой аккаунт в разделе «Настройки -> Аккаунт» (`/settings`).",
           ],
         },
       ],
@@ -547,28 +680,76 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
     terms: {
       backToApp: "Вернуться в приложение",
       backToLogin: "Вернуться ко входу",
-      badge: "НСБУ №21",
-      title: "Условия использования (Публичная оферта)",
-      subtitle: "AI-платформа бухгалтерии FIRMUS • На основе НСБУ №21 Республики Узбекистан",
+      badge: "Публичная оферта • НСБУ №21",
+      title: "Условия использования и Ограничение ответственности (Публичная оферта)",
+      subtitle: "SaaS-платформа FIRMUS • В соответствии со статьями 367–370 Гражданского кодекса РУз",
       sections: [
         {
-          heading: "1. Предмет и содержание сервиса",
+          heading: "1. Общие положения и Акцепт Публичной оферты",
           paragraphs: [
-            "FIRMUS предоставляет пользователям программные инструменты для AI-сверки банковских выписок и файлов 1C, ведения двойных бухгалтерских проводок в соответствии с НСБУ №21, формирования оборотно-сальдовой ведомости и оперативного расчета налоговых показателей.",
+            "Настоящий документ является официальной Публичной офертой администрации платформы FIRMUS («Платформа»). В соответствии со статьями 367 и 370 Гражданского кодекса Республики Узбекистан, регистрация на Сайте (`/register`), установка отметки согласия, вход через Google или использование гостевых инструментов (`/try`, `/calculators`) означает полный и безоговорочный акцепт всех условий настоящей Оферты.",
           ],
         },
         {
-          heading: "2. Правила бухгалтерского учета и безопасности",
+          heading: "2. Правовой статус сервиса («As-Is» — Вспомогательный программный инструмент)",
+          paragraphs: [
+            "FIRMUS предоставляется по принципу «как есть» («As-Is») в качестве вспомогательного программного инструмента автоматизации для бухгалтеров и предпринимателей.",
+            "ВАЖНО: FIRMUS НЕ является государственным налоговым органом (`soliq.uz`), банком, официальным налоговым консультантом или аудиторской организацией.",
+          ],
+        },
+        {
+          heading: "3. Освобождение от ответственности за неосторожность и ошибки Пользователя",
+          paragraphs: [
+            "Администрация Платформы НЕ НЕСЕТ ОТВЕТСТВЕННОСТИ за любой прямой или косвенный ущерб, возникший вследствие неосторожности, невнимательности или ошибок Пользователя. Полная ответственность (100%) лежит на Пользователе в следующих случаях:",
+          ],
           bullets: [
-            "Пользователь несет полную ответственность за достоверность и полноту загружаемых первичных банковских выписок и файлов 1C.",
-            "Утвержденные бухгалтерские проводки не удаляются; исправления вносятся исключительно через механизм Сторно (Reversal).",
-            "Все финансовые записи, предложенные AI Агентом, сохраняются в базу только после явного подтверждения пользователем (Human-in-the-Loop).",
+            "Загрузка ошибочных или чужих файлов: загрузка некорректных, неполных выписок или файлов, относящихся к другому периоду или другому предприятию (другому ИНН);",
+            "Неверный выбор клиента или налогового режима: ошибочное указание статуса (`ООО 4%`, `ИП 1%`, `НДС 12%`) или загрузка документов одного клиента в профиль другого клиента;",
+            "Отсутствие проверки необлагаемых поступлений: включение или исключение банковских кредитов, займов учредителя, внутренних переводов между своими счетами или возвратов средств без личной построчной проверки и подтверждения бухгалтером в разделе `/tax-calc`;",
+            "Небрежность в хранении паролей и доступов: передача логина, пароля, Google-аккаунта или токенов 1С третьим лицам, либо работа на незащищенном компьютере.",
           ],
         },
         {
-          heading: "3. Ограничение ответственности",
+          heading: "4. Налоговые расчеты, штрафы и предел финансовой ответственности",
           paragraphs: [
-            "Рекомендации AI Сверки и AI Аудитора являются вспомогательным аналитическим инструментом; окончательное утверждение бухгалтерской и налоговой отчетности остается за уполномоченным бухгалтером или руководителем предприятия.",
+            "Все расчеты налогов и оборота на Платформе носят статус «Предварительный расчет — итоговое решение подтверждает бухгалтер». Своевременная подача официальных налоговых деклараций на портале `my3.soliq.uz`, контроль годовых лимитов оборота (`1 млрд сум` / `12 000 БРВ`) и уплата налогов являются исключительной обязанностью Пользователя. FIRMUS не несет материальной или юридической ответственности за любые штрафы, пени или финансовые санкции налоговых органов.",
+          ],
+        },
+        {
+          heading: "5. Интеграция с 1С, файлы экспорта (`.txt` / `.xml`) и обязанность резервного копирования (Backup)",
+          bullets: [
+            "Все выгружаемые из Платформы файлы `1CClientBankExchange` (`.txt`), `EnterpriseData 1.8` (`.xml`) и документы `1С OData` формируются исключительно в статусе ЧЕРНОВИКА (`Posted = false` / не проведены).",
+            "Перед загрузкой файлов в рабочую базу 1С Пользователь обязан создать полную резервную копию базы 1С (`Backup` / `.dt`) и проверить счета учета (`5110`, `4010`, `6010`, `6410`, `9010`, `9420`), суммы и ИНН контрагентов.",
+          ],
+        },
+        {
+          heading: "6. Ограничения искусственного интеллекта (AI) и правило «Human-in-the-Loop»",
+          paragraphs: [
+            "Модели ИИ (LLM / Gemini) могут допускать неточности («галлюцинации ИИ»). ИИ никогда не вносит проводки без подтверждения человека, а Пользователь обязан проверять каждую рекомендацию ИИ по первичным документам и официальным источникам `lex.uz`.",
+          ],
+        },
+        {
+          heading: "7. Мультиклиентский режим (Бухгалтер / Аутсорсинг) и полномочия",
+          paragraphs: [
+            "Бухгалтер, ведущий несколько компаний в разделе «Клиенты» (`/clients`), гарантирует наличие законных полномочий от этих предприятий на загрузку их банковских выписок и счетов-фактур.",
+          ],
+        },
+        {
+          heading: "8. Тарифы подписки, AI-кредиты и оплата (`Payme` / `Click`)",
+          paragraphs: [
+            "Лимиты тарифов (`Starter`, `Professional`, `Pro+`) указаны на странице `/billing`. Оплата за активированный период подписки и израсходованные AI-кредиты возврату не подлежит, за исключением случаев, предусмотренных законодательством РУз.",
+          ],
+        },
+        {
+          heading: "9. Запрещенные действия",
+          paragraphs: [
+            "Запрещается загрузка вредоносных файлов, попытки несанкционированного доступа к чужим данным, автоматизированный парсинг (`DDoS` / боты) и злоупотребление пробным периодом (`Trial`) через одноразовые почтовые ящики.",
+          ],
+        },
+        {
+          heading: "10. Форс-мажор и заключительные положения",
+          paragraphs: [
+            "Платформа не отвечает за перебои в работе интернет-провайдеров, облачных дата-центров (`Supabase`, `Google Cloud`), банковских систем или государственных порталов (`soliq.uz`, `didox.uz`). Все споры регулируются законодательством Республики Узбекистан.",
           ],
         },
       ],
@@ -694,7 +875,7 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
       taxRegimeLabel: "Tax regime:",
       taxRegimes: {
         vat_profit_tax: "General Regime (VAT 12% + Corporate Profit Tax)",
-        turnover_tax: "Turnover Tax (4%)",
+        turnover_tax: `Turnover Tax (${TURNOVER_RATE_RANGE})`,
         fixed_tax: "Fixed Tax (Sole Proprietor)",
       },
       step4Title: "All set!",
@@ -717,35 +898,66 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
     privacy: {
       backToApp: "Back to app",
       backToLogin: "Back to sign in",
-      badge: "Zero-PII Standard",
-      title: "Privacy Policy (Zero-PII Standard)",
-      lastUpdated: "Last updated: November 16, 2026 • Compliant with Law LRU-547",
+      badge: "Zero-PII • LRU-547",
+      title: "Privacy Policy & Data Protection Regulation",
+      lastUpdated: "Last updated: November 20, 2026 • Compliant with Law LRU-547 of the Republic of Uzbekistan",
       sections: [
         {
-          heading: "1. Core «Zero-PII» Principle",
+          heading: "1. General Provisions & Statutory Compliance (LRU-547)",
           paragraphs: [
-            "The FIRMUS platform strictly complies with the Law of the Republic of Uzbekistan \"On Personal Data\" (LRU-547) and neither requests nor collects individuals' personally identifiable information (PINFL, passport details, or personal phone numbers).",
+            "This Privacy Policy governs how information is processed, redacted, and protected across the FIRMUS accounting and tax SaaS platform (\"Platform\", \"Site\").",
+            "The Platform strictly complies with the Law of the Republic of Uzbekistan \"On Personal Data\" (LRU-547). By registering, signing in via Google, or using guest tools, the User agrees to this Privacy Policy in full.",
           ],
         },
         {
-          heading: "2. Corporate Data Processed",
+          heading: "2. Core «Zero-PII» Architecture",
+          paragraphs: [
+            "FIRMUS is built on a Zero-PII foundation: it neither requests nor collects individuals' 14-digit PINFLs, passport series/numbers, residential addresses, biometric data, or personal payment card secrets (CVV/PIN).",
+          ],
+        },
+        {
+          heading: "3. Guest Mode vs. Registered Accountant Mode",
           bullets: [
-            "Authentication session: login session established via Google OAuth or email.",
-            "Legal entity details: company name, TIN (STIR), and applicable tax regime.",
-            "Bank ↔ 1C Reconciliation: uploaded `.txt` / `.xml` / `.csv` files are parsed directly in browser memory and are not persisted in the server database.",
-            "NAS 21 General Ledger entries: maintained strictly at the corporate chart-of-accounts level (`4010`, `5110`, `6010`, `6410`, `9010`, `9420`).",
+            "Guest Mode (`/welcome`, `/calculators`, `/try`): files uploaded to the free reconciliation tool (`/try`) are parsed 100% inside the browser's volatile memory (RAM) on the User's device and are never transmitted to the server.",
+            "Registered Mode (`/reconcile`, `/tax-calc`, `/clients`): stores corporate legal names, 9-digit TINs (STIR), selected tax regimes, bank account details, and anonymized reconciliation records only when explicitly saved by the User.",
           ],
         },
         {
-          heading: "3. AI Agent & Automatic Masking",
+          heading: "4. Anonymized Document Schema Learning (`onec_learned_schemas`)",
           paragraphs: [
-            "Before sending analysis requests to external AI models (Gemini API), 16-digit card numbers, 20-digit bank account numbers, PINFLs, phone numbers, and TIN identifiers are automatically redacted (`[KARTA_MASKED]`, `[PINFL_MASKED]`, `[TELEFON_MASKED]`).",
+            "When 1C, Bank, or Didox EHF files are uploaded, `extractAnonymizedFileBlueprint` extracts ONLY structural column headers (`Date`, `Counterparty`, `Debit`, `Credit`) — zero transaction amounts, TINs, or company names are stored in the learned schema registry.",
           ],
         },
         {
-          heading: "4. Multi-Tenant Isolation & Cookies",
+          heading: "5. External AI Models (Gemini API) & Automatic Masking",
+          bullets: [
+            "Before sending text to Google Gemini API, `depersonalizeForAi` automatically replaces 16-digit card numbers with `[KARTA_MASKED]`, PINFLs with `[PINFL_MASKED]`, 20-digit bank accounts with `[HISOB_MASKED]`, and phone/TIN numbers with `[TELEFON_MASKED]`.",
+            "All tax amounts in `/tax-calc` are computed 100% by deterministic code — AI never computes tax totals.",
+          ],
+        },
+        {
+          heading: "6. Database Security, `AES-256-GCM` Encryption & `PostgreSQL RLS` Isolation",
+          bullets: [
+            "Row-Level Security (RLS): every accountant's workspace and client entities are strictly isolated at the PostgreSQL engine level.",
+            "1C OData/EPF credentials and tokens are encrypted at rest using `AES-256-GCM` and `SHA-256`.",
+          ],
+        },
+        {
+          heading: "7. User Responsibilities for Account & Device Security",
           paragraphs: [
-            "Each company's data is strictly isolated at the PostgreSQL Row-Level Security (RLS) layer. The platform uses strictly necessary technical cookies solely for authentication sessions and UI preferences (language and theme).",
+            "The User is solely responsible for safeguarding their password, Google account, and 1C tokens. FIRMUS is not liable for data exposure caused by User negligence (leaving sessions open on shared computers, sharing passwords, or using malware-infected devices).",
+          ],
+        },
+        {
+          heading: "8. Technical Cookies & Non-PII Analytics (`analytics_events`)",
+          paragraphs: [
+            "The Platform uses only technical cookies for authentication and UI language. Internal analytics records only 4 non-PII events (`page_view`, `tool_used`, `register_clicked`, `registered`) without storing IPs, emails, or monetary amounts.",
+          ],
+        },
+        {
+          heading: "9. Right to Data Deletion",
+          paragraphs: [
+            "Users may delete saved batches, bank accounts, client profiles, or their entire account at any time via \"Settings -> Account\" (`/settings`).",
           ],
         },
       ],
@@ -753,28 +965,75 @@ export const authLegalDict: Record<Locale, AuthLegalDict> = {
     terms: {
       backToApp: "Back to app",
       backToLogin: "Back to sign in",
-      badge: "NAS 21",
-      title: "Terms of Service (Public Offer)",
-      subtitle: "FIRMUS AI Accounting Platform • Based on Uzbekistan NAS 21",
+      badge: "Public Offer • NAS 21",
+      title: "Terms of Service & Limitation of Liability (Public Offer)",
+      subtitle: "FIRMUS SaaS Platform • Pursuant to Articles 367–370 of the Civil Code of the Republic of Uzbekistan",
       sections: [
         {
-          heading: "1. Scope of Service",
+          heading: "1. General Provisions & Acceptance of Public Offer",
           paragraphs: [
-            "FIRMUS provides users with software tools for AI-assisted reconciliation of bank statements and 1C files, double-entry bookkeeping under Uzbekistan National Accounting Standard No. 21 (NAS 21), trial balance generation, and rapid tax calculations.",
+            "This document constitutes an official Public Offer by the FIRMUS Platform. Pursuant to Articles 367 and 370 of the Civil Code of the Republic of Uzbekistan, registering an account (`/register`), checking the consent box, signing in via Google, or using guest tools (`/try`, `/calculators`) constitutes full and unconditional acceptance of these Terms.",
           ],
         },
         {
-          heading: "2. Accounting & Security Rules",
+          heading: "2. Legal Status of Service («As-Is» Auxiliary Software Tool)",
+          paragraphs: [
+            "FIRMUS is provided \"As-Is\" as an auxiliary software automation tool for accountants and business owners. FIRMUS is NOT a state tax authority (`soliq.uz`), commercial bank, licensed tax advisor, or statutory audit firm.",
+          ],
+        },
+        {
+          heading: "3. Disclaimer of Liability for User Negligence & Errors",
+          paragraphs: [
+            "The Platform administration SHALL NOT BE LIABLE for any direct or indirect damages arising from User negligence, carelessness, or misuse. The User bears 100% sole responsibility in the following cases:",
+          ],
           bullets: [
-            "The user is solely responsible for the accuracy of primary bank statements and 1C files uploaded to the platform.",
-            "Posted accounting journal entries cannot be deleted; adjustments are recorded exclusively via the Storno (Reversal) mechanism.",
-            "All financial entries proposed by the AI Agent are committed to the ledger only after explicit user confirmation (Human-in-the-Loop).",
+            "Uploading wrong or incomplete files: uploading corrupted statements or files belonging to another period or another company (wrong TIN/STIR);",
+            "Misconfiguring client or tax regime: selecting the wrong status (`LLC 4%`, `Sole Proprietor 1%`, `VAT 12%`) or uploading one client's documents under another client's profile;",
+            "Failure to review non-revenue inflows: failing to inspect and confirm bank loans, founder loans, internal own-account transfers, or refunds row-by-row in `/tax-calc`;",
+            "Credential negligence: sharing passwords, Google sessions, or 1C OData keys with third parties or leaving sessions unlocked on public devices.",
           ],
         },
         {
-          heading: "3. Limitation of Liability",
+          heading: "4. Tax Calculations, Penalties & Financial Liability Cap",
           paragraphs: [
-            "AI Reconciliation and AI Auditor recommendations serve as analytical assistance; final approval of financial and tax filings remains the responsibility of the authorized accountant or company director.",
+            "All tax and turnover figures generated on the Platform carry the status: \"Estimated calculation — final decision must be confirmed by the accountant.\" Timely filing of official tax returns on `my3.soliq.uz`, monitoring annual turnover thresholds (`1B UZS` / `12,000 BHM`), and paying taxes remain the sole duty of the User. FIRMUS assumes zero financial or legal liability for any tax fines, interest (penya), or sanctions.",
+          ],
+        },
+        {
+          heading: "5. 1C Integration, Export Files (`.txt` / `.xml`) & Backup Obligation",
+          bullets: [
+            "All `1CClientBankExchange` (`.txt`), `EnterpriseData 1.8` (`.xml`), and `1C OData` outputs are generated strictly as DRAFTS (`Posted = false`).",
+            "Before importing files into a production 1C database, the User must create a full 1C database backup (`.dt`) and verify account codes (`5110`, `4010`, `6010`, `6410`, `9010`, `9420`), amounts, and counterparty TINs.",
+          ],
+        },
+        {
+          heading: "6. Artificial Intelligence (AI) Limitations & «Human-in-the-Loop» Rule",
+          paragraphs: [
+            "AI models (LLM / Gemini) may produce inaccurate suggestions (\"AI hallucinations\"). AI never posts ledger entries without explicit human confirmation, and the User must verify every AI suggestion against primary documents and official `lex.uz` legislation.",
+          ],
+        },
+        {
+          heading: "7. Multi-Client Mode (Accountant / BPO) & Third-Party Authorization",
+          paragraphs: [
+            "An accountant managing multiple client companies in `/clients` warrants that they hold lawful authorization from those companies to upload and process their bank statements and invoices.",
+          ],
+        },
+        {
+          heading: "8. Subscription Plans, AI Credits & Payments (`Payme` / `Click`)",
+          paragraphs: [
+            "Plan limits (`Starter`, `Professional`, `Pro+`) are detailed on `/billing`. Payments for activated subscription periods and consumed AI credits are non-refundable except where required by applicable law.",
+          ],
+        },
+        {
+          heading: "9. Prohibited Conduct",
+          paragraphs: [
+            "Uploading malicious files, attempting unauthorized access to other users' data, automated scraping (`DDoS` / bots), and abusing free trials via disposable email addresses are strictly prohibited.",
+          ],
+        },
+        {
+          heading: "10. Force Majeure & Governing Law",
+          paragraphs: [
+            "The Platform is not liable for outages of ISPs, cloud data centers (`Supabase`, `Google Cloud`), banking systems, or state portals (`soliq.uz`, `didox.uz`). All disputes are governed by the laws of the Republic of Uzbekistan.",
           ],
         },
       ],

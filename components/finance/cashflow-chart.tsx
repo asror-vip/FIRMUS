@@ -68,8 +68,8 @@ export function CashflowChart({
                   formatter={(val: any) => [`${Number(val).toLocaleString(intlLocale)} ${currencyLabel}`]}
                 />
                 <Legend wrapperStyle={{ fontSize: "11px" }} />
-                <Bar dataKey="income" name={incomeLabel} fill="#8B5CF6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name={expenseLabel} fill="#A78BFA" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="income" name={incomeLabel} fill="#10B981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expense" name={expenseLabel} fill="#F43F5E" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

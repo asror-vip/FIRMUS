@@ -24,11 +24,23 @@ export function Footer() {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <Link href="/privacy" className="hover:text-foreground transition-colors">
-            {d.footer.privacy}
+          <Link
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+          >
+            <span>{d.footer.privacy}</span>
+            <ExternalLink className="h-2.5 w-2.5 opacity-70" />
           </Link>
-          <Link href="/terms" className="hover:text-foreground transition-colors">
-            {d.footer.terms}
+          <Link
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+          >
+            <span>{d.footer.terms}</span>
+            <ExternalLink className="h-2.5 w-2.5 opacity-70" />
           </Link>
           <Link href="/billing" className="hover:text-foreground transition-colors">
             {d.footer.billing}

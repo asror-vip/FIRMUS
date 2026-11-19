@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   title: "FIRMUS — AI-Powered Business & Accounting Automation",
   description:
     "Oʻzbekiston biznesi uchun avtomatlashtirilgan buxgalteriya, 1C va Didox EDO integratsiyasi, moliyaviy hisobotlar va AI Copilot tizimi.",
+  icons: {
+    icon: [{ url: "/brand/firmus-f.jpg", type: "image/jpeg" }],
+    shortcut: "/brand/firmus-f.jpg",
+    apple: "/brand/firmus-f.jpg",
+  },
 };
 
 export default function RootLayout({

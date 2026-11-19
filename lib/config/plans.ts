@@ -29,7 +29,8 @@ export const AI_MODELS: Record<AiModelId, AiModelMeta> = {
     shortLabel: "4 Hydrogen",
     creditCost: 2,
     description: "Chuqur soliq, 21-BHMS va shartnoma tahlili",
-    fallbackChain: ["gemini-4-hydrogen", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
+    // Backend uses the same free-tier Gemini Flash model chain while keeping UI label unchanged
+    fallbackChain: ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"],
   },
 };
 

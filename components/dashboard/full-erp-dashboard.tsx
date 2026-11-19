@@ -58,19 +58,19 @@ function StatusDot({ status }: { status: string }) {
   let label = status;
 
   if (["success", "posted", "paid", "resolved"].includes(norm)) {
-    dotClass = "bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]";
+    dotClass = "bg-emerald-500";
     label = norm === "posted" ? "Provodka" : "Yechilgan";
   } else if (["pending", "in_review", "syncing"].includes(norm)) {
-    dotClass = "bg-purple-300 shadow-[0_0_6px_rgba(192,132,252,0.4)]";
+    dotClass = "bg-amber-500";
     label = "Kutilmoqda";
   } else if (["critical", "high", "failed", "rejected"].includes(norm)) {
-    dotClass = "bg-rose-400/90 shadow-[0_0_6px_rgba(244,63,94,0.35)]";
+    dotClass = "bg-rose-500";
     label = norm === "critical" ? "Kritik" : "Xatolik";
   } else if (["medium", "warning"].includes(norm)) {
-    dotClass = "bg-violet-300/80";
-    label = "Oʻrta";
+    dotClass = "bg-amber-400";
+    label = "OÊ»rta";
   } else if (["low", "info"].includes(norm)) {
-    dotClass = "bg-indigo-300/80";
+    dotClass = "bg-zinc-400";
     label = "Past";
   }
 
@@ -298,7 +298,7 @@ export function FullErpDashboard() {
           <Button
             size="sm"
             onClick={toggleAiDrawer}
-            className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_15px_rgba(139,92,246,0.25)]"
+            className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
           >
             <Sparkles className="h-3.5 w-3.5" />
             {t.aiDrawer.title}
@@ -320,13 +320,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {t.dashboard.kpiAutomated}
             </span>
-            <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {automatedRate}%
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <CheckCircle2 className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span className="truncate">
               {erp.postedOperationsSub
                 .replace("{posted}", String(postedCount))
@@ -345,13 +345,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {t.dashboard.kpiApprovals}
             </span>
-            <span className="h-2 w-2 rounded-full bg-purple-300 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {totalPendingCount}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <Clock className="h-3.5 w-3.5 text-purple-300 shrink-0" />
+            <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
             <span className="truncate">{t.dashboard.kpiApprovalsSub}</span>
           </div>
         </button>
@@ -366,13 +366,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {t.dashboard.kpiExceptions}
             </span>
-            <span className="h-2 w-2 rounded-full bg-violet-400/80 shadow-[0_0_8px_rgba(139,92,246,0.4)]" />
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
             {openExceptionsCount}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <ShieldAlert className="h-3.5 w-3.5 text-violet-300 shrink-0" />
+            <ShieldAlert className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
             <span className="truncate">{t.dashboard.kpiExceptionsSub}</span>
           </div>
         </button>
@@ -387,13 +387,13 @@ export function FullErpDashboard() {
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
               {erp.netVatTitle}
             </span>
-            <span className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]" />
+            <span className="h-2 w-2 rounded-full bg-violet-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground truncate">
             {formatUzsByLocale(Math.round(vatNetPayable), locale)}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
-            <Scale className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <Scale className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400 shrink-0" />
             <span className="truncate">{erp.netVatSub}</span>
           </div>
         </button>
@@ -407,7 +407,7 @@ export function FullErpDashboard() {
           className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
               <Scale className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -449,7 +449,7 @@ export function FullErpDashboard() {
           className="p-3.5 px-4 flex items-center justify-between gap-3 text-left hover:bg-muted/30 transition-colors group"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
               <Calculator className="h-4 w-4" />
             </div>
             <div className="min-w-0">
@@ -481,11 +481,11 @@ export function FullErpDashboard() {
             </div>
             <div className="flex items-center gap-3 text-[11px]">
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-violet-400 shadow-[0_0_6px_rgba(139,92,246,0.6)]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <span className="text-muted-foreground">{t.common.income}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                 <span className="text-muted-foreground">{t.common.expense}</span>
               </div>
             </div>
@@ -497,15 +497,15 @@ export function FullErpDashboard() {
                 <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.28} />
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#F43F5E" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#F43F5E" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.45} />
                   <XAxis
                     dataKey="date"
                     tickLine={false}
@@ -522,14 +522,14 @@ export function FullErpDashboard() {
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="rounded-lg border border-violet-500/30 bg-[#151322]/95 backdrop-blur-md p-2.5 shadow-xl text-xs space-y-1">
+                          <div className="rounded-lg border border-border bg-popover/95 backdrop-blur-md p-2.5 shadow-lg text-xs space-y-1">
                             <p className="font-mono text-muted-foreground text-[10px]">
                               {payload[0].payload.date}
                             </p>
-                            <p className="text-violet-400 font-mono font-medium">
+                            <p className="text-emerald-600 dark:text-emerald-400 font-mono font-medium">
                               {t.common.income}: {Number(payload[0].value || 0).toLocaleString(intlLocale)} {t.common.currency}
                             </p>
-                            <p className="text-indigo-300 font-mono font-medium">
+                            <p className="text-rose-600 dark:text-rose-400 font-mono font-medium">
                               {t.common.expense}: {Number(payload[1].value || 0).toLocaleString(intlLocale)} {t.common.currency}
                             </p>
                           </div>
@@ -541,18 +541,18 @@ export function FullErpDashboard() {
                   <Area
                     type="monotone"
                     dataKey="income"
-                    stroke="#8B5CF6"
-                    strokeWidth={2.2}
-                    dot={{ r: 3.5, stroke: "#8B5CF6", strokeWidth: 2, fill: "#0D0B14" }}
-                    activeDot={{ r: 5, stroke: "#A78BFA", strokeWidth: 2, fill: "#8B5CF6" }}
+                    stroke="#10B981"
+                    strokeWidth={2}
+                    dot={{ r: 3, stroke: "#10B981", strokeWidth: 2, fill: "hsl(var(--card))" }}
+                    activeDot={{ r: 5, stroke: "#34D399", strokeWidth: 2, fill: "#10B981" }}
                     fillOpacity={1}
                     fill="url(#colorIncome)"
                   />
                   <Area
                     type="monotone"
                     dataKey="expense"
-                    stroke="#6366F1"
-                    strokeWidth={1.8}
+                    stroke="#F43F5E"
+                    strokeWidth={1.75}
                     strokeDasharray="3 3"
                     fillOpacity={1}
                     fill="url(#colorExpense)"
@@ -648,8 +648,8 @@ export function FullErpDashboard() {
             <CircularGauge
               percent={openExceptionsCount === 0 ? 100 : Math.max(30, 100 - openExceptionsCount * 10)}
               label="Audit Salomatlik"
-              color="#A78BFA"
-              trackColor="rgba(167,139,250,0.15)"
+              color="#10B981"
+              trackColor="rgba(16,185,129,0.15)"
             />
           </div>
 
@@ -668,7 +668,7 @@ export function FullErpDashboard() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-foreground">{t.dashboard.pendingApprovalsTitle}</span>
               {totalPendingCount > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30 font-medium">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 font-medium">
                   {totalPendingCount}
                 </span>
               )}
@@ -733,7 +733,7 @@ export function FullErpDashboard() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-foreground">{t.dashboard.recentExceptionsTitle}</span>
               {openExceptionsCount > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30 font-medium">
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/30 font-medium">
                   {openExceptionsCount}
                 </span>
               )}
@@ -774,7 +774,7 @@ export function FullErpDashboard() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono py-3">
-                        {exc.amount ? <Money amount={exc.amount} /> : "—"}
+                        {exc.amount ? <Money amount={exc.amount} /> : "â€”"}
                       </TableCell>
                       <TableCell className="text-right py-3">
                         <StatusDot status={exc.status} />
@@ -797,12 +797,12 @@ export function FullErpDashboard() {
       {/* 6. Bottom Datara Glass Strip (AI Recommendation) */}
       <div className="rounded-xl border border-violet-500/25 bg-violet-600/[0.04] backdrop-blur-sm p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-400 mt-0.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-600 dark:text-violet-400 mt-0.5">
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-violet-400 uppercase tracking-wider font-mono">
+              <span className="text-[11px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider font-mono">
                 {t.dashboard.aiRecommendationTitle}
               </span>
             </div>
@@ -824,7 +824,7 @@ export function FullErpDashboard() {
           <Button
             size="sm"
             onClick={toggleAiDrawer}
-            className="text-xs h-7 px-3 bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_0_12px_rgba(139,92,246,0.3)]"
+            className="text-xs h-7 px-3 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
           >
             {t.common.view}
           </Button>

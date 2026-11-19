@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { FEATURES } from "@/lib/config/features";
 import { getRequestLocale } from "@/lib/i18n/server-locale";
 import { getApiMessages } from "@/lib/i18n/domains/api-messages";
+import { isPublicGuestRoute } from "@/lib/analytics/track-event";
 
 const ERP_ONLY_PREFIXES = [
   "/accounting",
@@ -31,6 +32,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isPublicPage =
+    isPublicGuestRoute(pathname) ||
     pathname.startsWith("/privacy") ||
     pathname.startsWith("/terms") ||
     pathname.startsWith("/auth/callback") ||
@@ -41,7 +43,7 @@ export async function middleware(request: NextRequest) {
 
   const isResetPasswordPage = pathname.startsWith("/reset-password");
 
-  // Public, legal, webhook, health, and password recovery routes incur zero Supabase Auth latency
+  // Public, guest, legal, webhook, health, and password recovery routes incur zero Supabase Auth latency
   if (isPublicPage || isResetPasswordPage) {
     return response;
   }
@@ -52,6 +54,13 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/forgot-password");
 
   const hasAuthCookie = hasSupabaseAuthCookie(request);
+
+  // Guests visiting root "/" without an auth cookie immediately receive the public home page (zero Auth RTT)
+  if (pathname === "/" && !hasAuthCookie) {
+    const publicHomeUrl = request.nextUrl.clone();
+    publicHomeUrl.pathname = "/welcome";
+    return NextResponse.rewrite(publicHomeUrl);
+  }
 
   // Auth pages without a Supabase auth cookie incur zero Supabase Auth RTT
   if (isAuthPage && !hasAuthCookie) {
@@ -72,7 +81,9 @@ export async function middleware(request: NextRequest) {
 
   const isErpBlocked =
     !FEATURES.fullAccountingErp &&
-    ERP_ONLY_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+    ERP_ONLY_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    );
 
   const isRscOrPrefetch =
     request.headers.get("rsc") === "1" ||
@@ -117,11 +128,14 @@ export async function middleware(request: NextRequest) {
 
   // If user is unauthenticated and attempting to access protected HTML routes
   if (!user && !isAuthPage) {
+    if (pathname === "/") {
+      const publicHomeUrl = request.nextUrl.clone();
+      publicHomeUrl.pathname = "/welcome";
+      return NextResponse.rewrite(publicHomeUrl);
+    }
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
-    if (pathname !== "/") {
-      redirectUrl.searchParams.set("redirectedFrom", pathname);
-    }
+    redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 

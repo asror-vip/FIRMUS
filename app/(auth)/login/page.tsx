@@ -184,7 +184,7 @@ function LoginForm() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 font-semibold shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all"
+                className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 font-semibold shadow-sm transition-all"
               >
                 {isLoading ? (
                   <>
@@ -208,11 +208,21 @@ function LoginForm() {
         </p>
 
         <p className="text-center text-[10px] text-muted-foreground/80">
-          <Link href="/privacy" className="hover:underline">
+          <Link
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
             {d.privacyLink}
           </Link>
           {" • "}
-          <Link href="/terms" className="hover:underline">
+          <Link
+            href="/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
             {d.termsLink}
           </Link>
         </p>

@@ -302,7 +302,7 @@ export default function TaxPage() {
           {!isReadOnly && (
             <Button
               size="sm"
-              className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+              className="text-xs h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
               onClick={() => setIsCalcModalOpen(true)}
             >
               <Calculator className="h-3.5 w-3.5" />
@@ -429,7 +429,7 @@ export default function TaxPage() {
         <div className="p-4 pb-3 flex flex-row items-center justify-between border-b border-border/50">
           <div>
             <h3 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-              <Calendar className="h-4 w-4 text-violet-400" />
+              <Calendar className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               {t.pages.tax.calendarTitle}
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -617,7 +617,7 @@ export default function TaxPage() {
                 size="sm"
                 disabled={isSubmitting}
                 onClick={() => handlePayTax(selectedTax)}
-                className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] text-xs gap-1.5"
+                className="bg-violet-600 hover:bg-violet-500 text-white shadow-sm text-xs gap-1.5"
               >
                 <CreditCard className="h-3.5 w-3.5" />
                 {isSubmitting ? d.payingBtn : d.payTaxBtn}
@@ -649,7 +649,7 @@ export default function TaxPage() {
               </div>
               <div className="pt-2 border-t border-border flex justify-between font-mono font-bold text-foreground text-sm">
                 <span>{d.vatNetLabel}</span>
-                <span className="text-violet-400"><Money amount={netVatPayable} /></span>
+                <span className="text-violet-600 dark:text-violet-400"><Money amount={netVatPayable} /></span>
               </div>
             </div>
           </div>
@@ -660,7 +660,7 @@ export default function TaxPage() {
             </Button>
             <Button
               disabled={isSubmitting}
-              className="bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] text-xs"
+              className="bg-violet-600 hover:bg-violet-500 text-white shadow-sm text-xs"
               onClick={handleConfirmVatCalculation}
             >
               {isSubmitting ? d.savingBtn : t.pages.tax.confirmCalculation}

@@ -27,6 +27,7 @@ import {
   calculateVatUz,
   calculateTurnoverTaxUz,
   calculateVacationPayUz,
+  type TaxpayerStatus,
 } from "@/lib/services/uz-tax-calculator";
 import {
   compressImageForAi,
@@ -349,6 +350,7 @@ function AssistantContent() {
   const [calcVatAmount, setCalcVatAmount] = useState("11200000");
   const [calcVatMode, setCalcVatMode] = useState<"included" | "excluded">("included");
   const [calcTurnoverRev, setCalcTurnoverRev] = useState("100000000");
+  const [calcTurnoverStatus, setCalcTurnoverStatus] = useState<TaxpayerStatus>("llc");
   const [calcVacationDays, setCalcVacationDays] = useState("21");
 
   // 4. Contract Risk state
@@ -389,8 +391,12 @@ function AssistantContent() {
   );
 
   const turnoverCalc = useMemo(
-    () => calculateTurnoverTaxUz({ revenue: parseFloat(calcTurnoverRev) || 0 }),
-    [calcTurnoverRev]
+    () =>
+      calculateTurnoverTaxUz({
+        revenue: parseFloat(calcTurnoverRev) || 0,
+        taxpayerStatus: calcTurnoverStatus,
+      }),
+    [calcTurnoverRev, calcTurnoverStatus]
   );
 
   const vacationCalc = useMemo(() => {
@@ -512,7 +518,7 @@ function AssistantContent() {
           sender: "ai",
           text:
             `${cachedHit ? d.chat.cachedFromHistoryPrefix : ""}` +
-            `${scan.documentType}: ${scan.counterparty} — ${scan.totalAmount.toLocaleString(numLocale)} ${t.common.currency}. ` +
+            `${scan.documentType}: ${scan.counterparty} â€” ${scan.totalAmount.toLocaleString(numLocale)} ${t.common.currency}. ` +
             (scan.provodkaExplanation || d.chat.scanPreparedFallback),
           modelUsed: scan.modelUsed,
           scanResult: scan,
@@ -952,7 +958,7 @@ function AssistantContent() {
           href="/billing"
           className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 px-3 py-1 text-xs transition-colors self-start sm:self-auto text-violet-200"
         >
-          <Sparkles className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+          <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400 shrink-0" />
           <span className="font-medium">
             {subscription.isTrialActive
               ? d.header.trialActive
@@ -1009,7 +1015,7 @@ function AssistantContent() {
                   className={cn(
                     "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors shrink-0",
                     isSelected
-                      ? "bg-violet-600 text-white shadow-[0_0_12px_rgba(139,92,246,0.3)]"
+                      ? "bg-violet-600 text-white shadow-sm"
                       : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
@@ -1036,16 +1042,16 @@ function AssistantContent() {
               e.preventDefault();
               handleDropImageToChat(e.dataTransfer?.files?.[0]);
             }}
-            className={`rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden ${
+            className={`overflow-hidden ${
               isDraggingOverChat
-                ? "border-violet-500 ring-2 ring-violet-500/30 shadow-[0_0_20px_rgba(139,92,246,0.2)]"
+                ? "rounded-xl ring-2 ring-violet-500/40 bg-violet-500/[0.03]"
                 : ""
             }`}
           >
-            <div className="flex flex-col md:flex-row min-h-[520px] md:h-[calc(100vh-210px)]">
+            <div className="flex flex-col md:flex-row min-h-[540px] md:h-[calc(100vh-190px)]">
               {/* Collapsible Chat History Sidebar */}
               {showChatSidebar && (
-                <div className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-border/70 bg-muted/15 max-h-[260px] md:max-h-full md:h-full flex flex-col">
+                <div className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-border/40 max-h-[260px] md:max-h-full md:h-full flex flex-col">
                   <AiThreadHistoryPanel
                     entityId={currentEntity?.id}
                     activeThreadId={activeThreadId}
@@ -1061,8 +1067,8 @@ function AssistantContent() {
               )}
 
               {/* Active Conversation Area */}
-              <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                <div className="flex items-center justify-between gap-2 px-3.5 py-2 border-b border-border/60 bg-card/50">
+              <div className="flex-1 flex flex-col min-w-0 min-h-0 md:pl-4">
+                <div className="flex items-center justify-between gap-2 pb-2 border-b border-border/30">
                   <div className="flex items-center gap-1.5">
                     <Button
                       type="button"
@@ -1248,7 +1254,7 @@ function AssistantContent() {
                   className="w-full h-24 border-dashed flex flex-col gap-1.5"
                   onClick={() => scanFileRef.current?.click()}
                 >
-                  <Upload className="h-5 w-5 text-violet-400" />
+                  <Upload className="h-5 w-5 text-violet-600 dark:text-violet-400" />
                   <span>
                     {scanFileName ||
                       (subscription.limits.pdfAllowed ? d.scan.selectFilePdf : d.scan.selectFileImage)}
@@ -1261,7 +1267,7 @@ function AssistantContent() {
                 )}
                 <Button
                   type="button"
-                  className="w-full gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                  className="w-full gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                   disabled={isScanning || !scanBase64}
                   onClick={handleRunScan}
                 >
@@ -1309,7 +1315,7 @@ function AssistantContent() {
                       </div>
                       <div>
                         <span className="text-[10px] text-muted-foreground">{d.scan.fields.vat12}</span>
-                        <div className="font-mono font-semibold text-violet-400">
+                        <div className="font-mono font-semibold text-violet-600 dark:text-violet-400">
                           <Money amount={scanResult.vatAmount} />
                         </div>
                       </div>
@@ -1337,7 +1343,7 @@ function AssistantContent() {
                             {scanResult.items.map((it, idx) => (
                               <TableRow key={idx} className="text-[11px]">
                                 <TableCell>{it.name} ({it.qty} {it.unit})</TableCell>
-                                <TableCell className="font-mono text-[10px]">{it.mxikHint || "—"}</TableCell>
+                                <TableCell className="font-mono text-[10px]">{it.mxikHint || "â€”"}</TableCell>
                                 <TableCell className="text-right font-mono"><Money amount={it.total} /></TableCell>
                               </TableRow>
                             ))}
@@ -1354,7 +1360,7 @@ function AssistantContent() {
                         className="flex-1 h-8 text-xs gap-1.5"
                         onClick={async () => {
                           const text = [
-                            `${scanResult.documentType}${scanResult.documentNumber ? ` №${scanResult.documentNumber}` : ""} (${scanResult.date})`,
+                            `${scanResult.documentType}${scanResult.documentNumber ? ` â„–${scanResult.documentNumber}` : ""} (${scanResult.date})`,
                             `${d.scan.copyTemplate.counterparty}: ${scanResult.counterparty}${scanResult.counterpartyStir ? ` (${d.scan.copyTemplate.tin}: ${scanResult.counterpartyStir})` : ""}`,
                             `${d.scan.copyTemplate.totalAmount}: ${scanResult.totalAmount.toLocaleString(numLocale)} ${t.common.currency}${
                               scanResult.vatAmount > 0 ? ` | ${d.scan.copyTemplate.vat12}: ${scanResult.vatAmount.toLocaleString(numLocale)} ${t.common.currency}` : ""
@@ -1377,7 +1383,7 @@ function AssistantContent() {
                       {FEATURES.fullAccountingErp && (
                         <Button
                           size="sm"
-                          className="flex-1 h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                          className="flex-1 h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                           disabled={isPostingDoc || scanResult.totalAmount <= 0}
                           onClick={handlePostScannedToLedger}
                         >
@@ -1396,7 +1402,7 @@ function AssistantContent() {
             <div className="rounded-xl border border-border/50 bg-card/30 backdrop-blur-sm overflow-hidden">
               <div className="p-4 pb-3 border-b border-border/40 flex items-center justify-between">
                 <div className="text-sm font-semibold flex items-center gap-2">
-                  <History className="h-4 w-4 text-violet-400" />
+                  <History className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                   {d.scan.savedDocsTitle} ({savedScansCount})
                 </div>
               </div>
@@ -1534,7 +1540,7 @@ function AssistantContent() {
                   </div>
                   <div className="flex justify-between border-t border-border pt-1.5">
                     <span className="font-semibold">{d.calc.payroll.netLabel}</span>
-                    <span className="font-mono font-bold text-violet-400"><Money amount={payrollCalc.net} /></span>
+                    <span className="font-mono font-bold text-violet-600 dark:text-violet-400"><Money amount={payrollCalc.net} /></span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">{d.calc.payroll.socialTaxLabel}</span>
@@ -1604,7 +1610,7 @@ function AssistantContent() {
                     </div>
                     <div>
                       <div className="text-[10px] text-muted-foreground">{d.calc.vat.vatLabel}</div>
-                      <div className="font-mono font-bold text-violet-400"><Money amount={vatCalc.vat12} /></div>
+                      <div className="font-mono font-bold text-violet-600 dark:text-violet-400"><Money amount={vatCalc.vat12} /></div>
                     </div>
                     <div>
                       <div className="text-[10px] text-muted-foreground">{d.calc.vat.totalLabel}</div>
@@ -1619,8 +1625,24 @@ function AssistantContent() {
                   <div className="text-sm font-semibold text-foreground">{d.calc.other.title}</div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="space-y-1.5 rounded-lg bg-muted/40 p-2.5">
-                    <div className="font-semibold">{d.calc.other.turnoverTitle}</div>
+                  <div className="space-y-2 rounded-lg bg-muted/40 p-2.5">
+                    <div className="font-semibold">
+                      {d.calc.other.turnoverTitle(turnoverCalc.ratePercent)}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(["llc", "yatt", "self_employed"] as TaxpayerStatus[]).map((st) => (
+                        <Button
+                          key={st}
+                          type="button"
+                          size="sm"
+                          variant={calcTurnoverStatus === st ? "default" : "outline"}
+                          className="h-6 px-1.5 text-[10px]"
+                          onClick={() => setCalcTurnoverStatus(st)}
+                        >
+                          {d.calc.other.turnoverStatuses[st]}
+                        </Button>
+                      ))}
+                    </div>
                     <Input
                       type="number"
                       min={0}
@@ -1632,6 +1654,22 @@ function AssistantContent() {
                       <span className="text-muted-foreground">{d.calc.other.turnoverTaxLabel}</span>
                       <span className="font-mono font-bold"><Money amount={turnoverCalc.tax} /></span>
                     </div>
+                    {turnoverCalc.annualThresholdUzs !== null && (
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>{d.calc.other.turnoverThresholdLabel}</span>
+                        <span className="font-mono">
+                          <Money amount={turnoverCalc.annualThresholdUzs} />
+                          {turnoverCalc.annualThresholdBhm
+                            ? ` (${turnoverCalc.annualThresholdBhm.toLocaleString("en-US")} BHM)`
+                            : ""}
+                        </span>
+                      </div>
+                    )}
+                    {turnoverCalc.exceedsThreshold && (
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        {d.calc.other.turnoverExceedsWarning}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5 rounded-lg bg-muted/40 p-2.5">
@@ -1646,7 +1684,7 @@ function AssistantContent() {
                     />
                     <div className="flex justify-between text-[11px]">
                       <span className="text-muted-foreground">{d.calc.other.vacationNetLabel}</span>
-                      <span className="font-mono font-bold text-violet-400"><Money amount={vacationCalc.netVacation} /></span>
+                      <span className="font-mono font-bold text-violet-600 dark:text-violet-400"><Money amount={vacationCalc.netVacation} /></span>
                     </div>
                   </div>
                 </div>
@@ -1728,8 +1766,8 @@ function AssistantContent() {
                   <>
                     <div className="font-medium text-foreground">{contractResult.provodkaExplanation}</div>
                     {!Array.isArray(contractResult.risks) || contractResult.risks.length === 0 ? (
-                      <div className="flex items-center gap-2 text-violet-300 rounded-lg bg-violet-500/10 p-3">
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-400" />
+                      <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300 rounded-lg bg-violet-500/10 p-3">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
                         <span>{d.contract.noRisksFound}</span>
                       </div>
                     ) : (
@@ -1759,7 +1797,7 @@ function AssistantContent() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-semibold flex items-center gap-2">
-                    <History className="h-4 w-4 text-violet-400" />
+                    <History className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                     {d.history.title} ({allHistoryCount})
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -1830,7 +1868,7 @@ function AssistantContent() {
             <div className="p-0 overflow-x-auto">
               {!isContextReady || isLoadingHistory ? (
                 <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
+                  <Loader2 className="h-4 w-4 animate-spin text-violet-600 dark:text-violet-400" />
                   {d.history.loading}
                 </div>
               ) : !currentEntity?.id || allHistory.length === 0 ? (

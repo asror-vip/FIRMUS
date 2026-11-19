@@ -145,7 +145,7 @@ export default function OnboardingPage() {
 
         <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
           <div
-            className="h-full bg-violet-600 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(139,92,246,0.5)]"
+            className="h-full bg-violet-600 rounded-full transition-all duration-300 shadow-sm"
             style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
@@ -164,12 +164,12 @@ export default function OnboardingPage() {
                   onClick={() => setAccountType("accounting_firm")}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     accountType === "accounting_firm"
-                      ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                      ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50 shadow-sm"
                       : "border-border hover:bg-muted/40"
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400 border border-violet-500/30 font-bold">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30 font-bold">
                       <Briefcase className="h-5 w-5" />
                     </div>
                     <div>
@@ -185,12 +185,12 @@ export default function OnboardingPage() {
                   onClick={() => setAccountType("individual_company")}
                   className={`p-4 rounded-xl border cursor-pointer transition-all ${
                     accountType === "individual_company"
-                      ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50 shadow-[0_0_15px_rgba(139,92,246,0.15)]"
+                      ? "border-violet-500 bg-violet-500/10 ring-1 ring-violet-500/50 shadow-sm"
                       : "border-border hover:bg-muted/40"
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/15 text-violet-400 border border-violet-500/30 font-bold">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30 font-bold">
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div>
@@ -277,7 +277,7 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <div className="text-center py-6 px-4 space-y-4">
-              <div className="h-14 w-14 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/30 flex items-center justify-center mx-auto shadow-[0_0_15px_rgba(139,92,246,0.2)]">
+              <div className="h-14 w-14 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/30 flex items-center justify-center mx-auto shadow-sm">
                 <CheckCircle2 className="h-8 w-8" />
               </div>
               <div>
@@ -291,7 +291,7 @@ export default function OnboardingPage() {
 
               <div className="pt-2">
                 <Button
-                  className="bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 px-6 shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all"
+                  className="bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 px-6 shadow-sm transition-all"
                   disabled={isSaving}
                   onClick={handleCompleteOnboarding}
                 >
@@ -315,7 +315,7 @@ export default function OnboardingPage() {
               <Button
                 size="sm"
                 onClick={nextStep}
-                className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all"
+                className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white shadow-sm transition-all"
               >
                 {d.nextBtn} <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
               </Button>

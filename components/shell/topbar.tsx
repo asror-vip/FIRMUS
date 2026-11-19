@@ -79,11 +79,15 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 shrink-0 flex h-16 w-full items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      {/* Left side: Workspace & Entity switchers (B2B mode only) */}
+      {/* Left side: Client / Entity switcher (Multi-client mode) */}
       {FEATURES.multiCompanyMode && (
         <div className="flex items-center gap-2">
-          <WorkspaceSwitcher />
-          <span className="text-muted-foreground/40 hidden sm:inline">/</span>
+          {FEATURES.teamMode && (
+            <>
+              <WorkspaceSwitcher />
+              <span className="text-muted-foreground/40 hidden sm:inline">/</span>
+            </>
+          )}
           <EntitySwitcher />
         </div>
       )}
@@ -116,7 +120,7 @@ export function Topbar() {
         <Button
           onClick={toggleAiDrawer}
           size="sm"
-          className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-medium shadow-[0_0_12px_rgba(139,92,246,0.25)] px-2.5 text-xs transition-colors"
+          className="h-8 gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-medium shadow-sm px-2.5 text-xs transition-colors"
         >
           <Sparkles className="h-3.5 w-3.5 text-violet-100" />
           <span className="hidden sm:inline">FIRMUS AI</span>

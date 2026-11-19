@@ -368,9 +368,9 @@ function AiAuditorContent() {
         <div className="p-4 flex items-center justify-between">
           <div>
             <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{d.resolvedCountLabel}</span>
-            <p className="text-2xl font-bold font-mono text-violet-400 mt-0.5">{resolvedCount}</p>
+            <p className="text-2xl font-bold font-mono text-violet-600 dark:text-violet-400 mt-0.5">{resolvedCount}</p>
           </div>
-          <div className="h-9 w-9 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20 flex items-center justify-center">
+          <div className="h-9 w-9 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20 flex items-center justify-center">
             <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
@@ -410,7 +410,7 @@ function AiAuditorContent() {
                   onClick={() => setSelectedExc(exc)}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
                     selectedExc?.id === exc.id
-                      ? "border-violet-500 bg-violet-500/10 shadow-[0_0_12px_rgba(139,92,246,0.15)] ring-1 ring-violet-500/50"
+                      ? "border-violet-500 bg-violet-500/10 shadow-sm ring-1 ring-violet-500/50"
                       : "border-border/50 bg-card/30 hover:border-violet-500/30 hover:bg-card/50"
                   }`}
                 >
@@ -473,7 +473,7 @@ function AiAuditorContent() {
                       <StatusPill status={selectedExc.status} />
                     </div>
                     <span className="text-[11px] font-mono text-muted-foreground">
-                      ID: {selectedExc.id} • {selectedExc.date}
+                      ID: {selectedExc.id} â€¢ {selectedExc.date}
                     </span>
                   </div>
                   <h3 className="text-base font-bold text-foreground leading-snug">
@@ -488,7 +488,7 @@ function AiAuditorContent() {
                   {/* Evidence Box */}
                   <div className="rounded-xl border border-border/50 bg-card/40 p-4 space-y-2.5">
                     <span className="font-semibold text-foreground text-xs flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-violet-400" />
+                      <FileText className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
                       {t.pages.aiAuditor.evidenceTitle}
                     </span>
                     <div className="grid grid-cols-2 gap-3 pt-1">
@@ -510,8 +510,8 @@ function AiAuditorContent() {
                   {/* AI Recommendation Box */}
                   <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-4 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-violet-300 text-xs flex items-center gap-1.5">
-                        <Sparkles className="h-4 w-4 text-violet-400" />
+                      <span className="font-bold text-violet-700 dark:text-violet-300 text-xs flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                         {t.pages.aiAuditor.aiSuggestionTitle}
                       </span>
                       <Badge variant="indigo" className="text-[10px] font-mono">
@@ -523,7 +523,7 @@ function AiAuditorContent() {
                     <div className="pt-2">
                       <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
                         <span>{t.pages.aiAuditor.confidence}</span>
-                        <span className="font-mono text-violet-300">{selectedExc.aiConfidence}%</span>
+                        <span className="font-mono text-violet-700 dark:text-violet-300">{selectedExc.aiConfidence}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-muted/40 rounded-full overflow-hidden">
                         <div
@@ -569,7 +569,7 @@ function AiAuditorContent() {
                   </Button>
                   <Button
                     size="sm"
-                    className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                    className="h-8 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                     disabled={isMutating || selectedExc.status === "resolved"}
                     onClick={() => handleResolve(selectedExc, "approve")}
                   >
@@ -593,7 +593,7 @@ function AiAuditorContent() {
         <div className="p-4 flex flex-row items-center justify-between border-b border-border/50">
           <div>
             <h3 className="text-base font-bold flex items-center gap-2 text-foreground">
-              <Sparkles className="h-4 w-4 text-violet-400" />
+              <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
               {d.auditTrailTitle}
             </h3>
             <p className="text-xs text-muted-foreground">
@@ -614,7 +614,7 @@ function AiAuditorContent() {
         <div className="p-4">
           {isLoadingLogs ? (
             <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-              <RefreshCw className="h-4 w-4 animate-spin text-violet-400" />
+              <RefreshCw className="h-4 w-4 animate-spin text-violet-600 dark:text-violet-400" />
               {d.loadingLogs}
             </div>
           ) : actionLogs.length === 0 ? (
@@ -654,7 +654,7 @@ function AiAuditorContent() {
                           })}
                         </td>
                         <td className="py-2.5 pr-3">
-                          <span className="font-mono text-[11px] font-semibold bg-violet-500/10 text-violet-300 border border-violet-500/20 px-1.5 py-0.5 rounded">
+                          <span className="font-mono text-[11px] font-semibold bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20 px-1.5 py-0.5 rounded">
                             {log.action_type}
                           </span>
                         </td>

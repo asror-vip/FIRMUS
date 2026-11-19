@@ -15,14 +15,29 @@ export interface BusinessEntity {
   name: string;
   tradeName?: string;
   tinStir: string; // 9-digit STIR
-  companyType: "MCHJ" | "YaTT" | "AJ" | "XK";
+  companyType: "MCHJ" | "YaTT" | "AJ" | "XK" | "Oʻzini band";
+  taxpayerStatus?: "llc" | "yatt" | "self_employed";
   taxRegime: "turnover_tax" | "vat_profit_tax" | "fixed_tax";
+  isVatPayer?: boolean;
+  activityType?: string;
+  oneCProfileId?: string;
   currency: string;
   isActive: boolean;
   directorName: string;
   accountantName: string;
   bankAccount: string;
   bankName: string;
+  bankMfo?: string;
+}
+
+export interface ClientBankAccount {
+  id: string;
+  businessEntityId: string;
+  bankName: string;
+  accountNumber: string;
+  mfo?: string;
+  currency: string;
+  isPrimary: boolean;
 }
 
 export interface Workspace {
@@ -187,7 +202,7 @@ export interface Integration {
 export interface TaxRecord {
   id: string;
   entityId: string;
-  type: "QQS (12%)" | "Foyda solig‘i" | "JShDS (12%)" | "Ijtimoiy soliq (12%)" | "Aylanmadan soliq (4%)";
+  type: "QQS (12%)" | "Foyda solig‘i" | "JShDS (12%)" | "Ijtimoiy soliq (12%)" | "Aylanmadan soliq" | "Aylanmadan soliq (4%)";
   period: string;
   calculatedAmount: number;
   paidAmount: number;

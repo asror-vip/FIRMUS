@@ -124,7 +124,7 @@ const DEFAULT_INTEGRATIONS_STATE: IntegrationsState = {
 };
 
 function maskEmail(email?: string | null): string {
-  if (!email || !email.includes("@")) return email || "—";
+  if (!email || !email.includes("@")) return email || "â€”";
   const [local, domain] = email.split("@");
   if (!domain) return email;
   if (local.length <= 2) {
@@ -160,7 +160,7 @@ Protsedura QoralamalarniYuklash(DeviceToken)
     Zapros.Zagolovki.Vstavit("Authorization", "Bearer " + DeviceToken);
     Otvet = Soedinenie.Poluchit(Zapros);
     // Olingan JSON ro'yxat bo'yicha 1C da "PostuplenieTovarovUslug" / "PlatezhnoePoruchenie"
-    // hujjatlarini Yozish (Zapisat()) rejimida (Proveden = False — qoralama!) yarating
+    // hujjatlarini Yozish (Zapisat()) rejimida (Proveden = False â€” qoralama!) yarating
     // va natija raqamini POST /api/integrations/epf-ack orqali FIRMUS ga tasdiqlang.
 KonetsProtsedury
 `;
@@ -458,7 +458,7 @@ function SettingsContent() {
           ? (data.queue || data.draftQueue || data.drafts).map((q: any) => ({
               id: q.id,
               sourceKind: q.sourceKind || q.source_kind || "bank_reconcile",
-              summary: q.summary || q.description || q.payload?.description || q.payload?.counterparty || "—",
+              summary: q.summary || q.description || q.payload?.description || q.payload?.counterparty || "â€”",
               counterparty: q.counterparty || q.payload?.counterparty || "",
               amount: Number(q.amount ?? q.payload?.amount ?? 0),
               status: q.status || "pending",
@@ -1036,7 +1036,7 @@ function SettingsContent() {
                     </button>
                   </div>
                   <span className="font-mono font-medium text-foreground mt-0.5 block truncate">
-                    {showEmail ? user?.email || "—" : maskEmail(user?.email)}
+                    {showEmail ? user?.email || "â€”" : maskEmail(user?.email)}
                   </span>
                 </div>
               </div>
@@ -1051,7 +1051,7 @@ function SettingsContent() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">{d.planDesc}</p>
                 </div>
-                <Button asChild size="sm" variant="outline" className="h-9 text-xs gap-1.5 shrink-0 border-violet-500/30 hover:bg-violet-500/15 text-violet-300">
+                <Button asChild size="sm" variant="outline" className="h-9 text-xs gap-1.5 shrink-0 border-violet-500/30 hover:bg-violet-500/15 text-violet-700 dark:text-violet-300">
                   <Link href="/billing">
                     <CreditCard className="h-3.5 w-3.5" />
                     {d.openBillingBtn}
@@ -1111,7 +1111,7 @@ function SettingsContent() {
                   </div>
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingPersonal}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm" disabled={isSavingPersonal}>
                         {isSavingPersonal && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {isSavingPersonal ? pi.profile.savingBtn : pi.profile.savePersonalBtn}
                       </Button>
@@ -1280,7 +1280,7 @@ function SettingsContent() {
 
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingCompany}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm" disabled={isSavingCompany}>
                         {isSavingCompany && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {isSavingCompany ? pi.profile.savingBtn : pi.profile.saveCompanyBtn}
                       </Button>
@@ -1355,7 +1355,7 @@ function SettingsContent() {
                   {pi.integrations.catalogSummaryTitle}
                 </span>
                 <span className="font-semibold text-foreground mt-0.5 block">
-                  {pi.integrations.counterpartiesCountLabel}: {integrations.onec.counterpartiesCount} •{" "}
+                  {pi.integrations.counterpartiesCountLabel}: {integrations.onec.counterpartiesCount} â€¢{" "}
                   {pi.integrations.accountsCountLabel}: {integrations.onec.accountsCount}
                 </span>
               </div>
@@ -1377,7 +1377,7 @@ function SettingsContent() {
                     variant={oneCSubMode === "odata" ? "default" : "ghost"}
                     className={cn(
                       "h-8 text-xs gap-1.5",
-                      oneCSubMode === "odata" && "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                      oneCSubMode === "odata" && "bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                     )}
                     onClick={() => setOneCSubMode("odata")}
                   >
@@ -1390,7 +1390,7 @@ function SettingsContent() {
                     variant={oneCSubMode === "epf" ? "default" : "ghost"}
                     className={cn(
                       "h-8 text-xs gap-1.5",
-                      oneCSubMode === "epf" && "bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                      oneCSubMode === "epf" && "bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                     )}
                     onClick={() => setOneCSubMode("epf")}
                   >
@@ -1494,7 +1494,7 @@ function SettingsContent() {
                             </Button>
                           </>
                         )}
-                        <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isTestingOData}>
+                        <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm" disabled={isTestingOData}>
                           {isTestingOData && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                           {pi.integrations.testAndSaveODataBtn}
                         </Button>
@@ -1519,10 +1519,10 @@ function SettingsContent() {
                     >
                       <span aria-hidden="true">
                         {integrations.onec.status === "connected"
-                          ? "🟢"
+                          ? "ðŸŸ¢"
                           : integrations.onec.pairCode && countdownSeconds > 0
-                          ? "🟡"
-                          : "⚪"}
+                          ? "ðŸŸ¡"
+                          : "âšª"}
                       </span>
                       {integrations.onec.status === "connected"
                         ? pi.integrations.epfStatusConnected
@@ -1554,7 +1554,7 @@ function SettingsContent() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="h-9 text-xs gap-1.5 self-start sm:self-auto border-violet-500/30 hover:bg-violet-500/15 text-violet-300"
+                        className="h-9 text-xs gap-1.5 self-start sm:self-auto border-violet-500/30 hover:bg-violet-500/15 text-violet-700 dark:text-violet-300"
                         onClick={() => {
                           navigator.clipboard?.writeText(integrations.onec.pairCode || "");
                           toast.success(pi.integrations.codeCopiedToast);
@@ -1571,7 +1571,7 @@ function SettingsContent() {
                       <Button
                         type="button"
                         size="sm"
-                        className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                        className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                         onClick={handleGenerateEpfCode}
                         disabled={isGeneratingCode}
                       >
@@ -1625,7 +1625,7 @@ function SettingsContent() {
               <div className="p-4 pb-3 flex flex-row items-start justify-between gap-2 border-b border-border/50">
                 <div>
                   <h3 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                    <FileText className="h-4 w-4 text-violet-400" />
+                    <FileText className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                     {pi.integrations.didoxCardTitle}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">{pi.integrations.didoxCardDesc}</p>
@@ -1679,7 +1679,7 @@ function SettingsContent() {
                   </div>
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingDidox}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm" disabled={isSavingDidox}>
                         {isSavingDidox && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {pi.integrations.saveDidoxBtn}
                       </Button>
@@ -1736,7 +1736,7 @@ function SettingsContent() {
                   </div>
                   {!isReadOnly && (
                     <div className="pt-1 flex justify-end">
-                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isSavingBank}>
+                      <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm" disabled={isSavingBank}>
                         {isSavingBank && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {pi.integrations.saveBankBtn}
                       </Button>
@@ -1761,7 +1761,7 @@ function SettingsContent() {
                   <Button
                     type="button"
                     size="sm"
-                    className="h-9 text-xs gap-1.5 self-start sm:self-auto bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                    className="h-9 text-xs gap-1.5 self-start sm:self-auto bg-violet-600 hover:bg-violet-500 text-white shadow-sm"
                     disabled={isPushingDrafts}
                     onClick={() => handlePushDraftsToOneC()}
                   >
@@ -1805,7 +1805,7 @@ function SettingsContent() {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono whitespace-nowrap text-foreground font-medium">
-                          {item.amount > 0 ? item.amount.toLocaleString(intlLocale) : "—"}
+                          {item.amount > 0 ? item.amount.toLocaleString(intlLocale) : "â€”"}
                         </TableCell>
                         <TableCell>
                           {item.status === "pushed_to_1c_draft" && (
@@ -1829,7 +1829,7 @@ function SettingsContent() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-[11px] text-violet-400">{item.onecDocNumber || "—"}</TableCell>
+                        <TableCell className="font-mono text-[11px] text-violet-600 dark:text-violet-400">{item.onecDocNumber || "â€”"}</TableCell>
                         <TableCell className="text-right">
                           {!isReadOnly &&
                             item.status === "failed" &&
@@ -1870,7 +1870,7 @@ function SettingsContent() {
                 {!isReadOnly && (
                   <Button
                     size="sm"
-                    className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)] gap-1.5"
+                    className="text-xs h-8 bg-violet-600 hover:bg-violet-500 text-white shadow-sm gap-1.5"
                     onClick={() => setIsAddEntityOpen(true)}
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -1909,7 +1909,7 @@ function SettingsContent() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="font-mono text-xs text-violet-400 font-bold">
+                          <TableCell className="font-mono text-xs text-violet-600 dark:text-violet-400 font-bold">
                             {ent.tinStir}
                           </TableCell>
                           <TableCell className="text-xs">{ent.companyType}</TableCell>
@@ -1994,7 +1994,7 @@ function SettingsContent() {
                   <p className="text-[11px] text-muted-foreground">{pi.security.minCharsHint}</p>
                   <p className="text-[11px] text-muted-foreground">{pi.security.oauthPasswordHint}</p>
                   <div className="pt-1 flex justify-end">
-                    <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_12px_rgba(139,92,246,0.25)]" disabled={isUpdatingPassword}>
+                    <Button type="submit" size="sm" className="h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-500 text-white shadow-sm" disabled={isUpdatingPassword}>
                       {isUpdatingPassword && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                       {pi.security.savePasswordBtn}
                     </Button>
@@ -2063,7 +2063,7 @@ function SettingsContent() {
                   <div className="p-3 rounded-xl border border-border/50 bg-card/40 space-y-1">
                     <div className="flex justify-between font-mono text-[11px]">
                       <span className="font-semibold text-foreground">
-                        {user?.email ? maskEmail(user.email) : d.authenticatedSession} •{" "}
+                        {user?.email ? maskEmail(user.email) : d.authenticatedSession} â€¢{" "}
                         {t.pages.settings.currentSession}
                       </span>
                       <span className="text-emerald-400">
@@ -2071,7 +2071,7 @@ function SettingsContent() {
                       </span>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      {d.supabaseSessionNote} • {t.common.date}: {t.common.now}
+                      {d.supabaseSessionNote} â€¢ {t.common.date}: {t.common.now}
                     </p>
                   </div>
                 </div>
@@ -2132,9 +2132,9 @@ function SettingsContent() {
             </div>
             <div className="p-4 space-y-2 text-xs">
               {[
-                { code: "uz", name: d.langUz, flag: "🇺🇿" },
-                { code: "ru", name: d.langRu, flag: "🇷🇺" },
-                { code: "en", name: d.langEn, flag: "🇬🇧" },
+                { code: "uz", name: d.langUz, flag: "UZ" },
+                { code: "ru", name: d.langRu, flag: "RU" },
+                { code: "en", name: d.langEn, flag: "EN" },
               ].map((lang) => (
                 <button
                   key={lang.code}
@@ -2146,7 +2146,7 @@ function SettingsContent() {
                   }}
                   className={`w-full flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all text-left ${
                     language === lang.code
-                      ? "border-violet-500 bg-violet-500/10 font-semibold text-foreground shadow-[0_0_12px_rgba(139,92,246,0.15)]"
+                      ? "border-violet-500 bg-violet-500/10 font-semibold text-foreground shadow-sm"
                       : "border-border/50 hover:bg-muted/30 text-foreground"
                   }`}
                 >
@@ -2154,7 +2154,7 @@ function SettingsContent() {
                     <span className="text-base">{lang.flag}</span>
                     <span>{lang.name}</span>
                   </span>
-                  {language === lang.code && <CheckCircle2 className="h-4 w-4 text-violet-400" />}
+                  {language === lang.code && <CheckCircle2 className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
                 </button>
               ))}
             </div>

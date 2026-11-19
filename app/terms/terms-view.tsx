@@ -8,6 +8,23 @@ import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 
+function renderFormattedText(text: string) {
+  const parts = text.split(/(`[^`]+`)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      return (
+        <code
+          key={idx}
+          className="rounded bg-muted px-1 py-0.5 font-mono text-[11px] text-foreground"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
+
 export function TermsView() {
   const { user } = useAppState();
   const { locale } = useTranslation();
@@ -49,12 +66,12 @@ export function TermsView() {
               <section key={section.heading} className="space-y-1.5">
                 <h2 className="text-sm font-bold text-foreground">{section.heading}</h2>
                 {section.paragraphs?.map((paragraph, pIdx) => (
-                  <p key={pIdx}>{paragraph}</p>
+                  <p key={pIdx}>{renderFormattedText(paragraph)}</p>
                 ))}
                 {section.bullets && (
                   <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
                     {section.bullets.map((bullet, bIdx) => (
-                      <li key={bIdx}>{bullet}</li>
+                      <li key={bIdx}>{renderFormattedText(bullet)}</li>
                     ))}
                   </ul>
                 )}

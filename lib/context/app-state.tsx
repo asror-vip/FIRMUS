@@ -26,6 +26,7 @@ import {
   fetchWorkspaces,
 } from "@/lib/services/workspace-context-service";
 import { clearAllQueryCache } from "@/lib/cache/query-cache";
+import { isPublicGuestRoute } from "@/lib/analytics/track-event";
 
 const provisionLocks = new Map<string, Promise<void>>();
 
@@ -42,6 +43,7 @@ const EMPTY_WORKSPACE: Workspace = {
 function isAuthOrPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
   return (
+    isPublicGuestRoute(pathname) ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password") ||
@@ -251,24 +253,22 @@ export function AppStateProvider({
           fetchBusinessEntities(),
         ]);
 
-        if (!FEATURES.multiCompanyMode) {
-          const savedWsId =
-            typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
-          const candidateWs =
-            (realWorkspaces || []).find((w: any) => w.id === savedWsId) || realWorkspaces?.[0];
-          const hasScopedEntity = candidateWs
-            ? (realEntities || []).some(
-                (e: any) => !e.workspaceId || e.workspaceId === candidateWs.id
-              )
-            : false;
+        const savedWsId =
+          typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
+        const candidateWs =
+          (realWorkspaces || []).find((w: any) => w.id === savedWsId) || realWorkspaces?.[0];
+        const hasScopedEntity = candidateWs
+          ? (realEntities || []).some(
+              (e: any) => !e.workspaceId || e.workspaceId === candidateWs.id
+            )
+          : false;
 
-          if (!candidateWs || !hasScopedEntity) {
-            await ensureSoloContext(authUser);
-            [realWorkspaces, realEntities] = await Promise.all([
-              fetchWorkspaces(),
-              fetchBusinessEntities(),
-            ]);
-          }
+        if (!candidateWs || !hasScopedEntity) {
+          await ensureSoloContext(authUser);
+          [realWorkspaces, realEntities] = await Promise.all([
+            fetchWorkspaces(),
+            fetchBusinessEntities(),
+          ]);
         }
 
         const safeWorkspaces = (realWorkspaces || []) as Workspace[];

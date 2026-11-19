@@ -62,7 +62,7 @@ export function ChatImageInputBar({
     if (!raw || raw === AI_IMAGE_FORMAT_ERROR) return cib.invalidFormatError;
     if (raw.includes("25 MB")) return cib.maxSizeError;
     if (raw.includes("shikastlangan")) return cib.corruptError;
-    if (raw.includes("oʻqib boʻlmadi")) return cib.readError;
+    if (raw.includes("oÊ»qib boÊ»lmadi")) return cib.readError;
     if (raw.includes("siqishda")) return cib.compressError;
     return raw;
   };
@@ -135,7 +135,7 @@ export function ChatImageInputBar({
               <span className="truncate">{attachedImage.fileName}</span>
             </div>
             <div className="text-[10px] text-muted-foreground font-mono">
-              {Math.round(attachedImage.compressedBytes / 1024)} KB • {attachedImage.width}×{attachedImage.height}
+              {Math.round(attachedImage.compressedBytes / 1024)} KB â€¢ {attachedImage.width}Ã—{attachedImage.height}
             </div>
           </div>
           <button
@@ -195,7 +195,7 @@ export function ChatImageInputBar({
             isBusy
               ? "bg-foreground text-background hover:opacity-85 shadow-sm"
               : canSend
-              ? "bg-violet-600 text-white hover:bg-violet-500 shadow-[0_0_12px_rgba(139,92,246,0.35)] hover:scale-105 active:scale-95"
+              ? "bg-violet-600 text-white hover:bg-violet-500 shadow-sm hover:scale-105 active:scale-95"
               : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
           )}
         >

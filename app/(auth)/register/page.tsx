@@ -8,6 +8,7 @@ import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
 import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
 import { LanguageToggle } from "@/components/shared/language-toggle";
+import { trackEvent } from "@/lib/analytics/track-event";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -21,10 +22,22 @@ export default function RegisterPage() {
   const [workspaceAlias, setWorkspaceAlias] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const consentRequiredMessage =
+    locale === "ru"
+      ? "Пожалуйста, подтвердите согласие с Публичной офертой и Политикой конфиденциальности."
+      : locale === "en"
+      ? "Please accept the Terms of Service and Privacy Policy to continue."
+      : "Roʻyxatdan oʻtish uchun Ommaviy oferta va Maxfiylik siyosati shartlariga rozilik belgisini qoʻying.";
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!agreedToTerms) {
+      toast.error(consentRequiredMessage);
+      return;
+    }
     if (!email || !password) {
       toast.error(d.missingFieldsToast);
       return;
@@ -44,11 +57,20 @@ export default function RegisterPage() {
           data: {
             full_name: workspaceAlias.trim() || d.defaultAccountantName,
             role: "accountant",
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: "2026-11-20",
           },
         },
       });
 
       if (error) throw error;
+
+      trackEvent({
+        eventName: "registered",
+        pagePath: "/register",
+        toolName: "email_signup",
+        locale,
+      });
 
       if (!data.session) {
         toast.success(d.checkEmailToast);
@@ -68,6 +90,16 @@ export default function RegisterPage() {
   };
 
   const handleGoogleSignUp = async () => {
+    if (!agreedToTerms) {
+      toast.error(consentRequiredMessage);
+      return;
+    }
+    trackEvent({
+      eventName: "register_clicked",
+      pagePath: "/register",
+      toolName: "google_oauth",
+      locale,
+    });
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -208,10 +240,46 @@ export default function RegisterPage() {
                 </div>
               </div>
 
+              <label
+                htmlFor="register-consent-checkbox"
+                className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-muted/20 p-3 text-[11px] leading-relaxed text-muted-foreground cursor-pointer select-none hover:border-violet-500/40 transition-colors"
+              >
+                <input
+                  id="register-consent-checkbox"
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border accent-violet-600 shrink-0 cursor-pointer"
+                />
+                <span>
+                  {d.agreePrefix}{" "}
+                  <Link
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-foreground font-semibold underline hover:text-violet-500"
+                  >
+                    {d.privacyLink}
+                  </Link>{" "}
+                  {d.andWord}{" "}
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-foreground font-semibold underline hover:text-violet-500"
+                  >
+                    {d.termsLink}
+                  </Link>
+                  {d.agreeSuffix ? (d.agreeSuffix === "." ? d.agreeSuffix : ` ${d.agreeSuffix}`) : ""}
+                </span>
+              </label>
+
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 font-semibold shadow-[0_0_12px_rgba(139,92,246,0.25)] transition-all mt-2"
+                className="w-full bg-violet-600 hover:bg-violet-500 text-white text-xs h-9 font-semibold shadow-sm transition-all mt-2"
               >
                 {isLoading ? (
                   <>
@@ -232,18 +300,6 @@ export default function RegisterPage() {
           <Link href="/login" className="text-primary font-semibold hover:underline">
             {d.loginLink}
           </Link>
-        </p>
-
-        <p className="text-center text-[10px] text-muted-foreground/80">
-          {d.agreePrefix}{" "}
-          <Link href="/privacy" className="underline">
-            {d.privacyLink}
-          </Link>{" "}
-          {d.andWord}{" "}
-          <Link href="/terms" className="underline">
-            {d.termsLink}
-          </Link>
-          {d.agreeSuffix ? (d.agreeSuffix === "." ? d.agreeSuffix : ` ${d.agreeSuffix}`) : ""}
         </p>
       </div>
     </div>

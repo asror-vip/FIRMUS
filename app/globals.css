@@ -4,78 +4,79 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98.5%; /* #FAFAFA Clean Canvas */
-    --foreground: 222 47% 11%; /* slate-900 */
+    /* Soft Matte Light Canvas — easy on the eyes for long accounting sessions */
+    --background: 240 10% 94%; /* #EFEFF2 Soft Matte Slate-White */
+    --foreground: 240 10% 16%; /* #25252B Soft Ink */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 240 12% 97.5%; /* #F8F8FA Calm Off-White Panel */
+    --card-foreground: 240 10% 16%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 240 12% 97.5%;
+    --popover-foreground: 240 10% 16%;
 
-    --primary: 243 75% 59%; /* #4F46E5 Deep Indigo */
-    --primary-foreground: 210 40% 98%;
+    --primary: 262 68% 55%; /* #7846D9 Soft Refined Violet */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 95%;
-    --secondary-foreground: 222 47% 11.2%;
+    --secondary: 240 8% 90%;
+    --secondary-foreground: 240 10% 18%;
 
-    --muted: 210 20% 95%;
-    --muted-foreground: 215 16% 47%; /* slate-500 */
+    --muted: 240 8% 90.5%;
+    --muted-foreground: 240 5% 44%; /* Calm Muted Grey */
 
-    --accent: 210 20% 95%;
-    --accent-foreground: 222 47% 11.2%;
+    --accent: 240 8% 89%;
+    --accent-foreground: 240 10% 18%;
 
-    --destructive: 347 77% 50%; /* #E11D48 Rose */
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 347 70% 48%; /* Calm Rose */
+    --destructive-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%; /* #F59E0B Amber */
-    --warning-foreground: 48 96% 12%;
+    --warning: 38 85% 44%; /* Calm Amber */
+    --warning-foreground: 0 0% 100%;
 
-    --success: 160 84% 39%; /* #10B981 Emerald */
-    --success-foreground: 210 40% 98%;
+    --success: 160 72% 34%; /* Calm Emerald */
+    --success-foreground: 0 0% 100%;
 
-    --border: 214 20% 90%; /* #E2E5E9 */
-    --input: 214 20% 90%;
-    --ring: 243 75% 59%;
+    --border: 240 8% 86%; /* #D9D9E0 Soft Hairline */
+    --input: 240 8% 85%;
+    --ring: 262 68% 55%;
 
     --radius: 0.75rem; /* 12px */
   }
 
   .dark {
-    /* Reference Dashboard Deep Violet-Charcoal Palette */
-    --background: 256 30% 6.5%; /* #0D0B14 Deep Dark Violet-Charcoal */
-    --foreground: 210 40% 98%; /* #F8FAFC Pure Crisp White */
+    /* Calm Neutral Obsidian / Zinc Palette + Refined AI Violet */
+    --background: 240 10% 4%; /* #09090B Pure Obsidian Zinc-950 */
+    --foreground: 0 0% 96%; /* #F4F4F5 Crisp Zinc-100 */
 
-    --card: 253 25% 10.5%; /* #151322 Elevated Violet Panel */
-    --card-foreground: 210 40% 98%;
+    --card: 240 6% 7.5%; /* #121215 Elevated Neutral Charcoal */
+    --card-foreground: 0 0% 96%;
 
-    --popover: 253 25% 10.5%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 6% 8.5%; /* #141418 */
+    --popover-foreground: 0 0% 96%;
 
-    --primary: 263 80% 65%; /* #8B5CF6 / #9061F9 Vibrant Neon Violet */
+    --primary: 263 70% 62%; /* #8B5CF6 Refined AI Violet */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 252 24% 14.5%; /* #1E1A2F */
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 240 5% 13%; /* #1F1F23 */
+    --secondary-foreground: 0 0% 96%;
 
-    --muted: 252 20% 13%; /* #1A1726 */
-    --muted-foreground: 248 13% 65%; /* #9D9AB4 Soft Lavender-Slate */
+    --muted: 240 5% 12%; /* #1C1C20 */
+    --muted-foreground: 240 5% 60%; /* #94949E Neutral Zinc-400 */
 
-    --accent: 252 24% 15%; /* #201C31 */
-    --accent-foreground: 210 40% 98%;
+    --accent: 240 5% 15%; /* #242429 */
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 347 77% 55%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 347 75% 58%; /* Calm Rose */
+    --destructive-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 48 96% 12%;
+    --warning: 38 92% 55%; /* Calm Amber */
+    --warning-foreground: 240 10% 6%;
 
-    --success: 263 80% 65%; /* Harmonized Violet-glow */
+    --success: 160 64% 46%; /* Calm Financial Emerald */
     --success-foreground: 0 0% 100%;
 
-    --border: 252 20% 18%; /* #26213A Subtle Violet Tinted Border */
-    --input: 252 20% 18%;
-    --ring: 263 80% 65%;
+    --border: 240 4% 16%; /* #27272A Neutral Zinc-800 Hairline */
+    --input: 240 4% 18%;
+    --ring: 263 70% 62%;
   }
 }
 
