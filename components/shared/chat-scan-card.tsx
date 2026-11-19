@@ -103,6 +103,12 @@ export function ChatScanCard({
           {scan.documentType} {scan.documentNumber ? `№${scan.documentNumber}` : ""}
         </span>
         <div className="flex items-center gap-1.5">
+          {scan.verification?.needsReview && (
+            <Badge variant="warning" className="text-[10px] gap-1">
+              <AlertTriangle className="h-3 w-3" />
+              {scan.verification.reviewBadgeLabel || "Tekshiring"}
+            </Badge>
+          )}
           {isDuplicate && (
             <Badge variant="warning" className="text-[10px] gap-1">
               <AlertTriangle className="h-3 w-3" />
@@ -114,6 +120,20 @@ export function ChatScanCard({
           </Badge>
         </div>
       </div>
+
+      {scan.verification?.needsReview && scan.verification.issues.length > 0 && (
+        <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
+          <div className="font-semibold flex items-center gap-1">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>Tekshiring — AI natijasida tafovut aniqlandi:</span>
+          </div>
+          <ul className="list-disc pl-4 space-y-0.5">
+            {scan.verification.issues.map((iss, idx) => (
+              <li key={`${iss.code}-${idx}`}>{iss.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="text-[11px] text-muted-foreground">
         <strong className="text-foreground">{scan.counterparty}</strong>

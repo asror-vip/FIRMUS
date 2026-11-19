@@ -170,7 +170,8 @@ export async function POST(req: NextRequest) {
                   accountCode: code,
                   accountName: msg.reconcileAccountNames[code] || ACCOUNT_NAMES[code] || code,
                   explanation: String(s.explanation || "").slice(0, 260),
-                  aiVerified: true,
+                  aiSuggested: true,
+                  suggestionSource: "ai_suggestion" as const,
                 };
               });
 
@@ -219,7 +220,8 @@ export async function POST(req: NextRequest) {
             accountCode: code,
             accountName,
           }),
-          aiVerified: true,
+          aiSuggested: true,
+          suggestionSource: "rule_suggestion" as const,
         };
       }),
     });

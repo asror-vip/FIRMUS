@@ -10,6 +10,7 @@ import {
   resolveEffectiveSubscription,
 } from "@/lib/ai/subscription-guard";
 import { UUID_REGEX } from "@/lib/ai/agent-types";
+import { validateScannedDocumentResult, isValidCalendarIsoDate } from "@/lib/services/document-scan-validator";
 import { getRequestLocale, type Locale } from "@/lib/i18n/server-locale";
 import { getApiMessages, localizeServerError, type ApiMessages } from "@/lib/i18n/domains/api-messages";
 
@@ -386,9 +387,35 @@ export async function POST(req: NextRequest) {
 
           // Server-side deterministic arithmetic & account code enforcement
           const totalAmount = roundMoney(Math.max(0, Number(data.totalAmount || 0)));
-          let vatAmount = roundMoney(Math.max(0, Number(data.vatAmount || 0)));
+          const rawVatAmount = roundMoney(Math.max(0, Number(data.vatAmount || 0)));
+          let vatAmount = rawVatAmount;
           if (vatAmount > totalAmount) vatAmount = 0;
           const netAmount = roundMoney(Math.max(0, totalAmount - vatAmount));
+
+          const normalizedItems = Array.isArray(data.items)
+            ? data.items.slice(0, 25).map((it: any) => ({
+                name: sanitizeStringForAi(String(it?.name || msg.defaultItemName)).slice(0, 120),
+                mxikHint: sanitizeStringForAi(String(it?.mxikHint || "")).slice(0, 40),
+                qty: Number(it?.qty || 1),
+                unit: sanitizeStringForAi(String(it?.unit || msg.defaultUnit)).slice(0, 20),
+                price: roundMoney(Number(it?.price || 0)),
+                total: roundMoney(Number(it?.total || 0)),
+                vatRate: Number(it?.vatRate || 0),
+              }))
+            : [];
+
+          const rawDateStr = String(data.date || "").trim();
+          const rawStirStr = String(data.counterpartyStir || "").trim();
+          const verification = validateScannedDocumentResult({
+            mode,
+            rawDate: rawDateStr,
+            rawStir: rawStirStr,
+            totalAmount,
+            vatAmount: rawVatAmount,
+            netAmount,
+            items: normalizedItems,
+            todayIso: getTashkentTodayIso(),
+          });
 
           const debitCode = ALLOWED_ACCOUNTS.has(String(data.suggestedDebitCode))
             ? String(data.suggestedDebitCode)
@@ -405,26 +432,14 @@ export async function POST(req: NextRequest) {
             usage: authz.snapshot,
             documentType: sanitizeStringForAi(String(data.documentType || msg.defaultDocumentType)).slice(0, 60),
             documentNumber: sanitizeStringForAi(String(data.documentNumber || "")).slice(0, 40),
-            date: /^\d{4}-\d{2}-\d{2}$/.test(String(data.date || ""))
-              ? String(data.date)
-              : getTashkentTodayIso(),
+            date: isValidCalendarIsoDate(rawDateStr) ? rawDateStr : getTashkentTodayIso(),
             counterparty: sanitizeStringForAi(String(data.counterparty || msg.defaultCounterparty)).slice(0, 120),
-            counterpartyStir: String(data.counterpartyStir || "").replace(/\D/g, "").slice(0, 9),
+            counterpartyStir: rawStirStr.replace(/\D/g, "").slice(0, 9),
             direction: data.direction === "income" ? "income" : "expense",
             totalAmount,
             vatAmount,
             netAmount,
-            items: Array.isArray(data.items)
-              ? data.items.slice(0, 25).map((it: any) => ({
-                  name: sanitizeStringForAi(String(it?.name || msg.defaultItemName)).slice(0, 120),
-                  mxikHint: sanitizeStringForAi(String(it?.mxikHint || "")).slice(0, 40),
-                  qty: Number(it?.qty || 1),
-                  unit: sanitizeStringForAi(String(it?.unit || msg.defaultUnit)).slice(0, 20),
-                  price: roundMoney(Number(it?.price || 0)),
-                  total: roundMoney(Number(it?.total || 0)),
-                  vatRate: Number(it?.vatRate || 0),
-                }))
-              : [],
+            items: normalizedItems,
             suggestedDebitCode: debitCode,
             suggestedCreditCode: creditCode,
             vatAccountCode: vatCode,
@@ -434,6 +449,7 @@ export async function POST(req: NextRequest) {
             risks: Array.isArray(data.risks)
               ? data.risks.slice(0, 10).map((r: any) => sanitizeStringForAi(String(r)).slice(0, 220))
               : [],
+            verification,
           });
         } catch (err) {
           console.warn(`[AI DOC SCAN] ${modelName} fallback:`, err);

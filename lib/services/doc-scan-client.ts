@@ -9,6 +9,7 @@ import {
   findDuplicateScanBatch,
 } from "@/lib/services/supabase-service";
 import type { AiModelId, SubscriptionSnapshot } from "@/lib/config/plans";
+import type { DocumentScanVerificationResult } from "@/lib/services/document-scan-validator";
 
 export interface ScannedDocItem {
   name: string;
@@ -38,6 +39,7 @@ export interface ScannedDocResult {
   vatAccountCode: string;
   provodkaExplanation: string;
   risks: string[];
+  verification?: DocumentScanVerificationResult;
 }
 
 export async function scanCompressedImageAndSave(params: {

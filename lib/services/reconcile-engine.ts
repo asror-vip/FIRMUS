@@ -43,6 +43,8 @@ export interface ReconcileRow {
   suggestedAccountCode: string;
   suggestedAccountName: string;
   explanation: string;
+  aiSuggested?: boolean;
+  /** @deprecated Legacy alias kept for reading old saved batches; displayed as "AI taklifi". */
   aiVerified?: boolean;
   vatIncluded?: boolean;
 }

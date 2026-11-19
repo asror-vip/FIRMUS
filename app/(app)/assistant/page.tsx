@@ -1290,6 +1290,25 @@ function AssistantContent() {
                   </p>
                 ) : (
                   <>
+                    {scanResult.verification?.needsReview && (
+                      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-800 dark:text-amber-300 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold flex items-center gap-1.5 text-xs">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                            Kod tekshiruvi: Tekshiring
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-500/15">
+                            {scanResult.verification.reviewBadgeLabel}
+                          </span>
+                        </div>
+                        <ul className="list-disc pl-4 text-[11px] space-y-0.5">
+                          {scanResult.verification.issues.map((iss, idx) => (
+                            <li key={`${iss.code}-${idx}`}>{iss.message}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-3">
                       <div>
                         <span className="text-[10px] text-muted-foreground">{d.scan.fields.docType}</span>

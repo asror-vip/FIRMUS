@@ -661,7 +661,7 @@ function ReconcileContent() {
             suggestedAccountCode: hit.accountCode || r.suggestedAccountCode,
             suggestedAccountName: hit.accountName || r.suggestedAccountName,
             explanation: hit.explanation || r.explanation,
-            aiVerified: true,
+            aiSuggested: true,
           };
         })
       );
@@ -1560,8 +1560,17 @@ function ReconcileContent() {
                           </button>
                         </TableCell>
                         <TableCell className="max-w-[280px] text-[11px] text-muted-foreground">
-                          <div className="flex items-start gap-1">
-                            {row.aiVerified && <Sparkles className="h-3 w-3 text-violet-600 dark:text-violet-400 shrink-0 mt-0.5" />}
+                          <div className="flex items-start gap-1.5 flex-wrap">
+                            {(row.aiSuggested || row.aiVerified) && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300 shrink-0">
+                                <Sparkles className="h-2.5 w-2.5" />
+                                {locale === "ru"
+                                  ? "Предложение ИИ"
+                                  : locale === "en"
+                                  ? "AI suggestion"
+                                  : "AI taklifi"}
+                              </span>
+                            )}
                             <span>{row.explanation}</span>
                           </div>
                         </TableCell>
