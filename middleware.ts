@@ -33,6 +33,7 @@ export async function middleware(request: NextRequest) {
 
   const isPublicPage =
     isPublicGuestRoute(pathname) ||
+    pathname.startsWith("/guide") ||
     pathname.startsWith("/privacy") ||
     pathname.startsWith("/terms") ||
     pathname.startsWith("/auth/callback") ||

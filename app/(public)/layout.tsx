@@ -1,10 +1,12 @@
 import React from "react";
 import Link from "next/link";
 import { PublicHeader } from "@/components/public/public-header";
+import { GuideTopBanner } from "@/components/shared/guide-top-banner";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <GuideTopBanner />
       <PublicHeader />
       <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 py-8 sm:py-12">
         {children}
@@ -18,6 +20,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             </Link>
             <Link href="/try" className="hover:text-foreground transition-colors">
               Bank ↔ 1C Sverka
+            </Link>
+            <Link href="/guide" className="hover:text-foreground transition-colors">
+              Yoʻriqnoma
             </Link>
             <Link
               href="/privacy"
