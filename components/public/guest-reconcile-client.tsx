@@ -2,13 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useLocale } from "@/lib/context/locale-context";
 import { trackEvent } from "@/lib/analytics/track-event";
-import {
-  parseStatementFileBuffer,
-  reconcileBankAnd1C,
-  type ReconcileRow,
-  type ReconcileSummary,
+import type {
+  ReconcileRow,
+  ReconcileSummary,
 } from "@/lib/services/reconcile-engine";
 import type { ParsedBankTransaction } from "@/lib/services/bank-import";
 import { Money } from "@/components/shared/money";
@@ -22,14 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Upload,
   ShieldCheck,
@@ -45,8 +35,8 @@ import {
   Play,
   RotateCcw,
   ArrowRight,
+  X,
 } from "lucide-react";
-import { toast } from "sonner";
 
 const SAMPLE_BANK_ITEMS: ParsedBankTransaction[] = [
   {
@@ -269,7 +259,7 @@ const COPY = {
 };
 
 export function GuestReconcileClient() {
-  const { locale } = useTranslation();
+  const { language: locale } = useLocale();
   const c = COPY[locale] ?? COPY.uz;
 
   const bankInputRef = useRef<HTMLInputElement | null>(null);
@@ -290,7 +280,7 @@ export function GuestReconcileClient() {
     trackEvent({ eventName: "page_view", pagePath: "/try", locale });
   }, [locale]);
 
-  const runLocalReconcile = (
+  const runLocalReconcile = async (
     nextBank: ParsedBankTransaction[],
     nextOneC: ParsedBankTransaction[],
     toolTag: string
@@ -300,6 +290,7 @@ export function GuestReconcileClient() {
       setSummary(null);
       return;
     }
+    const { reconcileBankAnd1C } = await import("@/lib/services/reconcile-engine");
     const res = reconcileBankAnd1C(nextBank, nextOneC);
     setRows(res.rows);
     setSummary(res.summary);
@@ -313,31 +304,35 @@ export function GuestReconcileClient() {
     if (!file) return;
     try {
       const buffer = await file.arrayBuffer();
+      const { parseStatementFileBuffer } = await import("@/lib/services/reconcile-engine");
       const parsed = await parseStatementFileBuffer(buffer, file.name);
       if (parsed.length === 0) {
+        const { toast } = await import("sonner");
         toast.error(c.parseErr);
         return;
       }
       if (target === "bank") {
         setBankFileName(file.name);
         setBankItems(parsed);
-        runLocalReconcile(parsed, oneCItems, "guest_reconcile_file");
+        await runLocalReconcile(parsed, oneCItems, "guest_reconcile_file");
       } else {
         setOneCFileName(file.name);
         setOneCItems(parsed);
-        runLocalReconcile(bankItems, parsed, "guest_reconcile_file");
+        await runLocalReconcile(bankItems, parsed, "guest_reconcile_file");
       }
     } catch {
+      const { toast } = await import("sonner");
       toast.error(c.parseErr);
     }
   };
 
-  const handleLoadSample = () => {
+  const handleLoadSample = async () => {
     setBankFileName("namuna_bank_2026_11.xlsx");
     setOneCFileName("namuna_1c_2026_11.txt");
     setBankItems(SAMPLE_BANK_ITEMS);
     setOneCItems(SAMPLE_ONEC_ITEMS);
-    runLocalReconcile(SAMPLE_BANK_ITEMS, SAMPLE_ONEC_ITEMS, "guest_reconcile_sample");
+    await runLocalReconcile(SAMPLE_BANK_ITEMS, SAMPLE_ONEC_ITEMS, "guest_reconcile_sample");
+    const { toast } = await import("sonner");
     toast.success(c.sampleLoaded);
   };
 
@@ -694,42 +689,60 @@ export function GuestReconcileClient() {
         </>
       )}
 
-      {/* Register Gate Modal */}
-      <Dialog open={lockedFeature !== null} onOpenChange={(open) => !open && setLockedFeature(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Lock className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-              {c.lockedTitle}
-            </DialogTitle>
-            <DialogDescription className="text-xs pt-1 leading-relaxed">
-              {lockedFeature ? c.lockedReasons[lockedFeature] : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-col gap-2 pt-2">
-            <Button
-              asChild
-              className="w-full h-9 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-sm gap-1.5"
-              onClick={() =>
-                trackEvent({
-                  eventName: "register_clicked",
-                  pagePath: "/try",
-                  toolName: lockedFeature ? `gate_modal_${lockedFeature}` : "gate_modal",
-                  locale,
-                })
-              }
+      {/* Register Gate Modal (lightweight, zero Radix Dialog overhead) */}
+      {lockedFeature !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          onClick={() => setLockedFeature(null)}
+        >
+          <div
+            className="relative w-full max-w-sm rounded-xl border border-border bg-background p-6 shadow-xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setLockedFeature(null)}
+              aria-label="Close"
+              className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100 transition-opacity"
             >
-              <Link href="/register">
-                {c.lockedCta}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-            <Button asChild variant="ghost" className="w-full h-8 text-xs">
-              <Link href="/login">{c.lockedLogin}</Link>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <X className="h-4 w-4" />
+            </button>
+            <div className="space-y-1.5">
+              <h2 className="text-base font-semibold flex items-center gap-2">
+                <Lock className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                {c.lockedTitle}
+              </h2>
+              <p className="text-xs text-muted-foreground pt-1 leading-relaxed">
+                {c.lockedReasons[lockedFeature]}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                asChild
+                className="w-full h-9 text-xs bg-violet-600 hover:bg-violet-500 text-white shadow-sm gap-1.5"
+                onClick={() =>
+                  trackEvent({
+                    eventName: "register_clicked",
+                    pagePath: "/try",
+                    toolName: `gate_modal_${lockedFeature}`,
+                    locale,
+                  })
+                }
+              >
+                <Link href="/register">
+                  {c.lockedCta}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" className="w-full h-8 text-xs">
+                <Link href="/login">{c.lockedLogin}</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

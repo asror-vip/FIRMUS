@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useTranslation } from "@/lib/i18n/useTranslation";
-import { getAssistantDict } from "@/lib/i18n/domains/assistant";
+import { useLocale } from "@/lib/context/locale-context";
+import { useCalcDict } from "@/lib/i18n/domains/use-calc-dict";
 import { trackEvent } from "@/lib/analytics/track-event";
 import {
   calculatePayrollUz,
@@ -52,8 +52,8 @@ const PAGE_COPY = {
 };
 
 export function PublicCalculatorsClient() {
-  const { locale } = useTranslation();
-  const d = getAssistantDict(locale).calc;
+  const { language: locale } = useLocale();
+  const d = useCalcDict(locale);
   const copy = PAGE_COPY[locale] ?? PAGE_COPY.uz;
   const activeRules = resolveUzTaxRules();
 

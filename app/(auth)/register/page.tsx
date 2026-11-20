@@ -3,21 +3,19 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 import { FEATURES } from "@/lib/config/features";
-import { useTranslation } from "@/lib/i18n/useTranslation";
-import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
+import { useLocale } from "@/lib/context/locale-context";
+import { useAuthFormsDict } from "@/lib/i18n/domains/use-auth-forms-dict";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 import { trackEvent } from "@/lib/analytics/track-event";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
 import { Mail, Lock, ArrowRight, Loader2, Building2, User } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { locale } = useTranslation();
-  const d = getAuthLegalDict(locale).register;
+  const { language: locale } = useLocale();
+  const d = useAuthFormsDict(locale).register;
 
   const [workspaceAlias, setWorkspaceAlias] = useState("");
   const [email, setEmail] = useState("");
@@ -34,6 +32,7 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { toast } = await import("sonner");
     if (!agreedToTerms) {
       toast.error(consentRequiredMessage);
       return;
@@ -50,6 +49,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
+      const { supabase } = await import("@/lib/supabase/client");
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -90,6 +90,7 @@ export default function RegisterPage() {
   };
 
   const handleGoogleSignUp = async () => {
+    const { toast } = await import("sonner");
     if (!agreedToTerms) {
       toast.error(consentRequiredMessage);
       return;
@@ -102,6 +103,7 @@ export default function RegisterPage() {
     });
     setIsLoading(true);
     try {
+      const { supabase } = await import("@/lib/supabase/client");
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {

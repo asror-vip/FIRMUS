@@ -1,19 +1,57 @@
 "use client";
 
-import { useAppState } from "@/lib/context/app-state";
+import { useEffect, useState } from "react";
+import { useLocale } from "@/lib/context/locale-context";
 import { uzTranslations } from "./dictionaries/uz";
-import { ruTranslations } from "./dictionaries/ru";
-import { enTranslations } from "./dictionaries/en";
-import { Translations, Locale } from "./types";
+import type { Translations, Locale } from "./types";
 
-const dictionaries: Record<Locale, Translations> = {
+const dictionaryCache: Partial<Record<Locale, Translations>> = {
   uz: uzTranslations,
-  ru: ruTranslations,
-  en: enTranslations,
 };
 
+async function loadLocaleDictionary(locale: Locale): Promise<Translations> {
+  const cached = dictionaryCache[locale];
+  if (cached) return cached;
+
+  if (locale === "ru") {
+    const mod = await import("./dictionaries/ru");
+    dictionaryCache.ru = mod.ruTranslations;
+    return mod.ruTranslations;
+  }
+
+  if (locale === "en") {
+    const mod = await import("./dictionaries/en");
+    dictionaryCache.en = mod.enTranslations;
+    return mod.enTranslations;
+  }
+
+  return uzTranslations;
+}
+
 export function useTranslation() {
-  const { language } = useAppState();
-  const t = dictionaries[language] || uzTranslations;
-  return { t, locale: language };
+  const { language } = useLocale();
+  const [dict, setDict] = useState<Translations>(
+    () => dictionaryCache[language] ?? uzTranslations
+  );
+
+  useEffect(() => {
+    const cached = dictionaryCache[language];
+    if (cached) {
+      setDict(cached);
+      return;
+    }
+
+    let active = true;
+    void loadLocaleDictionary(language).then((loaded) => {
+      if (active) {
+        setDict(loaded);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [language]);
+
+  return { t: dict, locale: language };
 }

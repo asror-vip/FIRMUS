@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useLocale } from "@/lib/context/locale-context";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/analytics/track-event";
@@ -37,7 +37,7 @@ const NAV_LABELS = {
 
 export function PublicHeader() {
   const pathname = usePathname();
-  const { locale } = useTranslation();
+  const { language: locale } = useLocale();
   const { theme, setTheme } = useTheme();
   const labels = NAV_LABELS[locale] ?? NAV_LABELS.uz;
 

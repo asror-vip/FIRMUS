@@ -13,7 +13,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { BusinessEntity, UserRole, Workspace } from "@/lib/types/accounting";
 import { supabase } from "@/lib/supabase/client";
 import { FEATURES } from "@/lib/config/features";
-import { getLocaleFromBrowserCookie, type Locale } from "@/lib/i18n/server-locale";
+import { type Locale } from "@/lib/i18n/server-locale";
+import { useLocale } from "@/lib/context/locale-context";
 import {
   DEFAULT_STARTER_SNAPSHOT,
   type AiModelId,
@@ -110,7 +111,7 @@ export function AppStateProvider({
   const [currentEntityId, setCurrentEntityId] = useState<string>("");
 
   const [currentRole, setCurrentRole] = useState<UserRole>("accountant");
-  const [language, setLanguageState] = useState<Locale>(initialLocale);
+  const { language, setLanguage } = useLocale();
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isContextReady, setIsContextReady] = useState<boolean>(false);
@@ -449,31 +450,8 @@ export function AppStateProvider({
     };
   }, [loadWorkspaceAndEntities, pathname]);
 
-  // 2. Sync persisted language from localStorage or browser cookie safely
-  useEffect(() => {
-    try {
-      const savedLang = localStorage.getItem("firmus_lang") || localStorage.getItem("auvrio_lang");
-      const cookieLang = getLocaleFromBrowserCookie();
-      const resolvedLang: Locale =
-        savedLang === "uz" || savedLang === "ru" || savedLang === "en"
-          ? savedLang
-          : cookieLang;
-
-      setLanguageState(resolvedLang);
-      localStorage.setItem("firmus_lang", resolvedLang);
-      document.cookie = `firmus_lang=${resolvedLang}; path=/; max-age=31536000; SameSite=Lax`;
-      document.documentElement.lang = resolvedLang;
-    } catch {}
-  }, []);
-
-  const setLanguage = useCallback((lang: Locale) => {
-    setLanguageState(lang);
-    try {
-      localStorage.setItem("firmus_lang", lang);
-      document.cookie = `firmus_lang=${lang}; path=/; max-age=31536000; SameSite=Lax`;
-      document.documentElement.lang = lang;
-    } catch {}
-  }, []);
+  // Language persistence is managed centrally by LocaleProvider (lib/context/locale-context.tsx)
+  void initialLocale;
 
   const setEntityWithPersistence = useCallback((id: string) => {
     setCurrentEntityId(id);

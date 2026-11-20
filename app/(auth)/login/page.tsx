@@ -3,14 +3,12 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 import { sanitizeInternalRedirect } from "@/lib/utils/redirect";
-import { useTranslation } from "@/lib/i18n/useTranslation";
-import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
+import { useLocale } from "@/lib/context/locale-context";
+import { useAuthFormsDict } from "@/lib/i18n/domains/use-auth-forms-dict";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
 import { Lock, Mail, ArrowRight, Loader2 } from "lucide-react";
 
 function LoginForm() {
@@ -18,8 +16,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectedFrom = sanitizeInternalRedirect(searchParams.get("redirectedFrom"));
   const authError = searchParams.get("error");
-  const { locale } = useTranslation();
-  const d = getAuthLegalDict(locale).login;
+  const { language: locale } = useLocale();
+  const d = useAuthFormsDict(locale).login;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,12 +27,13 @@ function LoginForm() {
   React.useEffect(() => {
     if (authError === "oauth_failed" && !shownOauthErrorRef.current) {
       shownOauthErrorRef.current = true;
-      toast.error(d.oauthFailedToast);
+      void import("sonner").then(({ toast }) => toast.error(d.oauthFailedToast));
     }
   }, [authError, d.oauthFailedToast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { toast } = await import("sonner");
     if (!email || !password) {
       toast.error(d.missingFieldsToast);
       return;
@@ -42,6 +41,7 @@ function LoginForm() {
 
     setIsLoading(true);
     try {
+      const { supabase } = await import("@/lib/supabase/client");
       const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -63,6 +63,7 @@ function LoginForm() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
+      const { supabase } = await import("@/lib/supabase/client");
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -77,6 +78,7 @@ function LoginForm() {
       if (error) throw error;
     } catch (err: any) {
       console.error("Google login error:", err);
+      const { toast } = await import("sonner");
       toast.error(err.message || d.googleErrorToast);
       setIsLoading(false);
     }
@@ -232,8 +234,8 @@ function LoginForm() {
 }
 
 function LoginSuspenseFallback() {
-  const { locale } = useTranslation();
-  const d = getAuthLegalDict(locale).login;
+  const { language: locale } = useLocale();
+  const d = useAuthFormsDict(locale).login;
   return (
     <div className="min-h-screen bg-background flex items-center justify-center text-xs text-muted-foreground">
       {d.suspenseLoading}

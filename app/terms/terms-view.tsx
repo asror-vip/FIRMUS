@@ -3,8 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
-import { useAppState } from "@/lib/context/app-state";
-import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useLocale } from "@/lib/context/locale-context";
 import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 
@@ -26,8 +25,15 @@ function renderFormattedText(text: string) {
 }
 
 export function TermsView() {
-  const { user } = useAppState();
-  const { locale } = useTranslation();
+  const { language: locale } = useLocale();
+  const [hasSession, setHasSession] = React.useState(false);
+
+  React.useEffect(() => {
+    try {
+      setHasSession(document.cookie.includes("sb-"));
+    } catch {}
+  }, []);
+
   const d = getAuthLegalDict(locale).terms;
 
   return (
@@ -35,11 +41,11 @@ export function TermsView() {
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="flex items-center justify-between gap-4">
           <Link
-            href={user ? "/" : "/login"}
+            href={hasSession ? "/" : "/login"}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            {user ? d.backToApp : d.backToLogin}
+            {hasSession ? d.backToApp : d.backToLogin}
           </Link>
 
           <LanguageToggle />

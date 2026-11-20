@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import Link from "next/link";
-import { useTranslation } from "@/lib/i18n/useTranslation";
+import { useLocale } from "@/lib/context/locale-context";
 import { trackEvent } from "@/lib/analytics/track-event";
 import { getTurnoverRateRangeLabel, resolveUzTaxRules } from "@/lib/services/uz-tax-calculator";
 import { Button } from "@/components/ui/button";
@@ -168,7 +168,7 @@ const COPY = {
 };
 
 export function WelcomeClient() {
-  const { locale } = useTranslation();
+  const { language: locale } = useLocale();
   const c = COPY[locale] ?? COPY.uz;
   const rules = resolveUzTaxRules();
   const turnoverRange = getTurnoverRateRangeLabel();

@@ -3,19 +3,17 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
-import { useTranslation } from "@/lib/i18n/useTranslation";
-import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
+import { useLocale } from "@/lib/context/locale-context";
+import { useAuthFormsDict } from "@/lib/i18n/domains/use-auth-forms-dict";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
 import { Lock, ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const { locale } = useTranslation();
-  const d = getAuthLegalDict(locale).resetPassword;
+  const { language: locale } = useLocale();
+  const d = useAuthFormsDict(locale).resetPassword;
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,6 +22,7 @@ export default function ResetPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { toast } = await import("sonner");
     if (!password || !confirmPassword) {
       toast.error(d.missingFieldsToast);
       return;
@@ -39,6 +38,7 @@ export default function ResetPasswordPage() {
 
     setIsLoading(true);
     try {
+      const { supabase } = await import("@/lib/supabase/client");
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
 

@@ -2,16 +2,35 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { Cookie } from "lucide-react";
-import { useTranslation } from "@/lib/i18n/useTranslation";
-import { getShellSharedDict } from "@/lib/i18n/domains/shell-shared";
+import { useLocale } from "@/lib/context/locale-context";
 
 const COOKIE_KEY = "firmus_cookie_consent_v1";
 
+const COOKIE_COPY = {
+  uz: {
+    message:
+      "FIRMUS xizmat sifati va seans xavfsizligi uchun texnik cookie fayllardan foydalanadi.",
+    privacyLink: "Maxfiylik siyosati",
+    acceptBtn: "Roziman",
+  },
+  ru: {
+    message:
+      "FIRMUS использует технические файлы cookie для качества сервиса и безопасности сессии.",
+    privacyLink: "Политика конфиденциальности",
+    acceptBtn: "Принять",
+  },
+  en: {
+    message:
+      "FIRMUS uses essential technical cookies for service quality and session security.",
+    privacyLink: "Privacy Policy",
+    acceptBtn: "Accept",
+  },
+} as const;
+
 export function CookieConsent() {
-  const { locale } = useTranslation();
-  const d = getShellSharedDict(locale);
+  const { language: locale } = useLocale();
+  const copy = COOKIE_COPY[locale] ?? COOKIE_COPY.uz;
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -42,15 +61,19 @@ export function CookieConsent() {
         </div>
         <div className="space-y-2 flex-1">
           <p className="text-foreground leading-relaxed">
-            {d.shared.cookieConsent.message}{" "}
+            {copy.message}{" "}
             <Link href="/privacy" className="text-primary underline">
-              {d.shared.cookieConsent.privacyLink}
+              {copy.privacyLink}
             </Link>
           </p>
           <div className="flex items-center justify-end gap-2">
-            <Button size="sm" className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleAccept}>
-              {d.shared.cookieConsent.acceptBtn}
-            </Button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md px-3 h-7 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+              onClick={handleAccept}
+            >
+              {copy.acceptBtn}
+            </button>
           </div>
         </div>
       </div>

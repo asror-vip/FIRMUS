@@ -1,11 +1,16 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import { ThemeProvider } from "next-themes";
-import { AppStateProvider } from "@/lib/context/app-state";
-import { Toaster } from "sonner";
+import { LocaleProvider } from "@/lib/context/locale-context";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import type { Locale } from "@/lib/i18n/server-locale";
+
+const LazyToaster = dynamic(
+  () => import("sonner").then((mod) => mod.Toaster),
+  { ssr: false }
+);
 
 export function Providers({
   children,
@@ -16,11 +21,11 @@ export function Providers({
 }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <AppStateProvider initialLocale={initialLocale}>
+      <LocaleProvider initialLocale={initialLocale}>
         {children}
         <CookieConsent />
-        <Toaster position="top-right" richColors closeButton />
-      </AppStateProvider>
+        <LazyToaster position="top-right" richColors closeButton />
+      </LocaleProvider>
     </ThemeProvider>
   );
 }

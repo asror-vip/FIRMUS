@@ -2,18 +2,16 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
-import { useTranslation } from "@/lib/i18n/useTranslation";
-import { getAuthLegalDict } from "@/lib/i18n/domains/auth-legal";
+import { useLocale } from "@/lib/context/locale-context";
+import { useAuthFormsDict } from "@/lib/i18n/domains/use-auth-forms-dict";
 import { LanguageToggle } from "@/components/shared/language-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
 import { Mail, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
-  const { locale } = useTranslation();
-  const d = getAuthLegalDict(locale).forgotPassword;
+  const { language: locale } = useLocale();
+  const d = useAuthFormsDict(locale).forgotPassword;
 
   const [email, setEmail] = useState("");
   const [isSent, setIsSent] = useState(false);
@@ -21,6 +19,7 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { toast } = await import("sonner");
     if (!email) {
       toast.error(d.missingEmailToast);
       return;
@@ -28,6 +27,7 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
+      const { supabase } = await import("@/lib/supabase/client");
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
       });
