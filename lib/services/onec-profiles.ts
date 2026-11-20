@@ -307,21 +307,115 @@ export function getProfileOptionsForSource(
   }));
 }
 
+export const MAX_RAW_HEADER_LENGTH = 80;
+export const MAX_STORED_HEADER_LENGTH = 48;
+export const MAX_LEARNED_HEADERS = 30;
+
+const CURRENCY_ONLY_REGEX =
+  /^(?:uzs|usd|eur|rub|sum|som|so['ʻ’]?m|сум|сўм|тийин|tiyin|\$|€|₽|£)+$/i;
+const STANDALONE_DATE_REGEX =
+  /^\d{1,4}[./-]\d{1,2}[./-]\d{1,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/;
+const STANDALONE_AMOUNT_REGEX =
+  /^[+-]?\s*(?:\$|€|₽|£)?\s*\d{1,3}(?:[\s\u00A0,]\d{3})+(?:[.,]\d{1,2})?\s*(?:uzs|usd|eur|rub|sum|som|so['ʻ’]?m|сум|сўм|\$|€|₽|£)?$/i;
+const SIMPLE_AMOUNT_WITH_CURRENCY_REGEX =
+  /^[+-]?\s*(?:(?:\$|€|₽|£)\s*\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?\s*(?:uzs|usd|eur|rub|sum|som|so['ʻ’]?m|сум|сўм|\$|€|₽|£))$/i;
+
 /**
- * Strips any digits/STIRs/account numbers or company quotes from a header cell
- * so that ONLY structural column titles remain (100% Zero-PII).
+ * Strips any digits/STIRs/account numbers, formatted amounts, dates, emails,
+ * or overly long narrative text from a header cell so that ONLY short,
+ * structural column titles are stored in `onec_learned_schemas` (100% Zero-PII).
  */
 export function sanitizeHeaderCellName(rawHeader: string): string {
-  const cleaned = String(rawHeader || "")
-    .replace(/[\r\n\t]+/g, " ")
-    // Mask any sequence of 5+ digits (STIR, MFO, bank account, phone, date, amount)
-    .replace(/\b\d{5,}\b/g, "")
-    // Mask decimal amounts if accidentally placed in header
-    .replace(/\b\d+[.,]\d+\b/g, "")
-    .replace(/["'«»]/g, "")
+  const normalized = String(rawHeader || "")
+    .replace(/[\r\n\t\u00A0]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return cleaned.slice(0, 64);
+
+  if (!normalized || normalized.length > MAX_RAW_HEADER_LENGTH) {
+    return "";
+  }
+
+  // Reject standalone dates (e.g. "20.11.2026", "2026-11-20")
+  if (STANDALONE_DATE_REGEX.test(normalized)) {
+    return "";
+  }
+
+  // Reject standalone formatted amounts with or without currency (e.g. "12 500 000 UZS", "$1,200.50")
+  if (
+    STANDALONE_AMOUNT_REGEX.test(normalized) ||
+    SIMPLE_AMOUNT_WITH_CURRENCY_REGEX.test(normalized)
+  ) {
+    return "";
+  }
+
+  // Reject standalone STIRs, MFOs, phone numbers, card/account numbers (only digits + separators)
+  const compactDigitsOnly = normalized.replace(/[\s+().,-]/g, "");
+  if (/^\d{4,}$/.test(compactDigitsOnly)) {
+    return "";
+  }
+
+  // Strip embedded PII/data tokens: emails, URLs, dates, grouped numbers (STIR/phone/amount), 5+ digits, decimals
+  const cleaned = normalized
+    .replace(/\S+@\S+\.\S+/g, "")
+    .replace(/\bhttps?:\/\/\S+/gi, "")
+    .replace(/\b\d{1,4}[./-]\d{1,2}[./-]\d{1,4}\b/g, "")
+    // Strip grouped numeric sequences like "305 112 233", "305-112-233", "+998 90 123 45 67", "12 500 000", "1,250,000.50"
+    .replace(/[+-]?\b\d{1,4}(?:[\s,.-]\d{2,4})+\b/g, (match) => {
+      const digitsInMatch = match.replace(/\D/g, "").length;
+      return digitsInMatch >= 5 ? "" : match;
+    })
+    // Strip standalone 5+ digit sequences (STIR, MFO, account, phone, large integer amounts)
+    .replace(/\b\d{5,}\b/g, "")
+    // Strip decimal numbers (e.g. "450.50", "12,50")
+    .replace(/\b\d+[.,]\d+\b/g, "")
+    .replace(/["'«»<>[\]{}]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) {
+    return "";
+  }
+
+  // Reject if only currency symbols/units or punctuation remain
+  if (CURRENCY_ONLY_REGEX.test(cleaned)) {
+    return "";
+  }
+
+  const letters = (cleaned.match(/[A-Za-zА-Яа-яЁёЎўҚқҒғҲҳ]/g) || []).length;
+  const digits = (cleaned.match(/\d/g) || []).length;
+
+  // Reject pure numeric/symbolic leftovers (allow standalone "№" when raw had no digits)
+  if (letters === 0) {
+    if (cleaned === "№" && !/\d/.test(normalized)) {
+      return "№";
+    }
+    return "";
+  }
+
+  // Reject numeric-heavy strings that still contain too many digits (e.g. "ID 12 34 56")
+  if (digits >= 5 && digits / (letters + digits) >= 0.4) {
+    return "";
+  }
+
+  // Reject if raw cell was overwhelmingly numeric (>= 60% digits) and only a tiny leftover token remained
+  const rawLetters = (normalized.match(/[A-Za-zА-Яа-яЁёЎўҚқҒғҲҳ]/g) || []).length;
+  const rawDigits = (normalized.match(/\d/g) || []).length;
+  if (rawDigits >= 6 && rawLetters <= 2) {
+    return "";
+  }
+
+  return cleaned.slice(0, MAX_STORED_HEADER_LENGTH).trim();
+}
+
+/**
+ * Sanitizes an array of candidate column headers before storing in `onec_learned_schemas`.
+ */
+export function sanitizeLearnedSchemaHeaders(headers: string[]): string[] {
+  if (!Array.isArray(headers)) return [];
+  return headers
+    .map((h) => sanitizeHeaderCellName(h))
+    .filter((h) => h.length > 0)
+    .slice(0, MAX_LEARNED_HEADERS);
 }
 
 /**
@@ -950,10 +1044,14 @@ export async function saveLearnedSchemaForEntity(params: {
   }
 
   // Ensure headers are strictly sanitized before DB write
-  const safeHeaders = params.blueprint.columnHeaders
-    .map((h) => sanitizeHeaderCellName(h))
-    .filter(Boolean)
-    .slice(0, 30);
+  const safeHeaders = sanitizeLearnedSchemaHeaders(params.blueprint.columnHeaders);
+  if (safeHeaders.length === 0) {
+    throw new Error("Qolip sarlavhalari topilmadi yoki faqat raqamli qiymatlardan iborat.");
+  }
+
+  const safeVersionLabel =
+    sanitizeHeaderCellName(params.versionLabel) ||
+    String(params.profileId || "custom").slice(0, MAX_STORED_HEADER_LENGTH);
 
   const safeSignature = buildHeaderSignature(safeHeaders, params.blueprint.fileFormat);
 
@@ -976,7 +1074,7 @@ export async function saveLearnedSchemaForEntity(params: {
         created_by_user_id: user.id,
         source_type: params.sourceType,
         profile_id: params.profileId,
-        version_label: params.versionLabel,
+        version_label: safeVersionLabel,
         file_format: params.blueprint.fileFormat,
         header_row_index: params.blueprint.headerRowIndex,
         header_signature: safeSignature,

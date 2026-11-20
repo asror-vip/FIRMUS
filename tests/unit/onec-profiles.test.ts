@@ -17,6 +17,9 @@ import {
   generate1CClientBankTextForProfile,
   generate1CEnterpriseXmlForProfile,
   sanitizeHeaderCellName,
+  sanitizeLearnedSchemaHeaders,
+  MAX_STORED_HEADER_LENGTH,
+  MAX_LEARNED_HEADERS,
   type LearnedDocumentSchema,
 } from "@/lib/services/onec-profiles";
 
@@ -210,5 +213,72 @@ describe("Stage 5: 3-Layer 1C, Bank & Didox Profiles and Self-Learning Blueprint
     const generic1CBp = extractAnonymizedFileBlueprintFromRows(generic1CRows, "export.xlsx", "onec");
     expect(generic1CBp.sourceType).toBe("onec");
     expect(generic1CBp.autoConfirmed).toBe(false);
+  });
+
+  it("strictly sanitizes onec_learned_schemas headers: enforces length caps and rejects STIRs, amounts, dates, and numeric-heavy values", () => {
+    // 1) Reject STIRs (plain, spaced, hyphenated), 20-digit bank accounts, and phone numbers
+    expect(sanitizeHeaderCellName("305112233")).toBe("");
+    expect(sanitizeHeaderCellName("305 112 233")).toBe("");
+    expect(sanitizeHeaderCellName("305-112-233")).toBe("");
+    expect(sanitizeHeaderCellName("20208000905123456001")).toBe("");
+    expect(sanitizeHeaderCellName("+998 90 123 45 67")).toBe("");
+    expect(sanitizeHeaderCellName("+998 (90) 123-45-67")).toBe("");
+
+    // 2) Reject formatted amounts, currency amounts, dates, pure numbers, and emails
+    expect(sanitizeHeaderCellName("12 500 000")).toBe("");
+    expect(sanitizeHeaderCellName("12,500,000.50")).toBe("");
+    expect(sanitizeHeaderCellName("-450 000,00")).toBe("");
+    expect(sanitizeHeaderCellName("1 250 000 UZS")).toBe("");
+    expect(sanitizeHeaderCellName("450 000 so'm")).toBe("");
+    expect(sanitizeHeaderCellName("950 000 сум")).toBe("");
+    expect(sanitizeHeaderCellName("$1,200.50")).toBe("");
+    expect(sanitizeHeaderCellName("20.11.2026")).toBe("");
+    expect(sanitizeHeaderCellName("2026-11-20")).toBe("");
+    expect(sanitizeHeaderCellName("1234")).toBe("");
+    expect(sanitizeHeaderCellName("A1234567")).toBe("");
+    expect(sanitizeHeaderCellName("buxgalter@company.uz")).toBe("");
+
+    // 3) Reject overly long narrative paragraphs (> 80 chars) and cap valid long titles to 48 chars
+    const longPaymentDescription =
+      "Shartnoma №42 bo'yicha 2026-yil noyabr oyi uchun konsultatsiya va buxgalteriya xizmatlari haqi";
+    expect(longPaymentDescription.length).toBeGreaterThan(80);
+    expect(sanitizeHeaderCellName(longPaymentDescription)).toBe("");
+
+    const longValidHeader = "Наименование организации поставщика или покупателя (полное)";
+    const truncated = sanitizeHeaderCellName(longValidHeader);
+    expect(truncated.length).toBeGreaterThan(0);
+    expect(truncated.length).toBeLessThanOrEqual(MAX_STORED_HEADER_LENGTH);
+
+    // 4) Preserve legitimate accounting headers (including short codes/rates) and strip embedded STIRs
+    expect(sanitizeHeaderCellName("Sana")).toBe("Sana");
+    expect(sanitizeHeaderCellName("Контрагент")).toBe("Контрагент");
+    expect(sanitizeHeaderCellName("ИНН 305112233")).toBe("ИНН");
+    expect(sanitizeHeaderCellName("№")).toBe("№");
+    expect(sanitizeHeaderCellName("1C")).toBe("1C");
+    expect(sanitizeHeaderCellName("21-BHMS")).toBe("21-BHMS");
+    expect(sanitizeHeaderCellName("QQS 12%")).toBe("QQS 12%");
+    expect(sanitizeHeaderCellName("Счет 5110")).toBe("Счет 5110");
+
+    // 5) sanitizeLearnedSchemaHeaders drops all rejected values and enforces max header count
+    const mixedHeaders = [
+      "Sana",
+      "305112233",
+      "12 500 000 UZS",
+      "Kontragent",
+      "20.11.2026",
+      "+998 90 123 45 67",
+      "Chiqim",
+      longPaymentDescription,
+      "Kirim",
+    ];
+    expect(sanitizeLearnedSchemaHeaders(mixedHeaders)).toEqual([
+      "Sana",
+      "Kontragent",
+      "Chiqim",
+      "Kirim",
+    ]);
+
+    const tooManyHeaders = Array.from({ length: 45 }, (_, i) => `Ustun_${i + 1}`);
+    expect(sanitizeLearnedSchemaHeaders(tooManyHeaders)).toHaveLength(MAX_LEARNED_HEADERS);
   });
 });
