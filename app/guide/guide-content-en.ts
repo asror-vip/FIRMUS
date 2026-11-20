@@ -133,7 +133,7 @@ export const guideContentEn: GuideContent = {
       badge: "Recommended",
       monthlyPrice: "99,000 UZS / mo",
       annualPrice: "Annual: 79,000 UZS / mo (948,000 UZS / yr — save 20%)",
-      aiCredits: "350 credits / mo (45 / day) • 7-day free trial (40 cr., 15/day)",
+      aiCredits: "350 credits / mo (45 / day)",
       models: "Gemini 3.8 Flash (1 cr) + Gemini 4 Hydrogen (2 cr)",
       pdfLimit: "PDF up to 4 MB (10 pages); images 1.5 MB; reconcile 10 MB / 3,000 rows (150 saved)",
       entitiesLimit: "Up to 5 companies (STIR), 5 team members",
@@ -152,7 +152,7 @@ export const guideContentEn: GuideContent = {
   ],
   plansFootnotes: [
     "Credit cost: Gemini 3.8 Flash = 1 credit/request; Gemini 4 Hydrogen = 2 credits/request. Calculators and standard file reconciliation consume 0 AI credits.",
-    "Activate the 7-day free Pro trial in one click from Billing (/billing), once per account.",
+    "The 7-day free Pro trial will open once Payme/Click card binding is enabled (1 card = 1 trial). Until then, Starter is free forever (25 credits/month).",
     "Payments: online via Payme and Click. Plans activate automatically upon payment confirmation. Expired subscriptions revert to Starter limits without deleting your data.",
   ],
   quickLinksTitle: "Try it now",

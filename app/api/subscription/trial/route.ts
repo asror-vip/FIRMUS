@@ -8,6 +8,7 @@ import {
 } from "@/lib/utils/email-guard";
 import { getRequestLocale } from "@/lib/i18n/server-locale";
 import { getApiMessages, localizeServerError } from "@/lib/i18n/domains/api-messages";
+import { FEATURES } from "@/lib/config/features";
 
 function sha256(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -49,6 +50,16 @@ function extractClientIp(req: NextRequest): string {
 export async function POST(req: NextRequest) {
   const locale = getRequestLocale(req);
   const msg = getApiMessages(locale);
+
+  if (!FEATURES.proTrialEnabled) {
+    const disabledMsg =
+      locale === "ru"
+        ? "7-дневный пробный период Pro временно отключён до подключения привязки карты (Payme/Click). Вы можете бесплатно пользоваться тарифом Starter."
+        : locale === "en"
+        ? "The 7-day Pro trial is temporarily paused until Payme/Click card binding is enabled. You can use the Starter plan for free."
+        : "7 kunlik bepul Pro sinovi karta ulash (Payme/Click) yoqilgunga qadar vaqtincha yopiq. Hozircha Starter tarifidan bepul foydalanishingiz mumkin.";
+    return NextResponse.json({ error: disabledMsg }, { status: 403 });
+  }
 
   try {
     const supabase = await createServerSupabaseClient();

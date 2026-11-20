@@ -12,4 +12,6 @@ export const FEATURES = {
   teamMode: false,
   /** Full ERP Accounting modules (Transactions, Chart of Accounts/Ledger, Tax Calendar, Finance P&L, AI Auditor) */
   fullAccountingErp: false,
+  /** Self-serve 7-day Pro trial (paused until Payme/Click card tokenization is connected so 1 card = 1 trial) */
+  proTrialEnabled: false,
 } as const;

@@ -133,7 +133,7 @@ export const guideContentUz: GuideContent = {
       badge: "Tavsiya etiladi",
       monthlyPrice: "99 000 soʻm / oy",
       annualPrice: "Yillik: 79 000 soʻm / oy (948 000 soʻm / yil — 20% tejam)",
-      aiCredits: "350 kredit / oy (kuniga 45 ta) • 7 kun bepul sinov (40 kredit, kuniga 15 ta)",
+      aiCredits: "350 kredit / oy (kuniga 45 ta)",
       models: "Gemini 3.8 Flash (1 kr) + Gemini 4 Hydrogen (2 kr)",
       pdfLimit: "PDF 4 MB (10 sahifa); rasm 1,5 MB; sverka 10 MB / 3 000 qator (150 ta arxiv)",
       entitiesLimit: "5 tagacha korxona (STIR), 5 ta aʼzo",
@@ -152,7 +152,7 @@ export const guideContentUz: GuideContent = {
   ],
   plansFootnotes: [
     "AI kredit sarfi: Gemini 3.8 Flash = 1 kredit / soʻrov; Gemini 4 Hydrogen = 2 kredit / soʻrov. Bepul kalkulyatorlar va oddiy fayl sverkasi AI kredit sarflamaydi.",
-    "7 kunlik bepul Pro sinovini «Tariflar va toʻlov» (/billing) boʻlimidan bir tugma bilan yoqish mumkin (har bir akkaunt uchun 1 marta).",
+    "7 kunlik bepul Pro sinovi Payme/Click karta ulash yoqilgandan keyin ochiladi (1 karta = 1 marta). Ungacha Starter tarifi doimiy bepul (oyiga 25 kredit).",
     "Toʻlov usullari: Payme va Click orqali onlayn toʻlov. Toʻlov tasdiqlangach obuna avtomatik faollashadi. Obuna muddati tugagach maʼlumotlaringiz oʻchib ketmaydi — hisob Starter limitlariga qaytadi.",
   ],
   quickLinksTitle: "Hozir sinab koʻring",

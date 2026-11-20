@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getServiceClient } from "@/lib/supabase/service";
+import { FEATURES } from "@/lib/config/features";
 import {
   AI_MODELS,
   PLANS_CONFIG,
@@ -168,7 +169,8 @@ export async function resolveEffectiveSubscription(userId: string): Promise<Subs
 
   const spec = PLANS_CONFIG[planId];
   const isTrialActive = status === "trialing" && planId === "professional";
-  const trialAvailable = !sub?.trial_used_at && planId === "starter";
+  const trialAvailable =
+    FEATURES.proTrialEnabled && !sub?.trial_used_at && planId === "starter";
 
   if (!spec.limits.allowedModels.includes(preferredModel)) {
     preferredModel = spec.limits.defaultChatModel;
