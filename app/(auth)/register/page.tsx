@@ -74,12 +74,12 @@ export default function RegisterPage() {
 
       if (!data.session) {
         toast.success(d.checkEmailToast);
-        router.push("/login");
+        router.replace("/login");
         return;
       }
 
       toast.success(d.registerSuccessToast);
-      router.push("/");
+      router.replace("/");
       router.refresh();
     } catch (err: any) {
       console.error("Register error:", err);

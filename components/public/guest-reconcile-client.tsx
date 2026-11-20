@@ -275,6 +275,65 @@ export function GuestReconcileClient() {
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [lockedFeature, setLockedFeature] = useState<LockedFeatureKey | null>(null);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+
+  // Restore guest reconciliation state on mount (prevents losing work on browser Back / navigation)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("firmus_guest_reconcile_v1");
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (typeof saved.bankFileName === "string") setBankFileName(saved.bankFileName);
+        if (typeof saved.oneCFileName === "string") setOneCFileName(saved.oneCFileName);
+        if (Array.isArray(saved.bankItems)) setBankItems(saved.bankItems);
+        if (Array.isArray(saved.oneCItems)) setOneCItems(saved.oneCItems);
+        if (Array.isArray(saved.rows)) setRows(saved.rows);
+        if (saved.summary && typeof saved.summary === "object") setSummary(saved.summary);
+        if (typeof saved.activeTab === "string") setActiveTab(saved.activeTab);
+        if (typeof saved.searchQuery === "string") setSearchQuery(saved.searchQuery);
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      setDraftHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    try {
+      if (bankItems.length === 0 && oneCItems.length === 0 && rows.length === 0) {
+        sessionStorage.removeItem("firmus_guest_reconcile_v1");
+        return;
+      }
+      const serialized = JSON.stringify({
+        bankFileName,
+        oneCFileName,
+        bankItems,
+        oneCItems,
+        rows,
+        summary,
+        activeTab,
+        searchQuery,
+      });
+      // Guard against exceeding sessionStorage quota (~5MB)
+      if (serialized.length <= 2_000_000) {
+        sessionStorage.setItem("firmus_guest_reconcile_v1", serialized);
+      }
+    } catch {
+      // ignore quota errors
+    }
+  }, [
+    draftHydrated,
+    bankFileName,
+    oneCFileName,
+    bankItems,
+    oneCItems,
+    rows,
+    summary,
+    activeTab,
+    searchQuery,
+  ]);
 
   useEffect(() => {
     trackEvent({ eventName: "page_view", pagePath: "/try", locale });
@@ -345,6 +404,11 @@ export function GuestReconcileClient() {
     setSummary(null);
     setActiveTab("all");
     setSearchQuery("");
+    try {
+      sessionStorage.removeItem("firmus_guest_reconcile_v1");
+    } catch {
+      // ignore
+    }
   };
 
   const openLockedGate = (feature: LockedFeatureKey) => {

@@ -501,6 +501,18 @@ export function AppStateProvider({
     setIsAiDrawerOpen((prev) => !prev);
   }, []);
 
+  // Sync fresh server/DB state if browser Back/Forward restores a stale bfcache snapshot
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        router.refresh();
+        void refreshContext();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [router, refreshContext]);
+
   // Keyboard shortcut listener for ⌘K and AI drawer
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

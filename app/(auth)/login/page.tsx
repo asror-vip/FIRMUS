@@ -50,7 +50,7 @@ function LoginForm() {
       if (error) throw error;
 
       toast.success(d.loginSuccessToast);
-      router.push(redirectedFrom);
+      router.replace(redirectedFrom);
       router.refresh();
     } catch (err: any) {
       console.error("Login error:", err);

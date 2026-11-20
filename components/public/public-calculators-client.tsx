@@ -66,8 +66,67 @@ export function PublicCalculatorsClient() {
   const [turnoverRev, setTurnoverRev] = useState("100000000");
   const [turnoverStatus, setTurnoverStatus] = useState<TaxpayerStatus>("llc");
   const [vacationDays, setVacationDays] = useState("21");
+  const [draftHydrated, setDraftHydrated] = useState(false);
 
   const trackedToolsRef = useRef<Set<string>>(new Set());
+
+  // Restore calculator inputs on mount (prevents work reset on browser Back / reload)
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("firmus_public_calculators_v1");
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (typeof saved.salaryAmount === "string") setSalaryAmount(saved.salaryAmount);
+        if (saved.salaryDir === "gross_to_net" || saved.salaryDir === "net_to_gross") {
+          setSalaryDir(saved.salaryDir);
+        }
+        if (typeof saved.vatAmount === "string") setVatAmount(saved.vatAmount);
+        if (saved.vatMode === "included" || saved.vatMode === "excluded") setVatMode(saved.vatMode);
+        if (typeof saved.turnoverRev === "string") setTurnoverRev(saved.turnoverRev);
+        if (
+          saved.turnoverStatus === "llc" ||
+          saved.turnoverStatus === "yatt" ||
+          saved.turnoverStatus === "self_employed"
+        ) {
+          setTurnoverStatus(saved.turnoverStatus);
+        }
+        if (typeof saved.vacationDays === "string") setVacationDays(saved.vacationDays);
+      }
+    } catch {
+      // ignore storage errors
+    } finally {
+      setDraftHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draftHydrated) return;
+    try {
+      sessionStorage.setItem(
+        "firmus_public_calculators_v1",
+        JSON.stringify({
+          salaryAmount,
+          salaryDir,
+          vatAmount,
+          vatMode,
+          turnoverRev,
+          turnoverStatus,
+          vacationDays,
+        })
+      );
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [
+    draftHydrated,
+    salaryAmount,
+    salaryDir,
+    vatAmount,
+    vatMode,
+    turnoverRev,
+    turnoverStatus,
+    vacationDays,
+  ]);
 
   useEffect(() => {
     trackEvent({ eventName: "page_view", pagePath: "/calculators", locale });

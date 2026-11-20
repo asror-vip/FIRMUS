@@ -107,7 +107,7 @@ export default function OnboardingPage() {
 
       await refreshContext();
       toast.success(d.saveSuccessToast);
-      router.push("/");
+      router.replace("/");
     } catch (err: any) {
       toast.error(d.saveErrorPrefix + (err.message || d.unknownError));
     } finally {
