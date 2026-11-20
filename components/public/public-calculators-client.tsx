@@ -10,13 +10,14 @@ import {
   calculateVatUz,
   calculateTurnoverTaxUz,
   calculateVacationPayUz,
+  getUnverifiedTaxRules,
   resolveUzTaxRules,
   type TaxpayerStatus,
 } from "@/lib/services/uz-tax-calculator";
 import { Money } from "@/components/shared/money";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, ExternalLink, Scale, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, ExternalLink, Scale, ShieldCheck } from "lucide-react";
 
 const PAGE_COPY = {
   uz: {
@@ -56,6 +57,7 @@ export function PublicCalculatorsClient() {
   const d = useCalcDict(locale);
   const copy = PAGE_COPY[locale] ?? PAGE_COPY.uz;
   const activeRules = resolveUzTaxRules();
+  const unverifiedRules = useMemo(() => getUnverifiedTaxRules(), []);
 
   const [salaryAmount, setSalaryAmount] = useState("5000000");
   const [salaryDir, setSalaryDir] = useState<"gross_to_net" | "net_to_gross">("gross_to_net");
@@ -338,6 +340,34 @@ export function PublicCalculatorsClient() {
                     {d.other.turnoverExceedsWarning}
                   </div>
                 )}
+                {turnoverCalc.verificationStatus === "unverified" ? (
+                  <div className="rounded-md border border-amber-500/35 bg-amber-500/10 p-2 text-[10px] text-amber-800 dark:text-amber-300 space-y-0.5">
+                    <div className="flex items-center gap-1 font-semibold">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      <span>
+                        {locale === "ru"
+                          ? "Неподтверждённое правило — требуется проверка"
+                          : locale === "en"
+                          ? "Unverified rule — manual check required"
+                          : "Tasdiqlanmagan qoida — qoʻshimcha tekshiring"}
+                      </span>
+                    </div>
+                    {turnoverCalc.ruleNote && (
+                      <p className="leading-snug opacity-90">{turnoverCalc.ruleNote}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    <span>
+                      {locale === "ru"
+                        ? `Проверено: ${turnoverCalc.lastVerifiedAt}`
+                        : locale === "en"
+                        ? `Verified: ${turnoverCalc.lastVerifiedAt}`
+                        : `Tasdiqlangan: ${turnoverCalc.lastVerifiedAt}`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2 rounded-lg bg-muted/40 p-3">
@@ -373,6 +403,19 @@ export function PublicCalculatorsClient() {
             <span className="font-mono">{activeRules.versionId}</span>
             <span>•</span>
             <span>BHM: {activeRules.bhmUzs.toLocaleString("en-US")} soʻm</span>
+            {unverifiedRules.length > 0 && (
+              <>
+                <span>•</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="h-3 w-3" />
+                  {locale === "ru"
+                    ? `${unverifiedRules.length} правила не подтверждены`
+                    : locale === "en"
+                    ? `${unverifiedRules.length} rules unverified`
+                    : `${unverifiedRules.length} ta qoida tasdiqlanmagan`}
+                </span>
+              </>
+            )}
             <span>•</span>
             <a
               href={activeRules.sourceUrl}

@@ -707,7 +707,10 @@ export default function TurnoverTaxAutoPage() {
                 <Money amount={summary.estimatedTaxUzs} />
               </div>
               <div className="mt-1.5 text-[11px] text-muted-foreground truncate">
-                {summary.taxRuleVersion} • Kod hisobi (AI emas)
+                {summary.taxRuleVersion} •{" "}
+                {summary.verificationStatus === "verified" && summary.lastVerifiedAt
+                  ? `Tasdiqlangan: ${summary.lastVerifiedAt}`
+                  : "Tasdiqlanmagan qoida"}
               </div>
             </button>
 
@@ -776,6 +779,21 @@ export default function TurnoverTaxAutoPage() {
               </div>
             </button>
           </div>
+
+          {/* Unverified Tax Rule Warning Banner */}
+          {summary.verificationStatus === "unverified" && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <div className="space-y-1 flex-1">
+                <div className="font-semibold">
+                  Tasdiqlanmagan soliq qoidasi — qoʻshimcha tekshiruv talab qilinadi
+                </div>
+                {summary.ruleNote && (
+                  <p className="text-[11px] leading-relaxed opacity-90">{summary.ruleNote}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Threshold Warning Alert Banner */}
           {summary.thresholdWarningText && (

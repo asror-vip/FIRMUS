@@ -1689,6 +1689,28 @@ function AssistantContent() {
                         {d.calc.other.turnoverExceedsWarning}
                       </div>
                     )}
+                    {turnoverCalc.verificationStatus === "unverified" ? (
+                      <div className="rounded-md border border-amber-500/35 bg-amber-500/10 p-2 text-[10px] text-amber-800 dark:text-amber-300 space-y-0.5">
+                        <div className="font-semibold">
+                          {locale === "ru"
+                            ? "⚠ Неподтверждённое правило — требуется проверка"
+                            : locale === "en"
+                            ? "⚠ Unverified rule — manual check required"
+                            : "⚠ Tasdiqlanmagan qoida — qoʻshimcha tekshiring"}
+                        </div>
+                        {turnoverCalc.ruleNote && (
+                          <p className="leading-snug opacity-90">{turnoverCalc.ruleNote}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                        {locale === "ru"
+                          ? `✓ Проверено: ${turnoverCalc.lastVerifiedAt}`
+                          : locale === "en"
+                          ? `✓ Verified: ${turnoverCalc.lastVerifiedAt}`
+                          : `✓ Tasdiqlangan: ${turnoverCalc.lastVerifiedAt}`}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5 rounded-lg bg-muted/40 p-2.5">

@@ -4,6 +4,8 @@ import {
   LEX_UZ_TAX_CODE_URL,
   resolveUzTaxRules,
   getTurnoverRuleForStatus,
+  getTaxRuleEntries,
+  getUnverifiedTaxRules,
   getTurnoverRateRangeLabel,
   buildTaxRulesSummaryForAi,
   calculateTurnoverTaxUz,
@@ -103,8 +105,10 @@ describe("Uzbekistan Versioned Tax Rules (Single Source of Truth)", () => {
     expect(llcOctUnder.exceedsThreshold).toBe(false);
   });
 
-  it("ensures every version and taxpayer status rule has sourceUrl, legalRef, and lastVerifiedAt", () => {
+  it("stores per-entry verificationStatus and individual lastVerifiedAt (never marking unverified rules as verified with one shared date)", () => {
     const statuses: TaxpayerStatus[] = ["llc", "yatt", "self_employed"];
+    const uniqueVerifiedDates = new Set<string>();
+
     for (const version of Object.values(UZ_TAX_RULES_VERSIONS)) {
       expect(version.sourceUrl).toBe(LEX_UZ_TAX_CODE_URL);
       expect(version.lastVerifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -112,10 +116,41 @@ describe("Uzbekistan Versioned Tax Rules (Single Source of Truth)", () => {
         const rule = getTurnoverRuleForStatus(st, version.versionId);
         expect(rule.sourceUrl).toMatch(/^https:\/\/lex\.uz\//);
         expect(rule.legalRef.length).toBeGreaterThan(10);
-        expect(rule.lastVerifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
         expect(rule.ratePercent).toBeGreaterThan(0);
+
+        if (rule.verificationStatus === "verified") {
+          expect(rule.lastVerifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+          uniqueVerifiedDates.add(rule.lastVerifiedAt!);
+        } else {
+          expect(rule.verificationStatus).toBe("unverified");
+          expect(rule.lastVerifiedAt).toBeNull();
+          expect(rule.note).toContain("TASDIQLANMAGAN");
+        }
       }
     }
+
+    // Multiple distinct per-rule verification dates exist (not one global hardcoded date)
+    expect(uniqueVerifiedDates.size).toBeGreaterThanOrEqual(3);
+
+    // 2026-06 and 2026 YaTT / self-employed PF-100 overlap rules must be explicitly unverified
+    const yatt2026 = getTurnoverRuleForStatus("yatt", "2026-10-01");
+    expect(yatt2026.verificationStatus).toBe("unverified");
+    expect(yatt2026.lastVerifiedAt).toBeNull();
+
+    const self2026 = getTurnoverRuleForStatus("self_employed", "2026-10-01");
+    expect(self2026.verificationStatus).toBe("unverified");
+    expect(self2026.lastVerifiedAt).toBeNull();
+
+    // LLC 2026 turnover rule remains verified with its own date
+    const llc2026 = getTurnoverRuleForStatus("llc", "2026-10-01");
+    expect(llc2026.verificationStatus).toBe("verified");
+    expect(llc2026.lastVerifiedAt).toBe("2026-09-10");
+
+    // Helper functions expose unverified rules cleanly for UI banners
+    expect(getTaxRuleEntries("2026-10-01")).toHaveLength(6);
+    const unverified2026 = getUnverifiedTaxRules("2026-10-01");
+    expect(unverified2026.map((r) => r.status).sort()).toEqual(["self_employed", "yatt"]);
+    expect(getUnverifiedTaxRules("2025-07-01")).toHaveLength(0);
   });
 
   it("computes dynamic rate range labels and AI rule summary without stale hardcoded values", () => {
@@ -128,6 +163,7 @@ describe("Uzbekistan Versioned Tax Rules (Single Source of Truth)", () => {
     expect(aiSummary).toContain("4%");
     expect(aiSummary).toContain("12,000 BHM");
     expect(aiSummary).toContain("440,000");
+    expect(aiSummary).toContain("TASDIQLANMAGAN");
     expect(aiSummary).toContain(LEX_UZ_TAX_CODE_URL);
   });
 

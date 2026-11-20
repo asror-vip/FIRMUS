@@ -5,6 +5,7 @@ import {
   resolveUzTaxRules,
   type TaxpayerStatus,
   type TaxRegimeType,
+  type TaxRuleVerificationStatus,
 } from "@/lib/services/uz-tax-calculator";
 import type { ParsedBankTransaction } from "@/lib/services/bank-import";
 
@@ -66,7 +67,9 @@ export interface PeriodTaxCalculationSummary {
   taxRuleVersion: string;
   taxArticleRef: string;
   sourceUrl: string;
-  lastVerifiedAt: string;
+  lastVerifiedAt: string | null;
+  verificationStatus: TaxRuleVerificationStatus;
+  ruleNote?: string;
   annualThresholdUzs: number | null;
   annualThresholdBhm: number | null;
   remainingToThresholdUzs: number | null;
@@ -390,6 +393,7 @@ export function computePeriodTurnoverAndTax(params: {
       taxArticleRef: vatCalc.taxArticleRef,
       sourceUrl: vatCalc.lexUrl,
       lastVerifiedAt: vatCalc.lastVerifiedAt,
+      verificationStatus: "verified",
       annualThresholdUzs: null,
       annualThresholdBhm: null,
       remainingToThresholdUzs: null,
@@ -459,6 +463,8 @@ export function computePeriodTurnoverAndTax(params: {
     taxArticleRef: periodTurn.taxArticleRef,
     sourceUrl: periodTurn.lexUrl,
     lastVerifiedAt: periodTurn.lastVerifiedAt,
+    verificationStatus: periodTurn.verificationStatus,
+    ruleNote: periodTurn.ruleNote,
     annualThresholdUzs: thresholdUzs,
     annualThresholdBhm: thresholdBhm,
     remainingToThresholdUzs,

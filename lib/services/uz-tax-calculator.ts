@@ -3,7 +3,6 @@ import { getTashkentTodayIso } from "@/lib/format/date";
 
 export const LEX_UZ_TAX_CODE_URL = "https://lex.uz/docs/4674902";
 export const LEX_UZ_BHMS21_URL = "https://lex.uz/docs/-7315183";
-export const TAX_RULES_LAST_VERIFIED_DATE = "2026-11-19";
 
 export type TaxpayerStatus = "llc" | "yatt" | "self_employed";
 export type TaxRegimeType = "turnover_tax" | "vat_profit_tax" | "fixed_tax";
@@ -20,7 +19,8 @@ export interface TaxRateRuleEntry {
   effectiveTo: string | null;
   legalRef: string;
   sourceUrl: string;
-  lastVerifiedAt: string;
+  /** Individual verification date (YYYY-MM-DD) for this specific rule, or null if unverified. */
+  lastVerifiedAt: string | null;
   verificationStatus: TaxRuleVerificationStatus;
   note?: string;
 }
@@ -88,7 +88,7 @@ function buildStatusRules2025(): UzTaxRulesVersion["statusRules"] {
         effectiveTo,
         legalRef: "Soliq kodeksi 461, 467-moddalar (MChJ aylanma soligʻi 4%, 1 mlrd soʻmgacha)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: "2026-01-15",
         verificationStatus: "verified",
       },
       vatProfit: {
@@ -102,7 +102,7 @@ function buildStatusRules2025(): UzTaxRulesVersion["statusRules"] {
         effectiveTo,
         legalRef: "Soliq kodeksi 258-modda (QQS 12%) va 337-modda (Foyda soligʻi 15%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: "2026-01-15",
         verificationStatus: "verified",
       },
     },
@@ -118,7 +118,7 @@ function buildStatusRules2025(): UzTaxRulesVersion["statusRules"] {
         effectiveTo,
         legalRef: "Soliq kodeksi 461, 467-moddalar (2025-yil: YaTT 100 mln–1 mlrd oraligʻida 4%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: "2026-01-15",
         verificationStatus: "verified",
       },
       vatProfit: {
@@ -132,7 +132,7 @@ function buildStatusRules2025(): UzTaxRulesVersion["statusRules"] {
         effectiveTo,
         legalRef: "Soliq kodeksi 258-modda (QQS 12%) va 337-modda (Foyda soligʻi 15%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: "2026-01-15",
         verificationStatus: "verified",
       },
     },
@@ -148,7 +148,7 @@ function buildStatusRules2025(): UzTaxRulesVersion["statusRules"] {
         effectiveTo,
         legalRef: "Soliq kodeksi 461, 467-moddalar (2025-yil: 100 mln soʻmgacha ozod, 100 mln–1 mlrd oraligʻida 4%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: "2026-01-15",
         verificationStatus: "verified",
       },
       vatProfit: {
@@ -162,7 +162,7 @@ function buildStatusRules2025(): UzTaxRulesVersion["statusRules"] {
         effectiveTo,
         legalRef: "Soliq kodeksi 258-modda (QQS 12%) va 337-modda (Foyda soligʻi 15%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: "2026-01-15",
         verificationStatus: "verified",
       },
     },
@@ -175,9 +175,28 @@ function buildStatusRules2026(params: {
   llcThresholdUzs: number;
   llcThresholdBhm: number | null;
   llcLegalRef: string;
+  llcVerifiedAt: string;
+  vatProfitVerifiedAt: string;
+  yattTurnoverVerificationStatus: TaxRuleVerificationStatus;
+  yattTurnoverVerifiedAt: string | null;
+  selfEmployedTurnoverVerificationStatus: TaxRuleVerificationStatus;
+  selfEmployedTurnoverVerifiedAt: string | null;
   includePf100YattNote: boolean;
 }): UzTaxRulesVersion["statusRules"] {
-  const { effectiveFrom, effectiveTo, llcThresholdUzs, llcThresholdBhm, llcLegalRef, includePf100YattNote } = params;
+  const {
+    effectiveFrom,
+    effectiveTo,
+    llcThresholdUzs,
+    llcThresholdBhm,
+    llcLegalRef,
+    llcVerifiedAt,
+    vatProfitVerifiedAt,
+    yattTurnoverVerificationStatus,
+    yattTurnoverVerifiedAt,
+    selfEmployedTurnoverVerificationStatus,
+    selfEmployedTurnoverVerifiedAt,
+    includePf100YattNote,
+  } = params;
   return {
     llc: {
       turnover: {
@@ -191,7 +210,7 @@ function buildStatusRules2026(params: {
         effectiveTo,
         legalRef: llcLegalRef,
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: llcVerifiedAt,
         verificationStatus: "verified",
       },
       vatProfit: {
@@ -205,7 +224,7 @@ function buildStatusRules2026(params: {
         effectiveTo,
         legalRef: "Soliq kodeksi 258-modda (QQS 12%) va 337-modda (Foyda soligʻi 15%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: vatProfitVerifiedAt,
         verificationStatus: "verified",
       },
     },
@@ -222,8 +241,8 @@ function buildStatusRules2026(params: {
         legalRef:
           "Soliq kodeksi 461, 467-moddalar; PQ-247 (12.08.2025) va OʻRQ-1108 (25.12.2025) — YaTT aylanma soligʻi 1% (1 mlrd soʻmgacha)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
-        verificationStatus: "verified",
+        lastVerifiedAt: yattTurnoverVerifiedAt,
+        verificationStatus: yattTurnoverVerificationStatus,
         note: includePf100YattNote ? YATT_PF100_OVERLAP_NOTE : undefined,
       },
       vatProfit: {
@@ -237,7 +256,7 @@ function buildStatusRules2026(params: {
         effectiveTo,
         legalRef: "Soliq kodeksi 258-modda (QQS 12%) va 337-modda (Foyda soligʻi 15%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: vatProfitVerifiedAt,
         verificationStatus: "verified",
       },
     },
@@ -254,8 +273,8 @@ function buildStatusRules2026(params: {
         legalRef:
           "Soliq kodeksi 461, 467-moddalar; PQ-247 (12.08.2025) va OʻRQ-1108 (25.12.2025) — Oʻzini oʻzi band qilganlar 1% (1 mlrd soʻmgacha)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
-        verificationStatus: "verified",
+        lastVerifiedAt: selfEmployedTurnoverVerifiedAt,
+        verificationStatus: selfEmployedTurnoverVerificationStatus,
         note: includePf100YattNote ? YATT_PF100_OVERLAP_NOTE : undefined,
       },
       vatProfit: {
@@ -269,7 +288,7 @@ function buildStatusRules2026(params: {
         effectiveTo,
         legalRef: "Soliq kodeksi 258-modda (QQS 12%) va 337-modda (Foyda soligʻi 15%)",
         sourceUrl: LEX_UZ_TAX_CODE_URL,
-        lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+        lastVerifiedAt: vatProfitVerifiedAt,
         verificationStatus: "verified",
       },
     },
@@ -282,7 +301,7 @@ export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
     effectiveYear: 2025,
     effectiveFrom: "2025-01-01",
     effectiveTo: "2025-12-31",
-    lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+    lastVerifiedAt: "2026-01-15",
     sourceUrl: LEX_UZ_TAX_CODE_URL,
     bhmUzs: 412_000,
     bhmLegalRef: "2025-yil 1-avgustdan BHM 412 000 soʻm",
@@ -319,7 +338,7 @@ export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
     effectiveYear: 2026,
     effectiveFrom: "2026-01-01",
     effectiveTo: "2026-05-31",
-    lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+    lastVerifiedAt: "2026-02-10",
     sourceUrl: LEX_UZ_TAX_CODE_URL,
     bhmUzs: 412_000,
     bhmLegalRef: "2025-yil 1-avgust – 2026-yil 31-avgust: BHM 412 000 soʻm",
@@ -348,6 +367,12 @@ export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
       llcThresholdBhm: null,
       llcLegalRef:
         "Soliq kodeksi 461, 467-moddalar; OʻRQ-1108 (25.12.2025) — MChJ aylanma soligʻi 4% (e-commerce ham 4%)",
+      llcVerifiedAt: "2026-02-10",
+      vatProfitVerifiedAt: "2026-02-10",
+      yattTurnoverVerificationStatus: "verified",
+      yattTurnoverVerifiedAt: "2026-02-10",
+      selfEmployedTurnoverVerificationStatus: "verified",
+      selfEmployedTurnoverVerifiedAt: "2026-02-10",
       includePf100YattNote: false,
     }),
     articles: {
@@ -365,7 +390,7 @@ export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
     effectiveYear: 2026,
     effectiveFrom: "2026-06-01",
     effectiveTo: "2026-08-31",
-    lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+    lastVerifiedAt: "2026-06-15",
     sourceUrl: LEX_UZ_TAX_CODE_URL,
     bhmUzs: 412_000,
     bhmLegalRef: "2025-yil 1-avgust – 2026-yil 31-avgust: BHM 412 000 soʻm",
@@ -394,6 +419,12 @@ export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
       llcThresholdBhm: 12_000,
       llcLegalRef:
         "Soliq kodeksi 467-modda; OʻRQ-1108 (25.12.2025); PF-100 (26.05.2026) — MChJ aylanma soligʻi 4%, chegara 12 000 BHM (4,944 mlrd soʻm)",
+      llcVerifiedAt: "2026-06-15",
+      vatProfitVerifiedAt: "2026-06-15",
+      yattTurnoverVerificationStatus: "unverified",
+      yattTurnoverVerifiedAt: null,
+      selfEmployedTurnoverVerificationStatus: "unverified",
+      selfEmployedTurnoverVerifiedAt: null,
       includePf100YattNote: true,
     }),
     articles: {
@@ -411,7 +442,7 @@ export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
     effectiveYear: 2026,
     effectiveFrom: "2026-09-01",
     effectiveTo: null,
-    lastVerifiedAt: TAX_RULES_LAST_VERIFIED_DATE,
+    lastVerifiedAt: "2026-09-10",
     sourceUrl: LEX_UZ_TAX_CODE_URL,
     bhmUzs: 440_000,
     bhmLegalRef: "PF-115 (23.06.2026), 2026-yil 1-sentabrdan BHM 440 000 soʻm",
@@ -441,6 +472,12 @@ export const UZ_TAX_RULES_VERSIONS: Record<string, UzTaxRulesVersion> = {
       llcThresholdBhm: 12_000,
       llcLegalRef:
         "Soliq kodeksi 467-modda; OʻRQ-1108 (25.12.2025); PF-100 (26.05.2026); PF-115 (23.06.2026) — MChJ aylanma soligʻi 4%, chegara 12 000 BHM (5,28 mlrd soʻm)",
+      llcVerifiedAt: "2026-09-10",
+      vatProfitVerifiedAt: "2026-09-10",
+      yattTurnoverVerificationStatus: "unverified",
+      yattTurnoverVerifiedAt: null,
+      selfEmployedTurnoverVerificationStatus: "unverified",
+      selfEmployedTurnoverVerifiedAt: null,
       includePf100YattNote: true,
     }),
     articles: {
@@ -507,6 +544,19 @@ export function getTurnoverRuleForStatus(
   return rules.statusRules[status]?.turnover ?? rules.statusRules.llc.turnover;
 }
 
+export function getTaxRuleEntries(dateOrYear?: string | number): TaxRateRuleEntry[] {
+  const rules = resolveUzTaxRules(dateOrYear);
+  const statuses: TaxpayerStatus[] = ["llc", "yatt", "self_employed"];
+  return statuses.flatMap((st) => [
+    rules.statusRules[st].turnover,
+    rules.statusRules[st].vatProfit,
+  ]);
+}
+
+export function getUnverifiedTaxRules(dateOrYear?: string | number): TaxRateRuleEntry[] {
+  return getTaxRuleEntries(dateOrYear).filter((entry) => entry.verificationStatus === "unverified");
+}
+
 export function getTurnoverRateRangeLabel(dateOrYear?: string | number): string {
   const rules = resolveUzTaxRules(dateOrYear);
   const rates = Array.from(
@@ -541,17 +591,22 @@ export function buildTaxRulesSummaryForAi(dateOrYear?: string | number): string 
     ? `${rules.vatMandatoryThresholdBhm.toLocaleString("en-US")} BHM (BHM = ${rules.bhmUzs.toLocaleString("en-US")} so'm → ${rules.vatMandatoryThresholdUzs.toLocaleString("en-US")} so'm)`
     : `${rules.vatMandatoryThresholdUzs.toLocaleString("en-US")} so'm`;
 
+  const formatRuleStatus = (entry: TaxRateRuleEntry) =>
+    entry.verificationStatus === "verified" && entry.lastVerifiedAt
+      ? `tasdiqlangan: ${entry.lastVerifiedAt}`
+      : "TASDIQLANMAGAN — qoʻshimcha tekshiruv talab qilinadi";
+
   return [
-    `   - Amaldagi soliq qoidalari versiyasi: ${rules.versionId} (kuchga kirish: ${rules.effectiveFrom}, oxirgi tekshiruv: ${rules.lastVerifiedAt}).`,
+    `   - Amaldagi soliq qoidalari versiyasi: ${rules.versionId} (kuchga kirish: ${rules.effectiveFrom}).`,
     `   - Rasmiy manbalar: Soliq kodeksi (${rules.sourceUrl}), 21-son BHMS (${LEX_UZ_BHMS21_URL}).`,
     `   - QQS ${vatPct}% (SK 258-modda): ichidan ajratish = round(summa * ${vatPct} / ${100 + vatPct}, 2); sotuvda 6410 (Kt), xaridda 4410 (Dt). Majburiy QQS chegarasi: ${thresholdLine} (${rules.vatThresholdLegalRef}).`,
     `   - Foyda solig'i ${corpPct}% (SK 337-modda): 9810 Dt / 6810 Kt.`,
     `   - Ish haqi (SK 381 va 405-moddalar): JShDS ${jshdsPct}% (shundan ${inpsPct}% ShJBPH/INPS ichida; 6710 Dt / 6410 Kt), Ijtimoiy soliq ${socialPct}% (9420 Dt / 6520 Kt).`,
     `   - Aylanmadan olinadigan soliq (9430 Dt / 6410 Kt):`,
-    `     • MChJ / yuridik shaxs: ${llcRule.ratePercent}% (chegara: ${thresholdLine}; ${llcRule.legalRef}).`,
-    `     • YaTT: ${yattRule.ratePercent}% (1 mlrd so'mgacha; ${yattRule.legalRef}).${rules.fixedTaxAbolishedForYatt ? " 2026-yildan YaTT qat'iy JShDS bekor qilingan." : ""}`,
-    `     • O'zini o'zi band qilganlar: ${selfRule.ratePercent}% (1 mlrd so'mgacha; ${selfRule.legalRef}).`,
-    `   - Muhim: Soliq hisob-kitoblarida aniqlik uchun doim calculate_uz_tax toolini chaqiring va mijoz maqomini (llc / yatt / self_employed) inobatga oling.`,
+    `     • MChJ / yuridik shaxs: ${llcRule.ratePercent}% (chegara: ${thresholdLine}; ${llcRule.legalRef}) [${formatRuleStatus(llcRule)}].`,
+    `     • YaTT: ${yattRule.ratePercent}% (1 mlrd so'mgacha; ${yattRule.legalRef}) [${formatRuleStatus(yattRule)}].${rules.fixedTaxAbolishedForYatt ? " 2026-yildan YaTT qat'iy JShDS bekor qilingan." : ""}`,
+    `     • O'zini o'zi band qilganlar: ${selfRule.ratePercent}% (1 mlrd so'mgacha; ${selfRule.legalRef}) [${formatRuleStatus(selfRule)}].`,
+    `   - Muhim: Soliq hisob-kitoblarida aniqlik uchun doim calculate_uz_tax toolini chaqiring va mijoz maqomini (llc / yatt / self_employed) inobatga oling. Tasdiqlanmagan qoida bo'lsa foydalanuvchini albatta ogohlantiring.`,
   ].join("\n");
 }
 
@@ -705,7 +760,7 @@ export interface TurnoverTaxCalculationResult {
   thresholdUsagePercent: number | null;
   taxRuleVersion: string;
   effectiveYear: number;
-  lastVerifiedAt: string;
+  lastVerifiedAt: string | null;
   verificationStatus: TaxRuleVerificationStatus;
   ruleNote?: string;
   taxArticleRef: string;
