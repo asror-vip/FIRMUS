@@ -77,6 +77,32 @@ describe("Band 1: 1C Pairing Hardening, DB Rate Limit, Lockout & Token Expiry/Re
     );
   });
 
+  it("prioritizes x-vercel-forwarded-for over spoofed x-forwarded-for for IP rate limiting", async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: { allowed: false, reset_in_seconds: 60 },
+      error: null,
+    });
+
+    const req = new NextRequest("https://firmus.uz/api/1c/pair", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-vercel-forwarded-for": "198.51.100.77",
+        "x-forwarded-for": "1.2.3.4",
+      },
+      body: JSON.stringify({ pairingCode: "ABCD-2345" }),
+    });
+
+    await pairPost(req);
+    const expectedHash = sha256Hex("1c-pair-ip:198.51.100.77");
+    expect(mockRpc).toHaveBeenCalledWith(
+      "check_rate_limit_atomic",
+      expect.objectContaining({
+        p_bucket_key: `1c_pair_ip:${expectedHash}`,
+      })
+    );
+  });
+
   it("rejects short 6-digit codes and locks IP after repeated failed attempts", async () => {
     // 1st call: IP rate check allowed; 2nd call: IP fail counter hits lockout
     mockRpc
