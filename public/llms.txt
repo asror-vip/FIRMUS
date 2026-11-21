@@ -1,0 +1,11 @@
+# FIRMUS
+
+> Accounting, 1C reconciliation, and Uzbekistan 2026 tax calculators for multi-client accountants.
+
+## Public Pages
+- [Home](https://firmusv1.netlify.app/welcome): Platform overview and guest tools.
+- [Tax Calculators](https://firmusv1.netlify.app/calculators): Free Uzbekistan 2026 VAT 12%, payroll, turnover tax, and vacation pay calculators.
+- [Bank & 1C Reconcile](https://firmusv1.netlify.app/try): Browser-local Bank statement vs 1C reconciliation tool.
+- [User Guide](https://firmusv1.netlify.app/guide): Complete guide to features, legal basis, 1C integration, and plans.
+- [Privacy Policy](https://firmusv1.netlify.app/privacy): Data privacy and Zero-PII policy.
+- [Terms of Service](https://firmusv1.netlify.app/terms): Public offer and usage terms.

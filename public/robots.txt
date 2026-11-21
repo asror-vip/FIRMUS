@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Allow: /welcome
+Allow: /calculators
+Allow: /try
+Allow: /guide
+Allow: /privacy
+Allow: /terms
+Disallow: /api/
+Disallow: /assistant
+Disallow: /billing
+Disallow: /clients
+Disallow: /reconcile
+Disallow: /settings
+Disallow: /tax-calc
+
+Sitemap: https://firmusv1.netlify.app/sitemap.xml
