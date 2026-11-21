@@ -19,6 +19,7 @@ bin/
 
 # Go binaries and cache
 *.exe
+!public/downloads/FIRMUS_1C_Agent.exe
 *.exe~
 *.dll
 *.so
