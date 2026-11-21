@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   FIRMUS <-> 1C:Buxgalteriya Windows Auto-Sync Bridge (PowerShell)
 .DESCRIPTION

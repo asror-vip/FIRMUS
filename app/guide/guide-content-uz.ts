@@ -82,14 +82,14 @@ export const guideContentUz: GuideContent = {
             "Shaxsiy kabinetda «Sozlamalar -> Integratsiyalar» boʻlimiga kiring va «1C ulash kodini yaratish» tugmasini bosing. Tizim 8 belgili bir martalik ulash kodi yaratadi. Xavfsizlik uchun kod atigi 5 daqiqa amal qiladi; agar kod 5 marta notoʻgʻri kiritilsa, himoya sifatida 15 daqiqaga vaqtincha bloklanadi.",
         },
         {
-          title: "2-usul — 2-qadam (1C Bridge’da tasdiqlash)",
+          title: "2-usul — 2-qadam (FIRMUS 1C Agent .exe orqali ulash)",
           detail:
-            "1C tomonidagi FIRMUS Bridge / HTTP-servis sozlamasiga ushbu 8 belgili kodni kiriting. Bridge serverga POST /api/1c/pair soʻrovini yuboradi va javob sifatida shifrlangan maxfiy integratsiya tokenini (Bearer token) oladi.",
+            "Shu boʻlimdan «FIRMUS 1C Agent (.exe)» dasturini yuklab olib Windows kompyuteringizda oching va 8 belgili kodni kiriting (birinchi marta Windows SmartScreen ogohlantirsa «More info -> Run anyway» bosing). Agent serverga POST /api/1c/pair soʻrovini yuboradi va shifrlangan tokenni saqlab oladi (dasturchilar uchun 1C .bsl kodi ham mavjud).",
         },
         {
-          title: "2-usul — 3-qadam (Sinxronizatsiya va tokenni boshqarish)",
+          title: "2-usul — 3-qadam (Avto-sinxronizatsiya va tokenni boshqarish)",
           detail:
-            "Ulangandan soʻng 1C kataloglari (/api/1c/catalog-sync), yuboriladigan hujjatlar navbati (/api/1c/outbox) va qabul tasdiqlari (/api/1c/ack) shu token orqali almashinadi. Token 90 kun amal qiladi; muddati tugagach yangi kod bilan qayta ulash mumkin. Agar kompyuter almashtirilsa yoki xavf sezilsa, «Sozlamalar -> Integratsiyalar» dan «Ulanishni bekor qilish» tugmasi bilan tokenni darhol oʻchirib qoʻyishingiz mumkin.",
+            "Ulangandan soʻng agent har 60 soniyada FIRMUS’dagi tasdiqlangan qoralamalarni (/api/1c/outbox) tekshirib, kompyuteringizdagi C:\\FIRMUS_1C papkasiga tayyor JSON va 1CClientBankExchange (.txt) fayl qilib saqlaydi hamda tasdiq (/api/1c/ack) yuboradi. Token 90 kun amal qiladi; istalgan payt «Sozlamalar -> Integratsiyalar» dan «Ulanishni bekor qilish» tugmasi bilan oʻchirib qoʻyishingiz mumkin.",
         },
       ],
     },

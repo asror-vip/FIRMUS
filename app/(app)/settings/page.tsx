@@ -1661,6 +1661,16 @@ function SettingsContent() {
                       </Button>
                     )}
                     <Button
+                      asChild
+                      size="sm"
+                      className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                    >
+                      <a href="/downloads/FIRMUS_1C_Agent.exe" download="FIRMUS_1C_Agent.exe">
+                        <Download className="h-3.5 w-3.5" />
+                        FIRMUS 1C Agent (.exe)
+                      </a>
+                    </Button>
+                    <Button
                       type="button"
                       size="sm"
                       variant="outline"

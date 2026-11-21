@@ -36,6 +36,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml" ||
     pathname === "/llms.txt" ||
+    pathname.startsWith("/downloads/") ||
     pathname.startsWith("/.well-known/") ||
     pathname.startsWith("/guide") ||
     pathname.startsWith("/privacy") ||
@@ -169,6 +170,6 @@ export const config = {
     /*
      * Protect all app routes except static Next.js assets
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|downloads/|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
