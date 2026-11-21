@@ -3,8 +3,17 @@ import { requireAdminUser } from "@/lib/auth/admin-guard";
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizePlanId, type PlanId } from "@/lib/config/plans";
 import { getTashkentTodayIso } from "@/lib/format/date";
+import { maskEmail } from "@/lib/utils/email-guard";
 
 const ESTIMATED_COST_PER_CREDIT_UZS = 55;
+const ONLINE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes active session window
+
+function formatIsoDayOffset(daysAgo: number): string {
+  const d = new Date(Date.now() - daysAgo * 86_400_000);
+  // Tashkent UTC+5
+  const shifted = new Date(d.getTime() + 5 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
+}
 
 export async function GET() {
   const adminUser = await requireAdminUser();
@@ -14,10 +23,11 @@ export async function GET() {
 
   try {
     const svc = createServiceClient();
+    const nowMs = Date.now();
     const todayIso = getTashkentTodayIso(); // YYYY-MM-DD
     const currentMonth = todayIso.slice(0, 7); // YYYY-MM
-    const sevenDaysAgoIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const thirtyDaysAgoIso = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const sevenDaysAgoIso = new Date(nowMs - 7 * 86_400_000).toISOString();
+    const thirtyDaysAgoIso = new Date(nowMs - 30 * 86_400_000).toISOString();
 
     const [
       usersRes,
@@ -64,9 +74,9 @@ export async function GET() {
     const entities = entitiesRes.data || [];
     const events = eventsRes.data || [];
 
-    const emailById = new Map<string, string>();
+    const maskedEmailById = new Map<string, string>();
     for (const u of authUsers) {
-      emailById.set(u.id, u.email || u.id);
+      maskedEmailById.set(u.id, u.email ? maskEmail(u.email) : "—");
     }
 
     const subByUser = new Map<string, any>();
@@ -111,25 +121,61 @@ export async function GET() {
 
     let usersToday = 0;
     let usersLast7Days = 0;
+    let onlineCount = 0;
+    let inactiveCount = 0;
+
+    // Prepare 7-day chart buckets (green = entered/joined, red = left/inactive/cancelled)
+    const last7Days = Array.from({ length: 7 }, (_, i) => formatIsoDayOffset(6 - i));
+    const enteredByDay = new Map<string, number>(last7Days.map((d) => [d, 0]));
+    const leftByDay = new Map<string, number>(last7Days.map((d) => [d, 0]));
 
     const usersList = authUsers
       .map((u) => {
         const createdAt = u.created_at || "";
+        const lastSignInAt = u.last_sign_in_at || null;
+        const lastSignInMs = lastSignInAt ? new Date(lastSignInAt).getTime() : 0;
+        const isOnline = lastSignInMs > 0 && nowMs - lastSignInMs <= ONLINE_WINDOW_MS;
+        const isInactive = !lastSignInMs || nowMs - lastSignInMs > 7 * 86_400_000;
+
+        if (isOnline) onlineCount += 1;
+        if (isInactive) inactiveCount += 1;
         if (createdAt.startsWith(todayIso)) usersToday += 1;
         if (createdAt >= sevenDaysAgoIso) usersLast7Days += 1;
+
+        const createdDay = createdAt.slice(0, 10);
+        const signInDay = lastSignInAt ? lastSignInAt.slice(0, 10) : "";
+        if (enteredByDay.has(createdDay)) {
+          enteredByDay.set(createdDay, (enteredByDay.get(createdDay) || 0) + 1);
+        } else if (enteredByDay.has(signInDay)) {
+          enteredByDay.set(signInDay, (enteredByDay.get(signInDay) || 0) + 1);
+        }
 
         const sub = subByUser.get(u.id);
         const planId = normalizePlanId(sub?.plan_id);
         planCounts[planId] += 1;
 
+        // Track expired/cancelled subscriptions or churned users in red series
+        const expDay = sub?.expires_at ? String(sub.expires_at).slice(0, 10) : "";
+        if (
+          (sub?.status === "canceled" || sub?.status === "expired") &&
+          leftByDay.has(expDay || String(sub?.updated_at || "").slice(0, 10))
+        ) {
+          const key = leftByDay.has(expDay)
+            ? expDay
+            : String(sub?.updated_at || "").slice(0, 10);
+          leftByDay.set(key, (leftByDay.get(key) || 0) + 1);
+        }
+
         return {
           id: u.id,
-          email: u.email || "—",
+          maskedEmail: u.email ? maskEmail(u.email) : "—",
           fullName:
             (u.user_metadata?.full_name as string) ||
             (u.user_metadata?.name as string) ||
             "",
           createdAt,
+          lastSignInAt,
+          isOnline,
           planId,
           status: (sub?.status as string) || "active",
           expiresAt: (sub?.expires_at as string) || null,
@@ -147,10 +193,15 @@ export async function GET() {
       if (o.status === "paid") {
         paidRevenueUzs += amount;
         paidOrdersCount += 1;
+      } else if (o.status === "cancelled" || o.status === "canceled" || o.status === "failed") {
+        const orderDay = String(o.created_at || "").slice(0, 10);
+        if (leftByDay.has(orderDay)) {
+          leftByDay.set(orderDay, (leftByDay.get(orderDay) || 0) + 1);
+        }
       }
       return {
         id: o.id,
-        email: emailById.get(o.user_id) || o.user_id,
+        maskedEmail: maskedEmailById.get(o.user_id) || "—",
         planId: normalizePlanId(o.plan_id),
         billingCycle: o.billing_cycle || "monthly",
         amountUzs: amount,
@@ -175,17 +226,27 @@ export async function GET() {
       }
     }
 
+    const dailyActivity = last7Days.map((day) => ({
+      date: day.slice(5), // MM-DD
+      entered: enteredByDay.get(day) || 0,
+      left: leftByDay.get(day) || 0,
+    }));
+
+    const offlineCount = Math.max(0, authUsers.length - onlineCount);
     const estimatedMonthlyAiCostUzs = totalMonthlyCredits * ESTIMATED_COST_PER_CREDIT_UZS;
 
     return NextResponse.json({
       generatedAt: new Date().toISOString(),
       periodMonth: currentMonth,
       todayIso,
-      adminEmail: adminUser.email,
+      adminEmail: adminUser.email ? maskEmail(adminUser.email) : "Admin",
       kpis: {
         totalUsers: authUsers.length,
         usersToday,
         usersLast7Days,
+        onlineCount,
+        offlineCount,
+        inactiveCount,
         totalEntities: entities.length,
         planCounts,
         paidRevenueUzs,
@@ -194,6 +255,7 @@ export async function GET() {
         totalDailyCredits,
         estimatedMonthlyAiCostUzs,
       },
+      dailyActivity,
       funnel,
       pageViewsByPath,
       users: usersList,
