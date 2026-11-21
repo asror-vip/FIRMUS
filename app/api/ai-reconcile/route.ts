@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
     if (apiKey) {
       const authz = await authorizeAndConsumeAiCredits({
         userId: user.id,
+        userEmail: user.email,
         kind: "reconcile",
         requestedModel: parsed.data.requestedModel,
         estimatedTokens: 1600,

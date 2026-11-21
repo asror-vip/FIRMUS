@@ -2,6 +2,7 @@ import "server-only";
 
 import { getServiceClient } from "@/lib/supabase/service";
 import { FEATURES } from "@/lib/config/features";
+import { isAdminEmail } from "@/lib/auth/admin-guard";
 import {
   AI_MODELS,
   PLANS_CONFIG,
@@ -85,9 +86,45 @@ export async function checkRateLimitDistributed(
   }
 }
 
-export async function resolveEffectiveSubscription(userId: string): Promise<SubscriptionSnapshot> {
+export async function resolveEffectiveSubscription(
+  userId: string,
+  userEmail?: string | null
+): Promise<SubscriptionSnapshot> {
   const svc = getServiceClient();
   const { month, day } = getTashkentPeriods();
+
+  if (isAdminEmail(userEmail)) {
+    const { data: sub } = await svc
+      .from("subscriptions")
+      .select("preferred_model")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const proPlus = PLANS_CONFIG.pro_plus;
+    const preferredModel = normalizeModelId(sub?.preferred_model || "gemini-4-hydrogen");
+    return {
+      planId: "pro_plus",
+      planName: "Admin (Cheksiz)",
+      status: "active",
+      isTrialActive: false,
+      trialAvailable: false,
+      trialEndsAt: null,
+      expiresAt: null,
+      preferredModel,
+      monthlyUsed: 0,
+      monthlyLimit: 999_999,
+      dailyUsed: 0,
+      dailyLimit: 999_999,
+      bonusCredits: 0,
+      remainingCredits: 999_999,
+      annualDiscountUsed: false,
+      limits: {
+        ...proPlus.limits,
+        monthlyCredits: 999_999,
+        dailyCredits: 999_999,
+        burstRequestsPerMin: 120,
+      },
+    };
+  }
 
   let { data: sub } = await svc
     .from("subscriptions")
@@ -261,12 +298,27 @@ export interface RejectedAiExecution {
 
 export async function authorizeAndConsumeAiCredits(params: {
   userId: string;
+  userEmail?: string | null;
   kind: AiRequestKind;
   requestedModel?: string | null;
   estimatedTokens?: number;
 }): Promise<AuthorizedAiExecution | RejectedAiExecution> {
-  const snapshot = await resolveEffectiveSubscription(params.userId);
+  const snapshot = await resolveEffectiveSubscription(params.userId, params.userEmail);
   const spec = PLANS_CONFIG[snapshot.planId];
+
+  // Admin accounts receive unlimited AI credits and both models without throttling
+  if (isAdminEmail(params.userEmail)) {
+    const modelId: AiModelId = params.requestedModel
+      ? normalizeModelId(params.requestedModel)
+      : snapshot.preferredModel;
+    return {
+      ok: true,
+      modelId,
+      modelChain: AI_MODELS[modelId].fallbackChain,
+      creditCost: 0,
+      snapshot,
+    };
+  }
 
   // 1. Distributed rate limit guard (Postgres-backed with local fallback)
   const burst = await checkRateLimitDistributed(
@@ -396,21 +448,30 @@ export async function refundConsumedAiCredits(params: {
 
 export const refundAiCredits = refundConsumedAiCredits;
 
-export async function updateSubscriptionPreferredModel(userId: string, modelId: AiModelId) {
-  const snapshot = await resolveEffectiveSubscription(userId);
+export async function updateSubscriptionPreferredModel(
+  userId: string,
+  modelId: AiModelId,
+  userEmail?: string | null
+) {
+  const snapshot = await resolveEffectiveSubscription(userId, userEmail);
   if (!snapshot.limits.allowedModels.includes(modelId)) {
     throw new Error(`${AI_MODELS[modelId].label} modeli joriy tarifingizda mavjud emas.`);
   }
   const svc = getServiceClient();
   const { error } = await svc
     .from("subscriptions")
-    .update({
-      preferred_model: modelId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId);
+    .upsert(
+      {
+        user_id: userId,
+        plan_id: snapshot.planId,
+        status: snapshot.status,
+        preferred_model: modelId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    );
   if (error) throw error;
-  return resolveEffectiveSubscription(userId);
+  return resolveEffectiveSubscription(userId, userEmail);
 }
 
 export async function activateUserProTrial(params: {

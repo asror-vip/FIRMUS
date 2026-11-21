@@ -296,6 +296,7 @@ export async function POST(req: NextRequest) {
     if (apiKey) {
       const authz = await authorizeAndConsumeAiCredits({
         userId: user.id,
+        userEmail: user.email,
         kind: mode === "contract_risk" ? "contract" : "scan",
         requestedModel,
         estimatedTokens: hasBinary ? 2800 : 2200,

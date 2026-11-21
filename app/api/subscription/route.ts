@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: msg.authRequired }, { status: 401 });
     }
 
-    const snapshot = await resolveEffectiveSubscription(user.id);
+    const snapshot = await resolveEffectiveSubscription(user.id, user.email);
     return NextResponse.json(snapshot);
   } catch (err: any) {
     console.error("GET /api/subscription error:", err);
@@ -62,7 +62,8 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await updateSubscriptionPreferredModel(
       user.id,
-      parsed.data.preferredModel
+      parsed.data.preferredModel,
+      user.email
     );
     return NextResponse.json(updated);
   } catch (err: any) {

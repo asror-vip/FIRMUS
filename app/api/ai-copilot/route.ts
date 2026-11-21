@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { copilotRequestSchema } from "@/lib/ai/agent-types";
-import { runFirmusAgent, runAdvisoryAgent } from "@/lib/ai/firmus-agent";
+import { runFirmusAgent, runAdvisoryAgent, cleanAiLatexFormatting } from "@/lib/ai/firmus-agent";
 import { FEATURES } from "@/lib/config/features";
+import { isAdminEmail } from "@/lib/auth/admin-guard";
+import { buildAdminStatsPromptContext } from "@/lib/ai/admin-stats-context";
 import {
   authorizeAndConsumeAiCredits,
   refundConsumedAiCredits,
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
 
     const authz = await authorizeAndConsumeAiCredits({
       userId: user.id,
+      userEmail: user.email,
       kind: "chat",
       requestedModel,
       estimatedTokens: 1600,
@@ -78,7 +81,11 @@ export async function POST(req: NextRequest) {
       targetEntity = data;
     }
 
-    const aiMessage = `${message}\n\n[Reply in the exact same language as the user's message above. If the language is ambiguous (e.g., numbers only), use ${locale}.]`;
+    const adminStatsContext = isAdminEmail(user.email)
+      ? await buildAdminStatsPromptContext()
+      : undefined;
+
+    const aiMessage = `${message}\n\n[Reply in the exact same language as the user's message above. Never use raw LaTeX $...$ delimiters; use plain Unicode like H₂O. If the language is ambiguous (e.g., numbers only), use ${locale}.]`;
 
     let result;
     try {
@@ -87,6 +94,7 @@ export async function POST(req: NextRequest) {
           message: aiMessage,
           history,
           modelChain: authz.modelChain,
+          adminStatsContext,
         });
       } else {
         result = await runFirmusAgent({
@@ -99,7 +107,11 @@ export async function POST(req: NextRequest) {
           history,
           modelChain: authz.modelChain,
           soloToolsMode: !FEATURES.fullAccountingErp,
+          adminStatsContext,
         });
+      }
+      if (result?.reply) {
+        result = { ...result, reply: cleanAiLatexFormatting(result.reply) };
       }
     } catch (execErr) {
       await refundConsumedAiCredits({

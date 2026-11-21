@@ -145,13 +145,70 @@ export async function resolveUserEntityRole(
   return "viewer";
 }
 
+const SUBSCRIPT_MAP: Record<string, string> = {
+  "0": "₀",
+  "1": "₁",
+  "2": "₂",
+  "3": "₃",
+  "4": "₄",
+  "5": "₅",
+  "6": "₆",
+  "7": "₇",
+  "8": "₈",
+  "9": "₉",
+};
+
+const SUPERSCRIPT_MAP: Record<string, string> = {
+  "0": "⁰",
+  "1": "¹",
+  "2": "²",
+  "3": "³",
+  "4": "⁴",
+  "5": "⁵",
+  "6": "⁶",
+  "7": "⁷",
+  "8": "⁸",
+  "9": "⁹",
+};
+
+/**
+ * Strips raw LaTeX delimiters (`$H_2O$`, `$O$`, `$$...$$`) from AI chat replies
+ * and converts simple subscripts/superscripts to clean Unicode (`H₂O`, `x²`)
+ * while leaving real currency values like `$100` untouched.
+ */
+export function cleanAiLatexFormatting(raw: string): string {
+  if (!raw) return raw;
+  const formatInner = (expr: string) =>
+    expr
+      .replace(/\\times/g, "×")
+      .replace(/\\div/g, "÷")
+      .replace(/\\approx/g, "≈")
+      .replace(/\\cdot/g, "·")
+      .replace(/\\text\{([^}]+)\}/g, "$1")
+      .replace(/\\mathrm\{([^}]+)\}/g, "$1")
+      .replace(/_\{([0-9]+)\}/g, (_, d: string) => d.split("").map((c) => SUBSCRIPT_MAP[c] || c).join(""))
+      .replace(/_([0-9])/g, (_, c: string) => SUBSCRIPT_MAP[c] || c)
+      .replace(/\^\{([0-9]+)\}/g, (_, d: string) => d.split("").map((c) => SUPERSCRIPT_MAP[c] || c).join(""))
+      .replace(/\^([0-9])/g, (_, c: string) => SUPERSCRIPT_MAP[c] || c)
+      .trim();
+
+  return raw
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_, inner: string) => formatInner(inner))
+    .replace(/\$([^$\n]{1,80}?)\$/g, (full, inner: string) => {
+      // Preserve real dollar currency amounts like "$100" when there's no math syntax
+      if (/^\d[\d,.\s]*$/.test(inner.trim())) return full;
+      return formatInner(inner);
+    });
+}
+
 function buildFirmusSystemInstruction(params: {
   entity: any;
   coaRows: Array<{ code: string; name: string; type: string }>;
   userRole: string;
   soloToolsMode?: boolean;
+  adminStatsContext?: string;
 }): string {
-  const { entity, coaRows, userRole, soloToolsMode } = params;
+  const { entity, coaRows, userRole, soloToolsMode, adminStatsContext } = params;
 
   const activeRules = resolveUzTaxRules();
   const activeTaxSummary = buildTaxRulesSummaryForAi();
@@ -166,7 +223,8 @@ function buildFirmusSystemInstruction(params: {
       "",
       "TIL VA MAVZU QOIDALARI:",
       "1. TILGA MOSLASHISH: Foydalanuvchi qaysi tilda yozsa (o'zbek, rus, ingliz yoki boshqa istalgan til), ALBATTA aynan o'sha tilda javob bering!",
-      "2. UNIVERSAL BILIM: Foydalanuvchi istalgan mavzuda (buxgalteriya, soliq, biznes, Excel formulalari, shartnomalar, xat/hujjat yozish, tarjima, dasturlash yoki umumiy hayotiy savollar) so'rasa — hammasiga erkin, to'liq va foydali javob bering. Mavzuni faqat buxgalteriya bilan cheklamang.",
+      "2. UNIVERSAL BILIM: Foydalanuvchi istalgan mavzuda (buxgalteriya, soliq, biznes, Excel formulalari, shartnomalar, xat/hujjat yozish, tarjima, dasturlash, fan yoki umumiy hayotiy savollar) so'rasa — hammasiga chuqur, aqlli, aniq va amaliy javob bering. Mavzuni faqat buxgalteriya bilan cheklamang.",
+      "2.1. FORMATLASH QOIDASI: HECH QACHON LaTeX `$...$` yoki `$$...$$` belgilarini ishlatmang! Kimyoviy va matematik formulalarni oddiy Unicode matn ko'rinishida yozing (masalan `$H_2O$` emas `H₂O`, `$O$` emas `O`, `$x^2$` emas `x²`).",
       "3. FIRMUS PLATFORMASINI BILISH VA BOSHQARISH: Boshqa oddiy AI lardan farqingiz — siz FIRMUS saytini ichidan bilasiz:",
       "   - Mijozlar (`/clients`): ko'p mijozli boshqaruv, soliq profili, bank hisoblari, 1C versiyasi;",
       "   - Aylanma va soliq (`/tax-calc`): Bank, Didox va 1C hujjatlaridan aylanma va soliqni kod orqali hisoblash, daromad bo'lmagan qatorlarni ajratish;",
@@ -179,6 +237,7 @@ function buildFirmusSystemInstruction(params: {
       "AMALDAGI 2026 SOLIQ QOIDALARI (MANBA — buxgalteriya savollarida qo'llang):",
       activeTaxSummary,
       "Asosiy 21-BHMS schyotlari: 0100, 1010, 2910, 4010, 4310, 4410, 5010, 5110, 6010, 6310, 6410, 6520, 6710, 9010, 9020, 9030, 9110, 9410, 9420, 9430.",
+      ...(adminStatsContext ? ["", adminStatsContext] : []),
     ].join("\n");
   }
 
@@ -1045,6 +1104,7 @@ export async function runFirmusAgent(params: {
   history?: AgentHistoryItem[];
   modelChain?: string[];
   soloToolsMode?: boolean;
+  adminStatsContext?: string;
 }): Promise<AgentResult> {
   const {
     supabase,
@@ -1056,6 +1116,7 @@ export async function runFirmusAgent(params: {
     history = [],
     modelChain: explicitChain,
     soloToolsMode = true,
+    adminStatsContext,
   } = params;
 
   const [coaRes, userRole] = await Promise.all([
@@ -1099,6 +1160,7 @@ export async function runFirmusAgent(params: {
     coaRows,
     userRole,
     soloToolsMode,
+    adminStatsContext,
   });
 
   const safeMessage = depersonalizeForAi(message);
@@ -1325,8 +1387,9 @@ export async function runAdvisoryAgent(params: {
   message: string;
   history?: AgentHistoryItem[];
   modelChain?: string[];
+  adminStatsContext?: string;
 }): Promise<AgentResult> {
-  const { message, history = [], modelChain: explicitChain } = params;
+  const { message, history = [], modelChain: explicitChain, adminStatsContext } = params;
   const safeMessage = depersonalizeForAi(message);
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
@@ -1336,15 +1399,17 @@ export async function runAdvisoryAgent(params: {
         ? explicitChain
         : ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
     const advisoryPrompt = [
-      "Siz FIRMUS AI — universal sunʼiy intellekt yordamchisi hamda Oʻzbekiston buxgalteriyasi (Soliq kodeksi va 21-son BHMS №3593) va FIRMUS platformasi ekspertisiz.",
+      "Siz FIRMUS AI — kuchli, universal sunʼiy intellekt yordamchisi hamda Oʻzbekiston buxgalteriyasi (Soliq kodeksi va 21-son BHMS №3593) va FIRMUS platformasi ekspertisiz.",
       `Bugungi sana: ${todayIso()}.`,
-      "AMALDAGI SOLIQ QOIDALARI (MANBA):",
+      "AMALDAGI SOLIQ QOIDALARI (MANBA — soliq savollarida qoʻllang):",
       buildTaxRulesSummaryForAi(),
+      ...(adminStatsContext ? ["", adminStatsContext] : []),
       "Qoidalar:",
       "1. TIL: Foydalanuvchi qaysi tilda yozsa (oʻzbek, rus, ingliz yoki boshqa til), ALBATTA aynan oʻsha tilda javob bering!",
-      "2. UNIVERSAL MAVZULAR: Foydalanuvchi istalgan mavzuda (buxgalteriya, soliq, Excel, biznes, shartnoma, tarjima, xat yozish yoki umumiy savollar) murojaat qilsa — barchasiga aniq, erkin va foydali javob bering.",
-      "3. Qonunchilik savollariga imkon qadar tegishli Soliq kodeksi moddasini va lex.uz havolasini aniq koʻrsatib javob bering. Aniq ishonchingiz komil boʻlmagan moddani toʻqimang.",
-      "4. Ish haqi va soliq savollarida 21-BHMS Debet/Kredit provodkalarini qadam-baqadam koʻrsating.",
+      "2. UNIVERSAL MAVZULAR VA CHUQUR JAVOB: Foydalanuvchi istalgan mavzuda (biznes, tahlil, buxgalteriya, soliq, Excel, shartnoma, dasturlash, fan, tarjima yoki kundalik savollar) murojaat qilsa — barchasiga aqlli, aniq, tizimli va foydali javob bering. Faqat 1 jumlali quruq javob bilan cheklanmang.",
+      "3. FORMATLASH: HECH QACHON LaTeX `$...$` yoki `$$...$$` belgilarini ishlatmang! Formulalarni oddiy Unicode matnda yozing (masalan `$H_2O$` emas `H₂O`, `$O$` emas `O`, `$x^2$` emas `x²`).",
+      "4. Qonunchilik savollariga imkon qadar tegishli Soliq kodeksi moddasini va lex.uz havolasini aniq koʻrsating. Ishonchingiz komil boʻlmagan moddani toʻqimang.",
+      "5. Ish haqi va soliq savollarida 21-BHMS Debet/Kredit provodkalarini qadam-baqadam koʻrsating.",
     ].join("\n");
 
     const contents = [
@@ -1370,8 +1435,8 @@ export async function runAdvisoryAgent(params: {
               systemInstruction: { parts: [{ text: advisoryPrompt }] },
               contents,
               generationConfig: {
-                temperature: 0.1,
-                maxOutputTokens: 1500,
+                temperature: 0.4,
+                maxOutputTokens: 2048,
               },
             }),
           }
@@ -1386,7 +1451,7 @@ export async function runAdvisoryAgent(params: {
           return {
             mode: "gemini_agent",
             modelUsed: modelName,
-            reply: text,
+            reply: cleanAiLatexFormatting(text),
             toolCalls: ["uz_tax_advisory"],
             userRole: "advisory",
             canExecuteActions: false,
