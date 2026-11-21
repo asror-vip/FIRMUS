@@ -176,3 +176,14 @@ export async function createBusinessEntity(entity: {
     bankName: "ATB Kapitalbank",
   };
 }
+
+export async function deleteBusinessEntity(entityId: string): Promise<void> {
+  if (!entityId) return;
+  const { error } = await supabase
+    .from("business_entities")
+    .delete()
+    .eq("id", entityId);
+
+  if (error) throw error;
+  invalidateCachePrefix("workspaces:", "entities:");
+}

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAppState } from "@/lib/context/app-state";
 import { FEATURES } from "@/lib/config/features";
 import { useTranslation } from "@/lib/i18n/useTranslation";
@@ -106,10 +106,32 @@ function SidebarNavigation({
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { toggleAiDrawer } = useAppState();
   const { t, locale } = useTranslation();
   const d = getShellSharedDict(locale);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Eagerly prefetch core app routes right after mount so switching tabs feels instant
+  useEffect(() => {
+    const coreRoutes = [
+      "/",
+      "/clients",
+      "/tax-calc",
+      "/reconcile",
+      "/assistant",
+      "/billing",
+      "/settings",
+    ];
+    const timer = window.setTimeout(() => {
+      for (const route of coreRoutes) {
+        if (route !== pathname) {
+          router.prefetch(route);
+        }
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [router, pathname]);
 
   const clientsLabel =
     locale === "ru" ? "Клиенты" : locale === "en" ? "Clients" : "Mijozlar";

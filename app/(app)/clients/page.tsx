@@ -9,6 +9,7 @@ import {
   createBusinessEntity,
   updateBusinessEntity,
 } from "@/lib/services/supabase-service";
+import { deleteBusinessEntity } from "@/lib/services/workspace-context-service";
 import {
   ACTIVITY_TYPE_OPTIONS,
   ONEC_PROFILE_PLACEHOLDERS,
@@ -616,6 +617,38 @@ function ClientsContent() {
     }
   };
 
+  const handleDeleteClient = async (ent: BusinessEntity) => {
+    const confirmMsg =
+      locale === "ru"
+        ? `Удалить клиента «${ent.name}»? Это действие нельзя отменить.`
+        : locale === "en"
+        ? `Delete client "${ent.name}"? This action cannot be undone.`
+        : `«${ent.name}» mijozini oʻchirishni tasdiqlaysizmi? Bu amalni ortga qaytarib boʻlmaydi.`;
+    if (typeof window !== "undefined" && !window.confirm(confirmMsg)) {
+      return;
+    }
+    try {
+      await deleteBusinessEntity(ent.id);
+      await refreshContext();
+      toast.success(
+        locale === "ru"
+          ? "Клиент удалён"
+          : locale === "en"
+          ? "Client deleted"
+          : "Mijoz oʻchirildi"
+      );
+    } catch (err: any) {
+      toast.error(
+        err?.message ||
+          (locale === "ru"
+            ? "Не удалось удалить клиента"
+            : locale === "en"
+            ? "Failed to delete client"
+            : "Mijozni oʻchirib boʻlmadi")
+      );
+    }
+  };
+
   const availablePeriods = useMemo(() => {
     const keys = Array.from(new Set(batches.map((b) => getPeriodKey(b.periodMonth, periodMode))));
     return keys.sort((a, b) => b.localeCompare(a));
@@ -935,6 +968,16 @@ function ClientsContent() {
                           title={c.editBtn}
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => void handleDeleteClient(ent)}
+                          title={locale === "ru" ? "Удалить" : locale === "en" ? "Delete" : "Oʻchirish"}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>

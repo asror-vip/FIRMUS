@@ -46,7 +46,7 @@ export const authFormsDict: AuthFormsDict = {
     "loadingBtn": "Creating account...",
     "hasAccount": "Already have an account?",
     "loginLink": "Sign in",
-    "agreePrefix": "By signing up, you agree to our",
+    "agreePrefix": "I have read and agree to the",
     "privacyLink": "Privacy Policy",
     "andWord": "and",
     "termsLink": "Terms of Service",

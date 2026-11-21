@@ -59,13 +59,13 @@ export function PublicCalculatorsClient() {
   const activeRules = resolveUzTaxRules();
   const unverifiedRules = useMemo(() => getUnverifiedTaxRules(), []);
 
-  const [salaryAmount, setSalaryAmount] = useState("5000000");
+  const [salaryAmount, setSalaryAmount] = useState("");
   const [salaryDir, setSalaryDir] = useState<"gross_to_net" | "net_to_gross">("gross_to_net");
-  const [vatAmount, setVatAmount] = useState("11200000");
+  const [vatAmount, setVatAmount] = useState("");
   const [vatMode, setVatMode] = useState<"included" | "excluded">("included");
-  const [turnoverRev, setTurnoverRev] = useState("100000000");
+  const [turnoverRev, setTurnoverRev] = useState("");
   const [turnoverStatus, setTurnoverStatus] = useState<TaxpayerStatus>("llc");
-  const [vacationDays, setVacationDays] = useState("21");
+  const [vacationDays, setVacationDays] = useState("");
   const [draftHydrated, setDraftHydrated] = useState(false);
 
   const trackedToolsRef = useRef<Set<string>>(new Set());
@@ -324,6 +324,7 @@ export function PublicCalculatorsClient() {
                 type="number"
                 min={0}
                 value={vatAmount}
+                placeholder="Masalan: 11 200 000"
                 onChange={(e) => {
                   setVatAmount(e.target.value);
                   markToolUsed("calculator_vat");
@@ -376,6 +377,7 @@ export function PublicCalculatorsClient() {
                   type="number"
                   min={0}
                   value={turnoverRev}
+                  placeholder="Masalan: 100 000 000"
                   onChange={(e) => {
                     setTurnoverRev(e.target.value);
                     markToolUsed("calculator_turnover");
@@ -436,6 +438,7 @@ export function PublicCalculatorsClient() {
                   min={1}
                   max={60}
                   value={vacationDays}
+                  placeholder="Masalan: 21"
                   onChange={(e) => {
                     setVacationDays(e.target.value);
                     markToolUsed("calculator_vacation");

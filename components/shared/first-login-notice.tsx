@@ -44,10 +44,10 @@ export function FirstLoginNotice() {
 
   const checkboxLabel =
     locale === "ru"
-      ? "Я ознакомился с условиями и подтверждаю, что все расчеты носят рекомендательный характер, а итоговое решение принимает бухгалтер."
+      ? "Я ознакомился(ась) с Условиями использования и Политикой конфиденциальности и согласен(на) с ними."
       : locale === "en"
-      ? "I have reviewed the terms and confirm that all calculations are advisory and final accounting decisions remain my responsibility."
-      : "Shartlar bilan tanishdim hamda barcha hisob-kitoblar yordamchi tavsiya ekanini va yakuniy javobgarlik oʻz zimmamda ekanini tasdiqlayman.";
+      ? "I have read and agree to the Terms of Service and Privacy Policy."
+      : "Foydalanish shartlari va Maxfiylik siyosati bilan tanishib chiqdim va roziman.";
 
   return (
     <div

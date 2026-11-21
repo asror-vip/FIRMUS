@@ -125,7 +125,7 @@ export const guideContentEn: GuideContent = {
       aiCredits: "25 credits / mo (6 / day)",
       models: "Gemini 3.8 Flash (1 credit)",
       pdfLimit: "No PDF; images up to 1 MB; reconcile 3 MB / 1,000 rows (15 saved)",
-      entitiesLimit: "1 company (STIR), 1 user",
+      entitiesLimit: "Up to 3 companies (STIR), 1 user",
       extra: "10 chats (30 msgs/chat); 1C exports and all calculators included.",
     },
     {
@@ -136,7 +136,7 @@ export const guideContentEn: GuideContent = {
       aiCredits: "350 credits / mo (45 / day)",
       models: "Gemini 3.8 Flash (1 cr) + Gemini 4 Hydrogen (2 cr)",
       pdfLimit: "PDF up to 4 MB (10 pages); images 1.5 MB; reconcile 10 MB / 3,000 rows (150 saved)",
-      entitiesLimit: "Up to 5 companies (STIR), 5 team members",
+      entitiesLimit: "Up to 15 companies (STIR), 5 team members",
       extra: "80 chats (60 msgs/chat); contract analysis up to 25,000 chars.",
     },
     {

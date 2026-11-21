@@ -125,7 +125,7 @@ export const guideContentRu: GuideContent = {
       aiCredits: "25 кредитов / мес (6 в день)",
       models: "Gemini 3.8 Flash (1 кредит)",
       pdfLimit: "PDF закрыт; фото до 1 МБ; сверка 3 МБ / 1 000 строк (15 в архиве)",
-      entitiesLimit: "1 компания (ИНН), 1 пользователь",
+      entitiesLimit: "До 3 компаний (ИНН), 1 пользователь",
       extra: "10 чатов по 30 сообщений; экспорт 1С и все калькуляторы доступны.",
     },
     {
@@ -136,7 +136,7 @@ export const guideContentRu: GuideContent = {
       aiCredits: "350 кредитов / мес (45 в день)",
       models: "Gemini 3.8 Flash (1 кр) + Gemini 4 Hydrogen (2 кр)",
       pdfLimit: "PDF до 4 МБ (10 стр.); фото 1,5 МБ; сверка 10 МБ / 3 000 строк (150 в архиве)",
-      entitiesLimit: "До 5 компаний (ИНН), 5 участников",
+      entitiesLimit: "До 15 компаний (ИНН), 5 участников",
       extra: "80 чатов по 60 сообщений; анализ договоров до 25 000 символов.",
     },
     {

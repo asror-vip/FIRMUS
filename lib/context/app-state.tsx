@@ -21,7 +21,6 @@ import {
   type SubscriptionSnapshot,
 } from "@/lib/config/plans";
 import {
-  createBusinessEntity,
   createWorkspaceRecord,
   fetchBusinessEntities,
   fetchWorkspaces,
@@ -136,22 +135,36 @@ export function AppStateProvider({
 
   const setPreferredAiModel = useCallback(
     async (modelId: AiModelId) => {
-      const res = await fetch("/api/subscription", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preferredModel: modelId }),
+      // Optimistic 0ms UI update so switching models feels instant
+      let previousSnapshot: SubscriptionSnapshot | null = null;
+      setSubscription((prev) => {
+        previousSnapshot = prev;
+        if (prev.preferredModel === modelId) return prev;
+        return { ...prev, preferredModel: modelId };
       });
-      const data = await res.json();
-      if (!res.ok) {
-        const fallbackError =
-          language === "ru"
-            ? "Не удалось переключить модель"
-            : language === "en"
-            ? "Failed to switch AI model"
-            : "Modelni almashtirib boʻlmadi";
-        throw new Error(data?.error || fallbackError);
+
+      try {
+        const res = await fetch("/api/subscription", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preferredModel: modelId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (previousSnapshot) setSubscription(previousSnapshot);
+          const fallbackError =
+            language === "ru"
+              ? "Не удалось переключить модель"
+              : language === "en"
+              ? "Failed to switch AI model"
+              : "Modelni almashtirib boʻlmadi";
+          throw new Error(data?.error || fallbackError);
+        }
+        setSubscription(data as SubscriptionSnapshot);
+      } catch (err) {
+        if (previousSnapshot) setSubscription(previousSnapshot);
+        throw err;
       }
-      setSubscription(data as SubscriptionSnapshot);
     },
     [language]
   );
@@ -205,33 +218,8 @@ export function AppStateProvider({
           } catch {}
         }
 
-        const savedWs =
-          typeof window !== "undefined" ? localStorage.getItem("firmus_workspace") : null;
-        const activeWs = wsList.find((w: any) => w.id === savedWs) || wsList[0];
-
-        if (activeWs?.id) {
-          const entList = await fetchBusinessEntities();
-          const scopedEnts = (entList || []).filter(
-            (e: any) => !e.workspaceId || e.workspaceId === activeWs.id
-          );
-          if (scopedEnts.length === 0) {
-            const displayName =
-              authUser.user_metadata?.full_name ||
-              authUser.user_metadata?.name ||
-              (authUser.email ? authUser.email.split("@")[0] : "Shaxsiy profil");
-            const createdEnt = await createBusinessEntity({
-              workspaceId: activeWs.id,
-              legalName: String(displayName).slice(0, 120) || "Shaxsiy profil",
-              tinStir: "000000000",
-              companyType: "YaTT",
-              taxRegime: "vat_profit_tax",
-              accountantName: String(displayName).slice(0, 120) || "Foydalanuvchi",
-            });
-            try {
-              localStorage.setItem("firmus_entity", createdEnt.id);
-            } catch {}
-          }
-        }
+        // Do NOT auto-create a placeholder 000000000 business entity for new accounts;
+        // let the user start with a clean empty Clients list and add their own real companies.
       } finally {
         provisionLocks.delete(authUser.id);
       }

@@ -627,7 +627,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
             "Полный архив по месяцам и история сохранённых AI-чатов",
           ],
           b2bFeatures: [
-            "До 5 компаний (ИНН) и командный доступ",
+            "До 15 компаний (ИНН) и командный доступ",
             "Модели Gemini 4 Hydrogen и Gemini 3.8 Flash",
             "Экспертиза PDF счетов-фактур и договоров",
             "Расширенный архив и отчёты",
@@ -930,7 +930,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
             "Access to recent saved works and chat history",
           ],
           b2bFeatures: [
-            "Core workflows for 1 company (TIN)",
+            "Core workflows for up to 3 companies (TIN)",
             "Gemini 3.8 Flash model",
             "Bank ↔ 1C reconciliation & 1C export",
             "Tax and payroll calculators",
@@ -949,7 +949,7 @@ export const BILLING_HOME_DICT: Record<Locale, BillingHomeDict> = {
             "Full monthly archive and saved AI conversation history",
           ],
           b2bFeatures: [
-            "Up to 5 companies (TIN) and team access",
+            "Up to 15 companies (TIN) and team access",
             "Gemini 4 Hydrogen & Gemini 3.8 Flash models",
             "PDF invoice and contract review",
             "Extended archive and reporting",

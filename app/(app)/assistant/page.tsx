@@ -345,13 +345,13 @@ function AssistantContent() {
   }, [activeTab, loadUnifiedHistory]);
 
   // 3. Calculator state
-  const [calcSalaryAmount, setCalcSalaryAmount] = useState("5000000");
+  const [calcSalaryAmount, setCalcSalaryAmount] = useState("");
   const [calcSalaryDir, setCalcSalaryDir] = useState<"gross_to_net" | "net_to_gross">("gross_to_net");
-  const [calcVatAmount, setCalcVatAmount] = useState("11200000");
+  const [calcVatAmount, setCalcVatAmount] = useState("");
   const [calcVatMode, setCalcVatMode] = useState<"included" | "excluded">("included");
-  const [calcTurnoverRev, setCalcTurnoverRev] = useState("100000000");
+  const [calcTurnoverRev, setCalcTurnoverRev] = useState("");
   const [calcTurnoverStatus, setCalcTurnoverStatus] = useState<TaxpayerStatus>("llc");
-  const [calcVacationDays, setCalcVacationDays] = useState("21");
+  const [calcVacationDays, setCalcVacationDays] = useState("");
 
   // 4. Contract Risk state
   const contractFileRef = useRef<HTMLInputElement | null>(null);
@@ -1619,6 +1619,7 @@ function AssistantContent() {
                     type="number"
                     min={0}
                     value={calcVatAmount}
+                    placeholder="Masalan: 11 200 000"
                     onChange={(e) => setCalcVatAmount(e.target.value)}
                     className="h-9 font-mono text-xs"
                   />
@@ -1666,6 +1667,7 @@ function AssistantContent() {
                       type="number"
                       min={0}
                       value={calcTurnoverRev}
+                      placeholder="Masalan: 100 000 000"
                       onChange={(e) => setCalcTurnoverRev(e.target.value)}
                       className="h-8 font-mono text-xs"
                     />
@@ -1720,6 +1722,7 @@ function AssistantContent() {
                       min={1}
                       max={60}
                       value={calcVacationDays}
+                      placeholder="Masalan: 21"
                       onChange={(e) => setCalcVacationDays(e.target.value)}
                       className="h-8 font-mono text-xs"
                     />
