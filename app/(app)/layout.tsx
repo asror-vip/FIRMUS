@@ -8,6 +8,7 @@ import { FirstLoginNotice } from "@/components/shared/first-login-notice";
 import { AppOverlays } from "@/components/shell/app-overlays";
 import { AppStateProvider } from "@/lib/context/app-state";
 import { GuideTopBanner } from "@/components/shared/guide-top-banner";
+import { isAdminEmail } from "@/lib/auth/admin-guard";
 
 export default async function AppLayout({
   children,
@@ -23,12 +24,14 @@ export default async function AppLayout({
     redirect("/login");
   }
 
+  const isAdmin = isAdminEmail(user.email);
+
   return (
     <AppStateProvider>
       <div className="flex flex-col h-screen w-full overflow-hidden bg-background">
         <GuideTopBanner />
         <div className="flex flex-1 min-h-0 w-full overflow-hidden">
-          <Sidebar />
+          <Sidebar isAdmin={isAdmin} />
           <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
             <Topbar />
             <main className="flex-1 overflow-y-auto flex flex-col">

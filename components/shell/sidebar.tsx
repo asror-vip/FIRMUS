@@ -104,7 +104,7 @@ function SidebarNavigation({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { toggleAiDrawer } = useAppState();
@@ -112,17 +112,18 @@ export function Sidebar() {
   const d = getShellSharedDict(locale);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Automatically route admin from root "/" straight to "/admin"
+  useEffect(() => {
+    if (isAdmin && pathname === "/") {
+      router.replace("/admin");
+    }
+  }, [isAdmin, pathname, router]);
+
   // Eagerly prefetch core app routes right after mount so switching tabs feels instant
   useEffect(() => {
-    const coreRoutes = [
-      "/",
-      "/clients",
-      "/tax-calc",
-      "/reconcile",
-      "/assistant",
-      "/billing",
-      "/settings",
-    ];
+    const coreRoutes = isAdmin
+      ? ["/admin", "/assistant", "/settings"]
+      : ["/", "/clients", "/tax-calc", "/reconcile", "/assistant", "/billing", "/settings"];
     const timer = window.setTimeout(() => {
       for (const route of coreRoutes) {
         if (route !== pathname) {
@@ -131,7 +132,7 @@ export function Sidebar() {
       }
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [router, pathname]);
+  }, [router, pathname, isAdmin]);
 
   const clientsLabel =
     locale === "ru" ? "Клиенты" : locale === "en" ? "Clients" : "Mijozlar";
@@ -204,7 +205,26 @@ export function Sidebar() {
     },
   ];
 
-  const navigationGroups = FEATURES.fullAccountingErp ? fullErpGroups : soloToolsGroups;
+  const adminGroups: NavigationGroup[] = [
+    {
+      label: "Admin",
+      items: [
+        {
+          name: locale === "ru" ? "Админ статистика" : locale === "en" ? "Admin Dashboard" : "Admin Statistika",
+          href: "/admin",
+          icon: LayoutDashboard,
+        },
+        { name: d.sidebar.solo.aiChat, href: "/assistant", icon: Sparkles },
+        { name: t.nav.settings, href: "/settings", icon: Settings },
+      ],
+    },
+  ];
+
+  const navigationGroups = isAdmin
+    ? adminGroups
+    : FEATURES.fullAccountingErp
+    ? fullErpGroups
+    : soloToolsGroups;
 
   return (
     <aside

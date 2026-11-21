@@ -60,11 +60,14 @@ export async function middleware(request: NextRequest) {
 
   const hasAuthCookie = hasSupabaseAuthCookie(request);
 
-  // Guests visiting root "/" without an auth cookie immediately receive the public home page (zero Auth RTT)
+  // Guests visiting root "/" without an auth cookie redirect cleanly to "/welcome"
+  // (never rewrite "/" to static "/welcome", otherwise CDN/Router caches "/" as "/welcome" after login!)
   if (pathname === "/" && !hasAuthCookie) {
     const publicHomeUrl = request.nextUrl.clone();
     publicHomeUrl.pathname = "/welcome";
-    return NextResponse.rewrite(publicHomeUrl);
+    const redirectRes = NextResponse.redirect(publicHomeUrl);
+    redirectRes.headers.set("Cache-Control", "private, no-store, max-age=0");
+    return redirectRes;
   }
 
   // Auth pages without a Supabase auth cookie incur zero Supabase Auth RTT

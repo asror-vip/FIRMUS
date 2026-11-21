@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { sanitizeInternalRedirect } from "@/lib/utils/redirect";
 import { useLocale } from "@/lib/context/locale-context";
 import { useAuthFormsDict } from "@/lib/i18n/domains/use-auth-forms-dict";
@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Lock, Mail, ArrowRight, Loader2 } from "lucide-react";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectedFrom = sanitizeInternalRedirect(searchParams.get("redirectedFrom"));
   const authError = searchParams.get("error");
@@ -51,8 +50,7 @@ function LoginForm() {
       if (error) throw error;
 
       toast.success(d.loginSuccessToast);
-      router.replace(redirectedFrom);
-      router.refresh();
+      window.location.assign(redirectedFrom);
     } catch (err: any) {
       console.error("Login error:", err);
       toast.error(err.message || d.invalidCredentialsToast);

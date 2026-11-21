@@ -80,8 +80,7 @@ export default function RegisterPage() {
       }
 
       toast.success(d.registerSuccessToast);
-      router.replace("/");
-      router.refresh();
+      window.location.assign("/");
     } catch (err: any) {
       console.error("Register error:", err);
       toast.error(err.message || d.registerErrorToast);
