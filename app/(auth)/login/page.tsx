@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { sanitizeInternalRedirect } from "@/lib/utils/redirect";
 import { useLocale } from "@/lib/context/locale-context";
@@ -92,13 +93,24 @@ function LoginForm() {
 
       <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-1.5">
-          <div className="inline-flex items-center justify-center mb-1">
-            <img
-              src="/brand/firmus-f.jpg"
+          <Link href="/welcome" className="inline-flex items-center justify-center mb-1">
+            <Image
+              src="/brand/firmus-wordmark.png"
               alt="FIRMUS"
-              className="h-12 w-12 rounded-xl object-cover shadow-md border border-border"
+              width={144}
+              height={36}
+              priority
+              className="h-9 w-auto object-contain dark:hidden"
             />
-          </div>
+            <Image
+              src="/brand/firmus-wordmark-dark.png"
+              alt="FIRMUS"
+              width={144}
+              height={36}
+              priority
+              className="h-9 w-auto object-contain hidden dark:block"
+            />
+          </Link>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
             {d.title}
           </h1>

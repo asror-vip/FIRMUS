@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useLocale } from "@/lib/context/locale-context";
 import { useAuthFormsDict } from "@/lib/i18n/domains/use-auth-forms-dict";
 import { LanguageToggle } from "@/components/shared/language-toggle";
@@ -52,14 +53,24 @@ export default function ForgotPasswordPage() {
 
       <div className="w-full max-w-sm space-y-5">
         <div className="text-center space-y-2">
-          <div className="relative inline-flex items-center justify-center mb-1">
-            <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 opacity-50 blur-lg" />
-            <img
-              src="/brand/firmus-f.jpg"
+          <Link href="/welcome" className="inline-flex items-center justify-center mb-1">
+            <Image
+              src="/brand/firmus-wordmark.png"
               alt="FIRMUS"
-              className="relative h-14 w-14 rounded-2xl object-cover shadow-2xl border border-violet-400/40"
+              width={144}
+              height={36}
+              priority
+              className="h-9 w-auto object-contain dark:hidden"
             />
-          </div>
+            <Image
+              src="/brand/firmus-wordmark-dark.png"
+              alt="FIRMUS"
+              width={144}
+              height={36}
+              priority
+              className="h-9 w-auto object-contain hidden dark:block"
+            />
+          </Link>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
             {d.title}
           </h1>
