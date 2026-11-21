@@ -489,6 +489,28 @@ export function AppStateProvider({
     setIsAiDrawerOpen((prev) => !prev);
   }, []);
 
+  // Send lightweight presence heartbeat while tab is visible so /admin shows accurate live Online status
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const ping = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      void fetch("/api/presence", { method: "POST", keepalive: true }).catch(() => {});
+    };
+
+    ping();
+    const interval = window.setInterval(ping, 120_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ping();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user?.id]);
+
   // Sync fresh server/DB state if browser Back/Forward restores a stale bfcache snapshot
   useEffect(() => {
     const handlePageShow = (event: PageTransitionEvent) => {

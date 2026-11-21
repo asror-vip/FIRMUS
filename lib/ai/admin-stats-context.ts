@@ -1,9 +1,10 @@
 import { createServiceClient } from "@/lib/supabase/service";
+import { isAdminEmail } from "@/lib/auth/admin-guard";
 import { normalizePlanId, type PlanId } from "@/lib/config/plans";
 import { getTashkentTodayIso } from "@/lib/format/date";
 
 const ESTIMATED_COST_PER_CREDIT_UZS = 55;
-const ONLINE_WINDOW_MS = 15 * 60 * 1000;
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
 /**
  * Builds a compact, server-side live FIRMUS Admin statistics snapshot
@@ -22,7 +23,7 @@ export async function buildAdminStatsPromptContext(): Promise<string> {
     const [usersRes, subsRes, monthRes, dayRes, ordersRes, entitiesRes, eventsRes] =
       await Promise.all([
         svc.auth.admin.listUsers({ page: 1, perPage: 500 }),
-        svc.from("subscriptions").select("user_id, plan_id, status"),
+        svc.from("subscriptions").select("user_id, plan_id, status, updated_at"),
         svc
           .from("ai_usage_monthly")
           .select("credits_used")
@@ -40,7 +41,7 @@ export async function buildAdminStatsPromptContext(): Promise<string> {
           .limit(3000),
       ]);
 
-    const authUsers = usersRes.data?.users || [];
+    const authUsers = (usersRes.data?.users || []).filter((u) => !isAdminEmail(u.email));
     const subs = subsRes.data || [];
     const subMap = new Map(subs.map((s: any) => [s.user_id, s]));
 
@@ -50,11 +51,14 @@ export async function buildAdminStatsPromptContext(): Promise<string> {
     const planCounts: Record<PlanId, number> = { starter: 0, professional: 0, pro_plus: 0 };
 
     for (const u of authUsers) {
-      const lastMs = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : 0;
-      if (lastMs > 0 && nowMs - lastMs <= ONLINE_WINDOW_MS) onlineCount += 1;
+      const sub = subMap.get(u.id);
+      const lastSignInMs = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : 0;
+      const lastHbMs = sub?.updated_at ? new Date(sub.updated_at).getTime() : 0;
+      const lastSeenMs = Math.max(lastSignInMs, lastHbMs);
+      if (lastSeenMs > 0 && nowMs - lastSeenMs <= ONLINE_WINDOW_MS) onlineCount += 1;
       if ((u.created_at || "").startsWith(todayIso)) usersToday += 1;
       if ((u.created_at || "") >= sevenDaysAgoIso) usersLast7d += 1;
-      const p = normalizePlanId(subMap.get(u.id)?.plan_id);
+      const p = normalizePlanId(sub?.plan_id);
       planCounts[p] += 1;
     }
 

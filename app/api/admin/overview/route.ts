@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdminUser } from "@/lib/auth/admin-guard";
+import { isAdminEmail, requireAdminUser } from "@/lib/auth/admin-guard";
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizePlanId, type PlanId } from "@/lib/config/plans";
 import { getTashkentTodayIso } from "@/lib/format/date";
 import { maskEmail } from "@/lib/utils/email-guard";
 
 const ESTIMATED_COST_PER_CREDIT_UZS = 55;
-const ONLINE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes active session window
+const ONLINE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes live heartbeat window
 
 function formatIsoDayOffset(daysAgo: number): string {
   const d = new Date(Date.now() - daysAgo * 86_400_000);
@@ -65,7 +65,8 @@ export async function GET() {
         .limit(5000),
     ]);
 
-    const authUsers = usersRes.data?.users || [];
+    // Exclude admin accounts from customer metrics & user table
+    const authUsers = (usersRes.data?.users || []).filter((u) => !isAdminEmail(u.email));
     const subs = subsRes.data || [];
     const monthlyUsage = monthlyUsageRes.data || [];
     const dailyUsage = dailyUsageRes.data || [];
@@ -131,11 +132,14 @@ export async function GET() {
 
     const usersList = authUsers
       .map((u) => {
+        const sub = subByUser.get(u.id);
         const createdAt = u.created_at || "";
         const lastSignInAt = u.last_sign_in_at || null;
         const lastSignInMs = lastSignInAt ? new Date(lastSignInAt).getTime() : 0;
-        const isOnline = lastSignInMs > 0 && nowMs - lastSignInMs <= ONLINE_WINDOW_MS;
-        const isInactive = !lastSignInMs || nowMs - lastSignInMs > 7 * 86_400_000;
+        const lastHeartbeatMs = sub?.updated_at ? new Date(sub.updated_at).getTime() : 0;
+        const lastSeenMs = Math.max(lastSignInMs, lastHeartbeatMs);
+        const isOnline = lastSeenMs > 0 && nowMs - lastSeenMs <= ONLINE_WINDOW_MS;
+        const isInactive = !lastSeenMs || nowMs - lastSeenMs > 7 * 86_400_000;
 
         if (isOnline) onlineCount += 1;
         if (isInactive) inactiveCount += 1;
@@ -150,7 +154,6 @@ export async function GET() {
           enteredByDay.set(signInDay, (enteredByDay.get(signInDay) || 0) + 1);
         }
 
-        const sub = subByUser.get(u.id);
         const planId = normalizePlanId(sub?.plan_id);
         planCounts[planId] += 1;
 

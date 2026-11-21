@@ -353,7 +353,7 @@ export function AdminDashboardClient() {
           <div>
             <h2 className="text-sm font-bold">Online va Offline holati</h2>
             <p className="text-[11px] text-muted-foreground">
-              Soʻnggi 15 daqiqa ichida faol boʻlganlar
+              Soʻnggi 5 daqiqa ichida faol boʻlganlar
             </p>
           </div>
 
