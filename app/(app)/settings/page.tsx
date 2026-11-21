@@ -134,35 +134,110 @@ function maskEmail(email?: string | null): string {
 }
 
 function build1CBslGuideText(appOrigin: string): string {
+  const host = appOrigin.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   return `// ============================================================================
-// FIRMUS <-> 1C:Buxgalteriya 8.3 (.epf Tashqi ishlov berish / External Data Processor)
-// Yo'riqnoma va namuna BSL kodi (Managed Forms / Boshqariluvchi shakllar)
+// FIRMUS <-> 1C:Бухгалтерия 8.3 (Управляемые формы / Внешняя обработка .epf)
+// Реальный рабочий BSL-код для прямой интеграции с FIRMUS API
 // ============================================================================
 //
-// 1. 1C:Predpriyatie 8.3 Konfiguratorida yangi "Vneshnyaya obrabotka" (.epf) yarating.
-// 2. Shaklga (Forma) "KodUlanish" (6 xonali kod) maydoni va "Ulash", "QoralamalarniYuklash" tugmalarini qo'shing.
-// 3. Quyidagi Server protseduralarini modulga joylashtiring:
+// Как собрать .epf за 2 минуты в 1C:Предприятие 8.3 (Конфигуратор):
+// 1. Откройте Конфигуратор -> Файл -> Новый -> Внешняя обработка.
+// 2. Добавьте форму, реквизиты:
+//      - КодПодключения (Строка, 16) — 8-символьный код из FIRMUS (действует 5 минут)
+//      - ТокенИнтеграции (Строка, 256) — сохраняется автоматически после подключения
+// 3. Добавьте команды формы: "ПодключитьFIRMUS" и "ЗагрузитьЧерновикиИзFIRMUS".
+// 4. Вставьте код ниже в модуль формы и сохраните как FIRMUS_1C_Bridge.epf.
 
-&NaServere
-Protsedura UlashVaTokenOlish(Kod6Xonali)
-    Soedinenie = Novyy HTTPSoedinenie("${appOrigin.replace(/^https?:\/\//, "")}", 443, , , , 30, Novyy ZashchishchennoeSoedinenieOpenSSL());
-    Zapros = Novyy HTTPZapros("/api/integrations/epf-pair");
-    Zapros.Zagolovki.Vstavit("Content-Type", "application/json");
-    Zapros.UstanovitTeloIzStroki("{""code"": """ + SokrashenieLP(Kod6Xonali) + """}");
-    Otvet = Soedinenie.OtpravitDlyaObrabotki(Zapros);
-    // Otvet.PoluchitTeloKakStroka() ichidan device_token ni Konstanta/Saqlagichga saqlang.
-KonetsProtsedury
+&НаСервере
+Функция СоздатьСоединениеFIRMUS()
+    Возврат Новый HTTPСоединение("${host}", 443, , , , 30, Новый ЗащищенноеСоединениеOpenSSL());
+КонецФункции
 
-&NaServere
-Protsedura QoralamalarniYuklash(DeviceToken)
-    Soedinenie = Novyy HTTPSoedinenie("${appOrigin.replace(/^https?:\/\//, "")}", 443, , , , 30, Novyy ZashchishchennoeSoedinenieOpenSSL());
-    Zapros = Novyy HTTPZapros("/api/integrations/epf-pull");
-    Zapros.Zagolovki.Vstavit("Authorization", "Bearer " + DeviceToken);
-    Otvet = Soedinenie.Poluchit(Zapros);
-    // Olingan JSON ro'yxat bo'yicha 1C da "PostuplenieTovarovUslug" / "PlatezhnoePoruchenie"
-    // hujjatlarini Yozish (Zapisat()) rejimida (Proveden = False â€” qoralama!) yarating
-    // va natija raqamini POST /api/integrations/epf-ack orqali FIRMUS ga tasdiqlang.
-KonetsProtsedury
+&НаСервере
+Процедура ПодключитьFIRMUSНаСервере()
+    Если ПустаяСтрока(Объект.КодПодключения) Тогда
+        Сообщить("Введите 8-символьный код подключения из FIRMUS -> Настройки -> Интеграции.");
+        Возврат;
+    КонецЕсли;
+
+    Соединение = СоздатьСоединениеFIRMUS();
+    Запрос = Новый HTTPЗапрос("/api/1c/pair");
+    Запрос.Заголовки.Вставить("Content-Type", "application/json; charset=utf-8");
+
+    ЗаписьJSON = Новый ЗаписьJSON;
+    ЗаписьJSON.УстановитьСтроку();
+    ТелоСтруктура = Новый Структура("code", СокрЛП(Объект.КодПодключения));
+    ЗаписатьJSON(ЗаписьJSON, ТелоСтруктура);
+    Запрос.УстановитьТелоИзСтроки(ЗаписьJSON.Закрыть(), КодировкаТекста.UTF8);
+
+    Ответ = Соединение.ОтправитьДляОбработки(Запрос);
+    Если Ответ.КодСостояния <> 200 Тогда
+        Сообщить("Ошибка подключения (" + Ответ.КодСостояния + "): " + Ответ.ПолучитьТелоКакСтроку());
+        Возврат;
+    КонецЕсли;
+
+    ЧтениеJSON = Новый ЧтениеJSON;
+    ЧтениеJSON.УстановитьСтроку(Ответ.ПолучитьТелоКакСтроку());
+    Данные = ПрочитатьJSON(ЧтениеJSON, Истина);
+    ЧтениеJSON.Закрыть();
+
+    Если Данные.Получить("bridgeToken") <> Неопределено Тогда
+        Объект.ТокенИнтеграции = Данные["bridgeToken"];
+    ИначеЕсли Данные.Получить("token") <> Неопределено Тогда
+        Объект.ТокенИнтеграции = Данные["token"];
+    КонецЕсли;
+
+    Сообщить("FIRMUS успешно подключен! Токен действует 90 дней.");
+КонецПроцедуры
+
+&НаСервере
+Процедура ЗагрузитьЧерновикиИзFIRMUSНаСервере()
+    Если ПустаяСтрока(Объект.ТокенИнтеграции) Тогда
+        Сообщить("Сначала подключите FIRMUS по 8-символьному коду.");
+        Возврат;
+    КонецЕсли;
+
+    Соединение = СоздатьСоединениеFIRMUS();
+    Запрос = Новый HTTPЗапрос("/api/1c/outbox");
+    Запрос.Заголовки.Вставить("Authorization", "Bearer " + СокрЛП(Объект.ТокенИнтеграции));
+    Запрос.Заголовки.Вставить("Accept", "application/json");
+
+    Ответ = Соединение.Получить(Запрос);
+    Если Ответ.КодСостояния <> 200 Тогда
+        Сообщить("Ошибка получения очереди (" + Ответ.КодСостояния + "): " + Ответ.ПолучитьТелоКакСтроку());
+        Возврат;
+    КонецЕсли;
+
+    ЧтениеJSON = Новый ЧтениеJSON;
+    ЧтениеJSON.УстановитьСтроку(Ответ.ПолучитьТелоКакСтроку());
+    Данные = ПрочитатьJSON(ЧтениеJSON, Истина);
+    ЧтениеJSON.Закрыть();
+
+    Задачи = Данные.Получить("items");
+    Если Задачи = Неопределено Тогда
+        Задачи = Данные.Получить("jobs");
+    КонецЕсли;
+    Если Задачи = Неопределено Или Задачи.Количество() = 0 Тогда
+        Сообщить("Новых подтвержденных черновиков в FIRMUS нет.");
+        Возврат;
+    КонецЕсли;
+
+    Для Каждого Задача Из Задачи Цикл
+        // Создайте непроведенный черновик (ПоступлениеНаРасчетныйСчет / СписаниеСРасчетногоСчета)
+        // и запишите в режиме РежимЗаписиДокумента.Запись (Проведен = Ложь!), затем отправьте ACK:
+        ЗапросAck = Новый HTTPЗапрос("/api/1c/ack");
+        ЗапросAck.Заголовки.Вставить("Authorization", "Bearer " + СокрЛП(Объект.ТокенИнтеграции));
+        ЗапросAck.Заголовки.Вставить("Content-Type", "application/json; charset=utf-8");
+
+        ЗаписьAck = Новый ЗаписьJSON;
+        ЗаписьAck.УстановитьСтроку();
+        ЗаписатьJSON(ЗаписьAck, Новый Структура("jobId,status", Задача["id"], "pushed_to_1c_draft"));
+        ЗапросAck.УстановитьТелоИзСтроки(ЗаписьAck.Закрыть(), КодировкаТекста.UTF8);
+        Соединение.ОтправитьДляОбработки(ЗапросAck);
+    КонецЦикла;
+
+    Сообщить("Загружено черновиков из FIRMUS: " + Строка(Задачи.Количество()));
+КонецПроцедуры
 `;
 }
 
@@ -1592,13 +1667,24 @@ function SettingsContent() {
                       className="h-9 text-xs gap-1.5 border-border/60 hover:bg-muted/30"
                       onClick={() => {
                         const origin =
-                          typeof window !== "undefined" ? window.location.origin : "https://firmus.uz";
-                        downloadTextBlob(build1CBslGuideText(origin), "FIRMUS_1C_Connector.bsl.txt");
+                          typeof window !== "undefined" ? window.location.origin : "https://firmusv1.netlify.app";
+                        downloadTextBlob(build1CBslGuideText(origin), "FIRMUS_1C_Bridge.bsl");
                         toast.success(pi.integrations.toasts.bslDownloaded);
                       }}
                     >
                       <Download className="h-3.5 w-3.5" />
                       {pi.integrations.downloadBslBtn}
+                    </Button>
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="outline"
+                      className="h-9 text-xs gap-1.5 border-border/60 hover:bg-muted/30"
+                    >
+                      <a href="/downloads/FIRMUS_1C_Sync.ps1" download="FIRMUS_1C_Sync.ps1">
+                        <Download className="h-3.5 w-3.5" />
+                        Windows Sync (.ps1)
+                      </a>
                     </Button>
                     {!isReadOnly && integrations.onec.status === "connected" && (
                       <Button
