@@ -95,24 +95,21 @@ function LoginForm() {
             <Image
               src="/brand/firmus-wordmark.png"
               alt="FIRMUS"
-              width={144}
-              height={36}
+              width={160}
+              height={40}
               priority
-              className="h-9 w-auto object-contain dark:hidden"
+              className="h-10 w-auto object-contain dark:hidden"
             />
             <Image
               src="/brand/firmus-wordmark-dark.png"
               alt="FIRMUS"
-              width={144}
-              height={36}
+              width={160}
+              height={40}
               priority
-              className="h-9 w-auto object-contain hidden dark:block"
+              className="h-10 w-auto object-contain hidden dark:block"
             />
           </Link>
-          <h1 className="text-xl font-bold tracking-tight text-foreground font-sans">
-            {d.title}
-          </h1>
-          <p className="text-xs text-muted-foreground">{d.subtitle}</p>
+          <h1 className="text-sm font-medium text-muted-foreground">{d.subtitle}</h1>
         </div>
 
         <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.18)] p-6 space-y-4 text-xs">
